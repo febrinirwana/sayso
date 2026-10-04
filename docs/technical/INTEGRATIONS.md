@@ -1,0 +1,125 @@
+# Integrations
+
+Every external interface SAYSO depends on, what was verified, and the spike that settles each open question. Verified on 2026-10-05 unless stated.
+
+Labels: **[V]** verified with source or command, **[I]** inference, **[U]** unverified with the settling spike.
+
+Rule: never commit an address without `cast code <address> --rpc-url <rpc>` returning non-empty code.
+
+## 1. Monad testnet
+
+| Fact | Value | Label |
+|---|---|---|
+| Chain ID | 10143 | [V: [current facts](https://docs.monad.xyz/ai/current-facts.md)] |
+| RPC | `https://testnet-rpc.monad.xyz` | [V] |
+| Block time / finality | 300 ms blocks, 600 ms finality | [V: current facts] |
+| Gas | Charged on the gas limit, not gas used; always pass explicit `gas` | [V: [gas pricing](https://docs.monad.xyz/developer-essentials/gas-pricing)] |
+| Reserve balance | Low-balance senders can be rejected for closely spaced spending; the emptying exception needs no other transaction from that sender in the prior 3 blocks | [V: [reserve balance](https://docs.monad.xyz/developer-essentials/reserve-balance)] |
+| Local network | Monad Solonet runs real Monad nodes locally | [V: [Solonet](https://docs.monad.xyz/tooling-and-infra/toolkits/monad-solonet.md)] |
+| Explorers | MonadVision, Monadscan | [V: [explorers](https://docs.monad.xyz/tooling-and-infra/block-explorers.md)] |
+
+Consequence: the web app sequences a player's transactions by block number, never by a wall-clock sleep, and the studio keeps its three keys above the reserve.
+
+## 2. Kuru (order books)
+
+Testnet contracts, all with code [V: `cast code`]:
+
+| Contract | Address |
+|---|---|
+| Router | `0x7EFbE105Ca7415dE98F96622173458ac1c054630` |
+| MarginAccount | `0xd029C2D98ff85D8F64799017fE00a59B1159CE02` |
+
+ABIs are vendored from the published SDK package (0.0.95) into `packages/core/abi`; the SDK itself is not a dependency because it pulls in ethers v5.
+
+**Market deployment.** `Router.deployProxy(uint8 type, address base, address quote, uint96 sizePrecision, uint32 pricePrecision, uint32 tickSize, uint96 minSize, uint96 maxSize, uint256 takerFeeBps, uint256 makerFeeBps, uint96 kuruAmmSpread)`.
+- Type 0 is ERC-20 base / ERC-20 quote; type 1 is native base. Type 1 or 2 with an ERC-20 base reverts `MarketTypeMismatch()` (`0xbd6898be`) [V: simulation].
+- SAYSO parameters: type 0, base = YES token, quote = AUSD, sizePrecision 1e6, pricePrecision 1e4, tickSize 100 (1¢), minSize 1e6 (1 YES), maxSize 1e10, fees 0/0, spread 100. Simulated from an unfunded address: returns `0xbE4D25e52454cc162d1657FC786f45574Ddae410` [V: simulation]. Deployment is permissionless.
+
+**No market pause for us.** `Router.toggleMarkets(address[],uint8)` reverts `Unauthorized()` from our wallet; the Router owner is `0x07bBBf2e9911705a7b258e0A05A34620058fC1D1` [V: simulation]. Halting a word means pulling house quotes.
+
+**Calls used.**
+- House: `MarginAccount.deposit(user, token, amount)`, `OrderBook.batchProvisionLiquidity(uint32[] prices, uint32[] flipPrices, uint96[] sizes, bool[] isBuy, bool provisionOrRevert)`, `batchCancelFlipOrders(uint40[])`, `addBuyOrder(uint32 price, uint96 size, bool postOnly)` for the 0.98 bid, `MarginAccount.batchWithdrawMaxTokens(address[])`.
+- Players through `SaysoMarkets`: `placeAndExecuteMarketBuy(uint96 quoteSize, uint256 minAmountOut, bool isMargin, bool isFillOrKill)` and `placeAndExecuteMarketSell(uint96 size, uint256 minAmountOut, bool isMargin, bool isFillOrKill)` with `isMargin = false`.
+- Reads: `getMarketParams()`, `getL2Book()`, `bestBidAsk()`.
+
+**Events.** Decode with the vendored ABI, not the documentation page; the published event declarations disagree with live topics.
+- `Trade(uint40,address,bool,uint256,uint96,address,address,uint96)` = `0xf16924fba1c18c108912fcacaac7450c98eb3f2d8c0a3cdf3df7066c08f21581` [V: keccak of the SDK ABI signature]; match against a live testnet log [U: S2].
+- `FlipOrdersCanceled(uint40[],address)` = `0x5f815e5292cf3b123df58ad6d4531c085d94d5717a3b02740369a04273fde96c`.
+
+**Open.** Non-margin settlement for a contract caller (who is debited, where the base lands, units of `quoteSize`) [U: S3].
+
+## 3. Chainlink CRE (settlement)
+
+| Fact | Value | Label |
+|---|---|---|
+| Network support | Monad Testnet needs CLI 1.30.0+, TS SDK 1.19.0+; Monad mainnet also listed | [V: [supported networks](https://docs.chain.link/cre/supported-networks-ts)] |
+| Chain name | `monad-testnet` | [V: [forwarder directory](https://docs.chain.link/cre/guides/workflow/using-evm-client/forwarder-directory-ts)] |
+| Simulation forwarder | `0xB9F79d863261869B234c481D1f9A7af84AeAd192` (`MockKeystoneForwarder`, used by `simulate --broadcast`) | [V: directory + `cast code`] |
+| Production forwarder | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` (`KeystoneForwarder`) | [V: directory + `cast code`] |
+| Deploy access | Requires approval: `cre account access`; simulation works meanwhile | [V: [deploying workflows](https://docs.chain.link/cre/guides/operations/deploying-workflows)] |
+| Private registry limit | 3 workflows per organization | [V: same page] |
+| Triggers | Cron, HTTP, EVM log; in simulation triggers are selected manually | [V: [triggers](https://docs.chain.link/cre/capabilities/triggers)] |
+| HTTP | Every DON node fetches; BFT consensus deployed, single-node in simulation | [V: [HTTP capability](https://docs.chain.link/cre/capabilities/http)] |
+| Receiver | Implement `IReceiver.onReport(bytes metadata, bytes report)` with ERC-165; use `ReceiverTemplate` (forwarder required in constructor, optional workflow ID / owner / name checks, setters to switch forwarder) | [V: [consumer contracts](https://docs.chain.link/cre/guides/workflow/using-evm-client/onchain-write/building-consumer-contracts)] |
+| Metadata length | Production forwarder passes 64 bytes; never require exactly 62 | [V: same page] |
+| Agent skill | `npx skills add smartcontractkit/chainlink-agent-skills --skill chainlink-cre-skill` | [V: [developer agent skills](https://docs.chain.link/resources/chainlink-developer-agent-skills)] |
+
+Workflow `cre/resolver` (TypeScript): handlers for `EvidenceReady` and `EpisodeClosed` log triggers; EVM read for `rootA`/`rootB`; HTTP GET of revealed chunks; proof verification and `matchWord` from `packages/core`; one report per trigger.
+
+Open: tenant chain list (`cre workflow supported-chains`), CLI flags to drive `simulate --broadcast` non-interactively from a log transaction [U: S4].
+
+## 4. Mera (accounts)
+
+| Fact | Label |
+|---|---|
+| `createPasskeyWithPrfOutput`, `getPasskeyPrfOutput`, `createSecp256k1SigningSession`, `toViemAccount` from `@category-labs/mera/viem` | [V: [Mera guide](https://docs.monad.xyz/guides/mera)] |
+| Key derivation `m/44'/60'/0'/0/{i}` via `@scure/bip32` and `@scure/bip39`; SAYSO uses index 0 | [V: Mera guide] |
+| Error codes: `PRF_UNAVAILABLE`, `PASSKEY_OPERATION_FAILED`, `CRYPTO_UNAVAILABLE`, `SESSION_ENDED`, `INPUT_INVALID`, `DECRYPT_FAILED`, `VAULT_FORMAT_INVALID` | [V: `dist/errors.d.ts` of 0.2.0] |
+| Passkeys are bound to the relying-party ID (the domain) | [V: WebAuthn] |
+| Some desktop browser profiles return no PRF output (observed with local-profile passkeys in desktop Chrome) | [I: research observation; S5 confirms the supported set] |
+
+Open: PRF on the target phones (iOS Safari, Android Chrome) at the production domain [U: S5].
+
+## 5. AUSD (quote and collateral)
+
+| Fact | Value | Label |
+|---|---|---|
+| Testnet token | `0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC`, 6 decimals, exposes `DOMAIN_SEPARATOR` (permit) | [V: `cast call`] |
+| Mainnet token | `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` (reference only) | [V: [Agora deployments](https://docs.agora.finance/developer/contract-deployments.md)] |
+| Testnet faucet | `0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C`, `requestFunds(address)` | [V: `cast code`, `token()` returns AUSD] |
+| Faucet behaviour | On 2026-10-04 every fresh address reverted `MaxFrequencyExceeded()`; on 2026-10-05 `eth_call` succeeds for fresh addresses. Amount and cadence unknown | [U: S1] |
+
+Fallback quote token if S1 fails: Kuru testnet USDC `0x3bA3d39AFcf8bb994f7964B3e0171Ea2Ba361570` (6 decimals, code verified). The quote token is one config value (`AUSD`) so the switch touches no code.
+
+## 6. Envio (read model)
+
+- HyperIndex 3.12.1; HyperSync serves Monad testnet at `https://monad-testnet.hypersync.xyz` (chain 10143) [V: [HyperSync networks](https://docs.envio.dev/docs/HyperSync/hypersync-supported-networks)].
+- Indexes `SaysoMarkets` events (episodes, words, trades, sets, flags, resolutions, redemptions) and Kuru `Trade` logs for the house books.
+- Hosting: Envio hosted service versus self-hosting on the VPS [U: S6].
+
+## 7. Transcription (offline, free)
+
+| Engine | Version | Licence | Use |
+|---|---|---|---|
+| whisper.cpp (`whisper-cli`, word timestamps, JSON output) | 1.9.4 | MIT | Engine A |
+| Vosk (Kaldi-based, different model family) | 0.3.50 | Apache-2.0 | Engine B |
+
+Both run on a laptop or the VPS ahead of time; nothing transcribes in a request path. Two architecturally different engines make the agreement rule meaningful.
+
+Open: agreement rate and timestamp skew between the engines on real clips [U: S7].
+
+## 8. Free Monad developer resources used
+
+Public testnet RPC and faucet; Monad Solonet for local runs; Envio HyperSync; monskills agent skills (`therealharpaljadeja/monskills`); MonadVision and Monadscan explorers; Monad developer channels for testnet MON top-ups. Metropolis lists product credits and three months of unlimited RPC for winning teams [V: [event page](https://monad.xyz/developers/hackathons/metropolis)].
+
+## 9. Spikes
+
+| ID | Question | Pass when |
+|---|---|---|
+| S1 | AUSD faucet amount and cadence | Two timed requests from DRIP succeed; amount and interval recorded here |
+| S2 | Kuru YES/AUSD market created by `SaysoMarkets` and seeded | Contract-created market accepts a flip ladder from BOT; `getL2Book` shows both sides |
+| S3 | Non-margin IOC from a contract | `SaysoMarkets` buys and sells YES with `isMargin = false`; debits, credits and `quoteSize` units recorded |
+| S4 | CRE simulation writes on Monad testnet | `cre workflow simulate --broadcast` delivers a report to a `ReceiverTemplate` consumer through the simulation forwarder; access request submitted |
+| S5 | Mera PRF on phones at the real domain | Create, sign, clear storage, restore the same address on iOS and Android |
+| S6 | Envio hosting | Indexer serves a GraphQL query for testnet events from the chosen host |
+| S7 | Engine agreement | On three clips, agreed-word rate and median skew recorded; rule threshold confirmed |
