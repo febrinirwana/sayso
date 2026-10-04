@@ -1,0 +1,52 @@
+# dependencies
+node_modules/
+.pnp*
+
+# builds and caches
+dist/
+build/
+.output/
+.vite/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+contracts/lib/
+
+# envio
+indexer/generated/
+indexer/.envio/
+
+# cre
+cre/**/.cre_build_tmp/
+cre/**/tmp.wasm
+
+# studio runtime data
+apps/studio/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# media and models (large, licensed separately)
+clips/media/
+models/
+
+# secrets and machine settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.claude/settings.local.json
+.claude/settings.json
+
+# os and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
