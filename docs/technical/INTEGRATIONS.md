@@ -64,7 +64,7 @@ ABIs are vendored from the published SDK package (0.0.95) into `packages/core/ab
 | Metadata length | Production forwarder passes 64 bytes; never require exactly 62 | [V: same page] |
 | Agent skill | `npx skills add smartcontractkit/chainlink-agent-skills --skill chainlink-cre-skill` | [V: [developer agent skills](https://docs.chain.link/resources/chainlink-developer-agent-skills)] |
 
-Workflow `cre/resolver` (TypeScript): handlers for `EvidenceReady` and `EpisodeClosed` log triggers; EVM read for `rootA`/`rootB`; HTTP GET of revealed chunks; proof verification and `matchWord` from `packages/core`; one report per trigger.
+Workflow `cre/resolver` (TypeScript): handlers for `EvidenceReady` and `EpisodeClosed` log triggers; EVM read for `rootA`/`rootB`; HTTP GET of revealed chunks; proof verification and `agreedSpokenTime` from `packages/core`; one report per trigger. Details in `.claude/skills/cre-resolver/SKILL.md`.
 
 Non-interactive simulation from a log transaction: `cre workflow simulate <dir> --target <t> --non-interactive --trigger-index <i> --evm-tx-hash <tx> --evm-event-index <n> --broadcast` [V: vendored `chainlink-cre-skill/references/simulation.md`].
 
