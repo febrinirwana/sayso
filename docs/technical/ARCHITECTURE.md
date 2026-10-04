@@ -53,7 +53,8 @@ contracts/           Foundry: SaysoMarkets, OutcomeToken, scripts, tests
 cre/resolver/        CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
 indexer/             Envio HyperIndex config, schema, handlers
 tools/transcribe/    Offline transcription pipeline: two engines -> chunks -> roots
-clips/manifest/      Tracked clip metadata (licence, duration, words); media is ignored
+clips/fixtures/      One tracked fixture clip (manifest + chunks) for tests; real clips, manifests and
+                     transcripts are studio data so outcomes stay hidden until reveal
 docs/                PRD, LESSONS, technical/*
 .claude/skills/      Tracked project skills
 ```
@@ -209,7 +210,7 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 |---|---|---|
 | `apps/web` | Static files behind Caddy on the VPS | The domain is the passkey relying-party ID and must never change after the first real passkey |
 | `apps/studio` | Bun under systemd on the VPS | Must run 24/7 through judging (14 to 27 Oct 2026) |
-| Clip media | Caddy static with range requests | Ignored by git |
+| Clip media, manifests, transcripts | Studio data directory; media served by Caddy with range requests | Ignored by git; chunks public only through the reveal API |
 | Indexer | Envio hosted service or self-hosted on the VPS | Spike S6 |
 | CRE | Deployed DON workflow, else studio-run simulation | Deploy access requested with `cre account access` |
 | RPC | `https://testnet-rpc.monad.xyz` | Public endpoint; a provider key is optional |
