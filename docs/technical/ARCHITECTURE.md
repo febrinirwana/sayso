@@ -104,7 +104,7 @@ A word is tradable while its episode is Scheduled or Live and the word is Open o
 ### 5.1 Create an episode
 
 1. Studio picks the next clip (on-demand request or the hourly slot), loads its two chunk sets and roots from SQLite.
-2. OPERATOR calls `createEpisode(clipId, rootA, rootB, startsAt, endsAt, words)`. The contract clones YES and NO tokens per word and deploys one Kuru YES/AUSD market per word through `Router.deployProxy` type 0.
+2. OPERATOR calls `createEpisode(clipId, rootA, rootB, startsAt, endsAt, words)`, which clones YES and NO tokens per word, then `listEpisode(episodeId)`, which deploys one Kuru YES/AUSD market per word through `Router.deployProxy` type 0.
 3. BOT mints complete sets for inventory and provisions a flip ladder around 0.50 on each book with `batchProvisionLiquidity`.
 4. Studio pushes the schedule over SSE; web shows the countdown.
 
