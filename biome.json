@@ -10,7 +10,7 @@
       "**",
       "!**/.claude",
       "!**/contracts",
-      "!**/packages/core/abi/*.json",
+      "!**/packages/core/abi/kuru.ts",
       "!**/clips/fixtures",
       "!**/routeTree.gen.ts"
     ]
