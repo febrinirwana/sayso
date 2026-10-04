@@ -15,7 +15,7 @@ coverage/
 contracts/out/
 contracts/cache/
 contracts/broadcast/*/31337/
-contracts/lib/
+contracts/dependencies/
 
 # envio
 indexer/generated/

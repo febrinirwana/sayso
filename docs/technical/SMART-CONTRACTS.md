@@ -2,7 +2,7 @@
 
 Contract surface for SAYSO on Monad testnet (10143): storage, functions, events, invariants, Kuru and CRE wiring, gas and deployment. Flows that call these functions are in `ARCHITECTURE.md` section 5.
 
-Toolchain: Foundry 1.8.4, Solidity 0.8.37, OpenZeppelin Contracts 5.7.0 (plus the upgradeable package at the same version for clone initializers).
+Toolchain: Foundry 1.8.4, Solidity 0.8.37, OpenZeppelin Contracts 5.7.0 (plus the upgradeable package at the same version for clone initializers), forge-std 1.17.0. Dependencies install through Soldeer and are pinned in `contracts/soldeer.lock`; `evm_version = "prague"`, the fork Monad executes [V: [Monad Hardhat guide](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat)].
 
 ## 1. Contracts
 

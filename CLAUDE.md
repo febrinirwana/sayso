@@ -55,6 +55,7 @@ Commands exist once their owning phase lands; never report one as run before it 
 | `bun run verify` | Typecheck, Biome, Vitest across workspaces |
 | `bun run --cwd apps/web dev` | Web on a phone-sized viewport |
 | `bun run --cwd apps/studio dev` | Studio against testnet with `.env` |
+| `forge soldeer install` (in `contracts`) | Restore pinned forge-std and OpenZeppelin from `soldeer.lock` after a clean clone |
 | `forge test` (in `contracts`) | Unit and invariant tests; add `--gas-report` when gas changes |
 | `cre workflow simulate cre/resolver --target <t> --non-interactive --trigger-index <i> ...` | Resolver run; see `cre-resolver` skill |
 | `bun run --cwd indexer codegen` / `dev` | Envio generation and local indexer |
