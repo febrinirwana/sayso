@@ -149,7 +149,7 @@ The outcome of every word is fixed before the first trade and provable afterward
 2. Tokens are normalized by `packages/core` (`normalizeToken`) into `[word, startMs, endMs]`.
 3. Tokens are grouped into 10,000 ms chunks by start time. Chunk `i` covers `[10000·i, 10000·(i+1))`. Every index from 0 to `ceil(duration / 10,000) − 1` exists, empty chunks included, so the NO path can prove a complete set.
 4. `leaf = keccak256(abi.encode(clipId, engine, index, startMs, endMs, tokensHash))`; ABI types are `(bytes32 clipId, uint8 engine (A = 0, B = 1), uint32 index, uint64 startMs, uint64 endMs, bytes32 tokensHash)`. `tokensHash` is keccak256 of UTF-8 canonical JSON `[["word",start,end],...]` with no whitespace.
-5. Each engine's leaves form a Merkle tree with commutative keccak pair hashing, the same scheme as OpenZeppelin `MerkleProof`. `rootA` and `rootB` go onchain in `createEpisode`.
+5. Each engine's leaves stay in chunk order and form a Merkle tree with commutative keccak pair hashing, the same scheme as OpenZeppelin `MerkleProof`; an odd node is promoted unchanged. `rootA` and `rootB` go onchain in `createEpisode`.
 6. `clipId = keccak256(sha256(media file) ‖ manifestId)`. Anyone holding the media can rerun the pinned engines and audit both transcripts.
 7. **Reveal schedule.** The reveal API serves chunk `i` with its proof only after studio time passes `startsAt + chunkEnd + 2,000 ms` (presentation delay plus margin). After `closeEpisode`, every chunk is public.
 

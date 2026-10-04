@@ -1,0 +1,80 @@
+{
+  "durationMs": 47000,
+  "chunkCount": 5,
+  "root": "0xe37f277ef607df2aea6fee016abee06ec785e061bbaee929969c95605b107228",
+  "chunks": [
+    {
+      "clipId": "0x3b5bd5a14e311d9400c27f760b3108317ab3940d32ce6a889960a2e3630ceac1",
+      "engine": 0,
+      "index": 0,
+      "startMs": 0,
+      "endMs": 10000,
+      "tokensJson": "[[\"welcome\",300,800],[\"café\",9700,10080]]",
+      "tokensHash": "0x4ffae500dc5acd578ed39a10b73b142c70ff45086ad7f4da68d69fd65a85b6ae",
+      "leaf": "0x224e53a15c53c080b41a73d6ef90a6d609b51dfb8e29432fc80567af9f5069a6",
+      "proof": [
+        "0xb925df21b1d5153983ff5dc0099d931b6364ba3f917c78db9876b5d2a23edacc",
+        "0x987403eae2cb211ac4628676b17cfe43d35fdbc207aee274a120ac3f78848caa",
+        "0xfab539c34c4ea12680a0f8ef72a2efb901ac1f5fb7e2a0d29bdd75f98d362445"
+      ]
+    },
+    {
+      "clipId": "0x3b5bd5a14e311d9400c27f760b3108317ab3940d32ce6a889960a2e3630ceac1",
+      "engine": 0,
+      "index": 1,
+      "startMs": 10000,
+      "endMs": 20000,
+      "tokensJson": "[[\"monad\",10000,10600],[\"say \\\"hi\\\"\",18000,18400]]",
+      "tokensHash": "0x04070036ce304dec694a8b2e95db06dfa576f01290a36bf4859f1b27e5ec90a3",
+      "leaf": "0xb925df21b1d5153983ff5dc0099d931b6364ba3f917c78db9876b5d2a23edacc",
+      "proof": [
+        "0x224e53a15c53c080b41a73d6ef90a6d609b51dfb8e29432fc80567af9f5069a6",
+        "0x987403eae2cb211ac4628676b17cfe43d35fdbc207aee274a120ac3f78848caa",
+        "0xfab539c34c4ea12680a0f8ef72a2efb901ac1f5fb7e2a0d29bdd75f98d362445"
+      ]
+    },
+    {
+      "clipId": "0x3b5bd5a14e311d9400c27f760b3108317ab3940d32ce6a889960a2e3630ceac1",
+      "engine": 0,
+      "index": 2,
+      "startMs": 20000,
+      "endMs": 30000,
+      "tokensJson": "[]",
+      "tokensHash": "0x518674ab2b227e5f11e9084f615d57663cde47bce1ba168b4c19c7ee22a73d70",
+      "leaf": "0x0acaafc1ecc427f7d099e43450bca8b2d6f4190be43acc9bcddb3daefa3b7287",
+      "proof": [
+        "0xa999041bd89164d9a8c32147dc14157630f9c83b37b7bb2f771467e99a8e77d2",
+        "0x51776f7b33df9abdd78ffc82fa5503976813a325bcaa217ee158e91e7bfbf2ed",
+        "0xfab539c34c4ea12680a0f8ef72a2efb901ac1f5fb7e2a0d29bdd75f98d362445"
+      ]
+    },
+    {
+      "clipId": "0x3b5bd5a14e311d9400c27f760b3108317ab3940d32ce6a889960a2e3630ceac1",
+      "engine": 0,
+      "index": 3,
+      "startMs": 30000,
+      "endMs": 40000,
+      "tokensJson": "[[\"replay\",31000,31500]]",
+      "tokensHash": "0x0d2e1041a9e10b4a8292191ba191758df11fac8680871f6f4173a8ab772be2ec",
+      "leaf": "0xa999041bd89164d9a8c32147dc14157630f9c83b37b7bb2f771467e99a8e77d2",
+      "proof": [
+        "0x0acaafc1ecc427f7d099e43450bca8b2d6f4190be43acc9bcddb3daefa3b7287",
+        "0x51776f7b33df9abdd78ffc82fa5503976813a325bcaa217ee158e91e7bfbf2ed",
+        "0xfab539c34c4ea12680a0f8ef72a2efb901ac1f5fb7e2a0d29bdd75f98d362445"
+      ]
+    },
+    {
+      "clipId": "0x3b5bd5a14e311d9400c27f760b3108317ab3940d32ce6a889960a2e3630ceac1",
+      "engine": 0,
+      "index": 4,
+      "startMs": 40000,
+      "endMs": 50000,
+      "tokensJson": "[[\"final\",46900,47000]]",
+      "tokensHash": "0x57d6374d49c5cc8d396b335bfd79d2f2018101dce5578bf0e0989b2d664e3131",
+      "leaf": "0xfab539c34c4ea12680a0f8ef72a2efb901ac1f5fb7e2a0d29bdd75f98d362445",
+      "proof": [
+        "0x8ac2732002475f2305b6d056096e6690dd41061eb250b020ec070177381d4837"
+      ]
+    }
+  ]
+}
