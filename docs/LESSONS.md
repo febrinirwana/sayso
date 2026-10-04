@@ -1,0 +1,112 @@
+# Lessons
+
+Newest on top. Each entry: root cause, then the durable rule.
+
+## Technical
+
+### 2026/10/05 — Run the proof before writing it in a commit body
+
+- **Cause:** A commit body can state a check that was never executed; the history then carries an unverified claim.
+- **Rule:** Run the exact command first, read its output, then write it as proof. If it was not run, the body says so.
+
+### 2026/10/05 — Re-probe external state before planning around it
+
+- **Cause:** The testnet AUSD faucet reverted for every fresh address one day and accepted them the next.
+- **Rule:** Faucet limits, balances and tenant permissions are observations with a date, not facts. Re-check before a plan depends on them and record the date.
+
+### 2026/10/05 — Never track a file that reveals an outcome
+
+- **Cause:** A tracked clip manifest with its word list and transcript would let anyone read the answers before trading.
+- **Rule:** Outcome-bearing data (manifests, transcripts, flag plans) lives in studio data and becomes public only through the reveal schedule. Track fixtures only.
+
+### 2026/10/05 — A reveal must never lead what the player hears
+
+- **Cause:** Revealing a chunk at its end on the studio clock exposes the last seconds before delayed players hear them.
+- **Rule:** Reveal time = chunk end + presentation delay + margin. Any new reveal or flag path is checked against the player's presentation time, not the studio clock.
+
+### 2026/10/05 — Halt a market you do not own by pulling your own quotes
+
+- **Cause:** Kuru's `toggleMarkets` is owner-only; our wallet gets `Unauthorized()`.
+- **Rule:** Design halts as house quote pulls one block ahead of the event, and keep players on immediate-or-cancel orders so nothing of theirs rests on the book.
+
+### 2026/10/05 — Match the market type to the base asset
+
+- **Cause:** Kuru `deployProxy` reverts `MarketTypeMismatch()` (`0xbd6898be`) when the type does not fit the base: type 1 is native base, type 0 is ERC-20 base.
+- **Rule:** Simulate every market deployment with the real parameters before writing them into code or docs.
+
+### 2026/10/05 — Decode events from the vendored ABI, not the docs page
+
+- **Cause:** Kuru's documentation declares event fields that differ from the deployed contracts.
+- **Rule:** Derive topics from the vendored ABI, compare with a real log, and only then decode or value fills.
+
+### 2026/10/05 — Vendor ABIs instead of SDKs that drag in a second web3 stack
+
+- **Cause:** Kuru's SDK depends on ethers v5; SAYSO uses viem only.
+- **Rule:** Copy the ABI JSON into `packages/core` with its source version; never add a second chain library for convenience.
+
+### 2026/10/05 — CRE simulation and production use different forwarders
+
+- **Cause:** `cre workflow simulate --broadcast` delivers through `MockKeystoneForwarder`; deployed workflows use `KeystoneForwarder`; deployment needs approved access.
+- **Rule:** Keep the forwarder settable by the owner, record each settlement's mode, and request deploy access on day one.
+
+### 2026/10/05 — Accept the forwarder's real metadata length
+
+- **Cause:** The production forwarder passes 64 bytes of metadata (62 bytes of identity plus a 2-byte report ID).
+- **Rule:** Never require `metadata.length == 62`; decode the first 62 bytes and ignore or read the report ID.
+
+### 2026/10/05 — Simulation triggers do not fire on their own
+
+- **Cause:** In `cre workflow simulate`, triggers are selected manually; only deployed workflows watch logs.
+- **Rule:** Until deploy access exists, the studio drives the simulator for each trigger transaction; nothing assumes a log trigger fires by itself.
+
+### 2026/10/05 — Monad bills the gas limit
+
+- **Cause:** Monad charges the gas limit, not gas used.
+- **Rule:** Every transaction sets an explicit limit from measured gas plus 20%; never rely on estimation padding.
+
+### 2026/10/05 — Sequence low-balance senders by block
+
+- **Cause:** Monad's reserve-balance rule can reject closely spaced spending from a low-balance sender; the emptying exception needs no other transaction from that sender in the prior three blocks.
+- **Rule:** Sequence a player's transactions by block number, never a wall-clock sleep; give each studio role its own key and keep it above the reserve.
+
+### 2026/10/05 — Fix the passkey domain before the first passkey
+
+- **Cause:** Passkeys are bound to the relying-party ID; changing the domain orphans every account.
+- **Rule:** Choose the production domain (`VITE_RP_ID`) before any real passkey exists and never change it.
+
+## Working with the user
+
+### 2026/10/05 — Explain first, build after "letsgo"
+
+- **Cause:** The user wants to judge an idea and its trade-offs before any file exists.
+- **Rule:** Brainstorm in chat with a recommendation and numbered decisions; once approved, execute end to end without re-asking.
+
+### 2026/10/05 — Label every claim
+
+- **Cause:** The user rejects mediocrity and anything hallucinated.
+- **Rule:** Mark claims [V] with a source, [I] for inference, [U] with the spike that settles it. Say "not verified" plainly.
+
+### 2026/10/05 — Reply in the user's register
+
+- **Cause:** The user writes mixed Indonesian and English.
+- **Rule:** Chat replies follow that mix; docs, code and commits stay in English.
+
+### 2026/10/05 — No generic AI interface
+
+- **Cause:** The user explicitly rejected "AI slop" visuals.
+- **Rule:** Follow PRD section 8; every screen needs a deliberate visual idea and is checked rendered on a phone viewport.
+
+### 2026/10/05 — Small commits, docs first, testnet first
+
+- **Cause:** The user reviews history as a record of real work.
+- **Rule:** One behaviour per commit, docs before code, testnet before anything else, body with why and proof.
+
+### 2026/10/05 — Keep projects visibly separate
+
+- **Cause:** Two hackathon projects share a parent folder and a machine.
+- **Rule:** Each project has its own repo, identity and `handoff/<project>/` folder; never read or write another project's handoff.
+
+### 2026/10/05 — Prefer free tools, explain choices plainly
+
+- **Cause:** The user asked for free-tier tooling first and plain explanations of framework choices.
+- **Rule:** Default to free or open tools; when a choice is technical, give one paragraph on what it is and why it fits.
