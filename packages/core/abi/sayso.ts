@@ -92,6 +92,35 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "function",
+    "name": "buyYes",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "ausdIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minYesOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "yesOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "createEpisode",
     "inputs": [
       {
@@ -457,6 +486,35 @@ export const saysoMarketsAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "sellYes",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "yesIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minAusdOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "ausdOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1336,6 +1394,22 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
+    "name": "SafeCastOverflowedUintDowncast",
+    "inputs": [
+      {
+        "name": "bits",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SafeERC20FailedOperation",
     "inputs": [
       {
@@ -1344,6 +1418,11 @@ export const saysoMarketsAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "SlippageExceeded",
+    "inputs": []
   },
   {
     "type": "error",

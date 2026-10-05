@@ -213,6 +213,33 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         emit SetBurned(wordId, msg.sender, amount);
     }
 
+    function buyYes(uint256 wordId, uint256 ausdIn, uint256 minYesOut) external nonReentrant returns (uint256 yesOut) {
+        Word storage w = _getTradableWord(wordId);
+        AUSD.safeTransferFrom(msg.sender, address(this), ausdIn);
+        uint256 spent;
+        (yesOut, spent) = KuruTrade.marketBuy(w.market, w.yes, address(AUSD), ausdIn, minYesOut);
+        if (ausdIn > spent) AUSD.safeTransfer(msg.sender, ausdIn - spent);
+        if (yesOut != 0) IERC20(w.yes).safeTransfer(msg.sender, yesOut);
+        emit Traded(wordId, msg.sender, 0, yesOut, spent);
+    }
+
+    function sellYes(uint256 wordId, uint256 yesIn, uint256 minAusdOut) external nonReentrant returns (uint256 ausdOut) {
+        Word storage w = _getTradableWord(wordId);
+        IERC20 yes = IERC20(w.yes);
+        yes.safeTransferFrom(msg.sender, address(this), yesIn);
+        uint256 sold;
+        (ausdOut, sold) = KuruTrade.marketSell(w.market, w.yes, address(AUSD), yesIn, minAusdOut);
+        if (yesIn > sold) yes.safeTransfer(msg.sender, yesIn - sold);
+        if (ausdOut != 0) AUSD.safeTransfer(msg.sender, ausdOut);
+        emit Traded(wordId, msg.sender, 1, sold, ausdOut);
+    }
+
+    function _getTradableWord(uint256 wordId) private view returns (Word storage w) {
+        w = _getWord(wordId);
+        _requireUnresolved(w);
+        if (!_episodes[w.episodeId].listed) revert EpisodeNotListed();
+    }
+
     function _requireUnresolved(Word storage w) private view {
         if (w.state != WordState.Open && w.state != WordState.SaidPending) revert WordIsFinal();
     }
