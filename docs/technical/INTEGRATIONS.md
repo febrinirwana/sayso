@@ -112,6 +112,8 @@ Fallback quote token if S1 fails: Kuru testnet USDC `0x3bA3d39AFcf8bb994f7964B3e
 - HyperIndex 3.12.1; HyperSync serves Monad testnet at `https://monad-testnet.hypersync.xyz` (chain 10143) [V: [HyperSync networks](https://docs.envio.dev/docs/HyperSync/hypersync-supported-networks)].
 - Indexes `SaysoMarkets` events (episodes, words, trades, sets, flags, resolutions, redemptions) and Kuru `Trade` logs for the house books.
 - Hosting: Envio hosted service versus self-hosting on the VPS [U: S6].
+- Envio 3.12.1 CLI native addons cover Linux/macOS, not Windows; Windows CLI failed with `Cannot read properties of null (reading 'runCli')`. Codegen, typecheck, handler tests and a real test-indexer simulation were exercised under WSL Ubuntu with Bun 1.3.14 and Node 24.21.0 [V: installed package/platform metadata and local execution]. `dev` refuses an unset receiver address/start block; no live sync or hosting proof yet.
+- Indexer ABI JSON is generated from `@sayso/core` before codegen, never hand-copied. Event names in config defer field names/indexing to that ABI; a bare type-only signature overrides those names in Envio [V: generated parameter names `_0`–`_3` from the type-only form].
 
 ## 7. Transcription (offline, free)
 

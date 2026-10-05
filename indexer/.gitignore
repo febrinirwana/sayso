@@ -1,0 +1,2 @@
+# Offline test configuration uses a synthetic factory, never a deployment.
+config.test.yaml

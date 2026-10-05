@@ -59,7 +59,7 @@ clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no m
                                real clips, manifests and transcripts stay untracked studio data
 cre/resolver/        built     CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
 apps/studio/         built     Bun + Hono: SQLite, time/health, clip reveal, scheduler/lifecycle runner and SSE; permanent maker, drip and CRE runner pending phase 5
-indexer/             phase 6   Envio HyperIndex config, schema, handlers
+indexer/             built     Envio config, schema and cashflow/position handlers; live sync and hosting gated by deploy
 apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing
 deploy/              phase 5   systemd unit and Caddy config
 docs/                built     PRD, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN, SMART-CONTRACTS,
@@ -67,7 +67,7 @@ docs/                built     PRD, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN
 .claude/skills/      built     Vendored + project skills (skills-lock.json pins sources)
 ```
 
-Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`; `indexer` joins in phase 6 (Bun rejects a workspace path that does not exist yet).
+Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`, `indexer`. Envio 3.12.1's CLI native addon requires Linux or macOS; Windows development runs indexer codegen and full `bun run verify` under WSL, not a skipped indexer script.
 
 ## 3. Components and boundaries
 

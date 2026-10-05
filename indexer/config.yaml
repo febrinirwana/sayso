@@ -1,0 +1,43 @@
+# ABI JSON is generated from @sayso/core by scripts/prepare.ts before codegen.
+name: sayso
+handlers: ./src
+address_format: lowercase
+field_selection:
+  transaction_fields:
+    - hash
+contracts:
+  - name: SaysoMarkets
+    abi_file_path: ./generated/SaysoMarkets.json
+    events:
+      - event: EpisodeCreated
+      - event: WordAdded
+      - event: WordListed
+      - event: SetMinted
+      - event: SetBurned
+      - event: Traded
+      - event: WordFlagged
+      - event: EvidenceReady
+      - event: EpisodeClosed
+      - event: WordResolved
+      - event: EpisodeSettled
+      - event: Redeemed
+      - event: WordVoided
+      - event: OperatorUpdated
+      - event: EpisodesPausedUpdated
+      - event: ReportOriginUpdated
+  - name: OutcomeToken
+    abi_file_path: ./generated/OutcomeToken.json
+    events:
+      - event: Transfer
+chains:
+  - id: 10143
+    # Monad testnet is a supported HyperSync network; no RPC needed.
+    hypersync_config:
+      url: https://monad-testnet.hypersync.xyz
+    # Set to the deployment block before starting dev. Never start after creation.
+    start_block: 0
+    contracts:
+      - name: SaysoMarkets
+        # Unset until a cast-code-verified deployment exists. No invented address.
+        address: []
+      - name: OutcomeToken

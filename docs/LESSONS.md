@@ -4,11 +4,15 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — Envio event selectors must preserve authoritative ABI metadata
+
+- **Cause:** Type-only event signatures in Envio config replaced ABI field names with `_0`–`_3` and lost indexed metadata. A clean verification copy missing `vitest.config.ts` then loaded the intentionally unset production receiver instead of its isolated test config.
+- **Rule:** Select events by name from core-generated ABI JSON; include every workspace's test configuration in clean-copy proofs. Run Envio 3.12.1 under Linux/macOS (WSL on Windows), never skip its native checks.
+
 ### 2026/10/05 — Require settlement identity before deployment broadcasts
 
 - **Cause:** The deployment script accepted a zero simulation reporter and did not install a DON workflow ID, while both receiver checks are conditional; a valid forwarder alone did not bind outcomes to the authorized resolver.
 - **Rule:** Reject missing mode-specific identity before `startBroadcast`, install authentication before enabling the operator, and test both unsafe and configured deployment paths.
-
 
 ### 2026/10/05 — Studio SQLite tests need Bun, not Node
 

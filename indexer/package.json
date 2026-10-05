@@ -1,0 +1,20 @@
+{
+  "name": "@sayso/indexer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "bun scripts/prepare.ts && envio codegen",
+    "dev": "bun scripts/prepare.ts --deployed && envio dev",
+    "typecheck": "bun run codegen && tsc -p tsconfig.json",
+    "test": "bun run codegen && vitest run"
+  },
+  "dependencies": {
+    "@sayso/core": "workspace:*",
+    "envio": "3.12.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "vitest": "5.0.3"
+  }
+}

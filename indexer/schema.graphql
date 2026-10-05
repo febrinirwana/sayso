@@ -1,0 +1,71 @@
+type Episode {
+  id: ID!
+  clipId: String!
+  rootA: String!
+  rootB: String!
+  startsAt: BigInt!
+  endsAt: BigInt!
+  state: String!
+  wordCount: Int!
+  resolvedCount: Int!
+  closedAt: BigInt
+  settledAt: BigInt
+}
+
+type Word {
+  id: ID!
+  episode: Episode!
+  text: String!
+  yes: String!
+  no: String!
+  market: String
+  state: String!
+  offsetMs: Int
+  flaggedAt: BigInt
+  outcome: Int
+  evidenceHash: String
+  resolvedAt: BigInt
+  resolveTx: String
+}
+
+type Trade {
+  id: ID!
+  word: Word!
+  player: Player!
+  side: Int!
+  tokenAmount: BigInt!
+  ausdAmount: BigInt!
+  priceBps: Int!
+  timestamp: BigInt!
+  block: BigInt!
+}
+
+type Position {
+  id: ID!
+  player: Player!
+  word: Word!
+  yes: BigInt!
+  no: BigInt!
+  cashIn: BigInt!
+  cashOut: BigInt!
+  redeemed: BigInt!
+}
+
+type Player {
+  id: ID!
+  trades: Int!
+  volume: BigInt!
+  cashIn: BigInt!
+  cashOut: BigInt!
+  settledValue: BigInt!
+  profit: BigInt!
+  episodesPlayed: Int!
+  firstSeen: BigInt!
+}
+
+type EpisodePlayer {
+  id: ID!
+  profit: BigInt!
+  trades: Int!
+  rank: Int!
+}
