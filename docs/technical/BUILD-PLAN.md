@@ -15,7 +15,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | Phase | Status | Done | Next action | Blocked by |
 |---|---|---|---|---|
 | 0 Workspace | DONE | 3/3 | none | none |
-| 1 Core (TDD) | DOING | 8/10 | Phase 0+1 review, PROGRESS entry | none |
+| 1 Core (TDD) | DONE | 10/10 | none | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
 | 2 Contracts | DOING | 1/11 | 2.2 SaysoMarkets episodes and listing | deploy (2.9) needs DEPLOYER MON |
 | 3 Transcription | TODO | 0/3 | 3.1 transcribe CLI | 3.3 needs cleared clips |
@@ -51,7 +51,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 **Acceptance:** `bun run verify` and `forge build` green from a clean clone; `.env.example` complete; every commit authored by Febri Nirwana.
 **Proof recorded:** `handoff\sayso\PROGRESS.md` Phase 0. Review folded into the Phase 1 review (1.9). This tracker was created at `cd6a859`, after Phases 0 and 1 landed, so their boxes were ticked retroactively; from Phase 2 on, a box is ticked in the commit that does the work.
 
-## Phase 1 — `packages/core` (TDD) · DOING
+## Phase 1 — `packages/core` (TDD) · DONE
 
 **Goal:** every rule that web, studio and CRE must agree on exists once, as pure tested TypeScript.
 
@@ -63,8 +63,8 @@ The live tracker for the build: every phase, every task, what proves it and wher
 - [x] **1.6** Vendored Kuru OrderBook, Router, MarginAccount ABIs + `SOURCE.md` (`@kuru-labs/kuru-sdk@0.0.95`) — proof: `273f726`
 - [x] **1.7** `addresses.ts` (testnet only) + `scripts/check-addresses.ts` (`cast code` each) — proof: `7b14999`
 - [x] **1.8** One package entry exporting every module — proof: `59da66d` · `bun run verify` 159/159 tests; entry lists 43 exports
-- [ ] **1.9** Phase 0+1 review (reviewer subagent) — proof: PASS against both acceptance lists in PROGRESS; findings fixed in `fix(core): close the review findings for phase 1`
-- [ ] **1.10** PROGRESS entry for Phase 1 and spike S7 — proof: entry lists commits, checks and rulings
+- [x] **1.9** Phase 0+1 review (reviewer subagent) — proof: `handoff\sayso\reports\review-phase01.md` · FAIL at `4cfbf4a` (quote quantum, NaN/Infinity token times, three doc findings), fixed in `8f5b7fd`, `a22f1af`, `1b54ce0`; re-review at `96229af` PASS on every finding from a clean clone (verify 167/167, forge 27/27, both original failing commands now behave)
+- [x] **1.10** PROGRESS entry for Phase 1 and spike S7 — proof: `handoff\sayso\PROGRESS.md` Phase 1 lists commits, checks, rulings and the recorded size/tracking exceptions
 
 **Acceptance:** all vectors pass; Merkle vectors byte-identical between TypeScript and Foundry; no I/O in `packages/core/src` (no `fs`, `fetch`, timers or randomness outside tests).
 **Moved out:** `abi/sayso.ts` → 2.10; `gas.ts` → 2.8.
