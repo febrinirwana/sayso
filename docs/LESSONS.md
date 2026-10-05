@@ -4,6 +4,16 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — Kuru amounts use the book's precision, not the token's decimals
+
+- **Cause:** `placeAndExecuteMarketBuy` takes `quoteSize` in pricePrecision units (1e4 = 1 AUSD), while `bestBidAsk` returns 1e18-scaled prices; passing 6-decimal AUSD amounts reverted `TransferFromFailed()` on a fork (spike S2+S3).
+- **Rule:** Convert at one boundary (`KuruTrade` in contracts, `units.ts` off-chain) and test each Kuru call against a fork before trusting a unit.
+
+### 2026/10/05 — Soldeer needs its config location when nothing can prompt
+
+- **Cause:** `forge soldeer install` asks where to keep its config; with no terminal it failed with "error during IO operation: not connected".
+- **Rule:** Run Soldeer with `--config-location foundry` in scripts, agents and CI.
+
 ### 2026/10/05 — A release tag is not an installable version
 
 - **Cause:** Vosk 0.3.50 is tagged on GitHub but has no binaries and no PyPI wheel; the pinned version could not be installed (spike S7).

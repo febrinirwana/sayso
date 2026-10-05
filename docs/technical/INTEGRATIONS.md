@@ -43,10 +43,17 @@ ABIs are vendored from the published SDK package (0.0.95) into `packages/core/ab
 - Reads: `getMarketParams()`, `getL2Book()`, `bestBidAsk()`.
 
 **Events.** Decode with the vendored ABI, not the documentation page; the published event declarations disagree with live topics.
-- `Trade(uint40,address,bool,uint256,uint96,address,address,uint96)` = `0xf16924fba1c18c108912fcacaac7450c98eb3f2d8c0a3cdf3df7066c08f21581` [V: keccak of the SDK ABI signature]; match against a live testnet log [U: S2].
+- `Trade(uint40,address,bool,uint256,uint96,address,address,uint96)` = `0xf16924fba1c18c108912fcacaac7450c98eb3f2d8c0a3cdf3df7066c08f21581` [V: keccak of the SDK ABI signature; emitted by a fork-deployed book, S2+S3]; live testnet log still [U: S2 live]. A taker fill also emits an undecoded book event `0x49496a41b922bdba3ff7f57bb0992ab1a1a3ee95b5ae5bd7271c67861f018352` [U].
 - `FlipOrdersCanceled(uint40[],address)` = `0x5f815e5292cf3b123df58ad6d4531c085d94d5717a3b02740369a04273fde96c`.
 
-**Open.** Non-margin settlement for a contract caller (who is debited, where the base lands, units of `quoteSize`) [U: S3].
+**Non-margin settlement for a contract caller** [V: fork simulation 2026-10-05, S2+S3; live run U pending MON]:
+- The caller approves the book only, never `MarginAccount`. The book pulls quote (buy) or base (sell) from the caller's wallet and pays the fill to the caller's wallet; the caller's margin balances stay 0. The maker's fills land in the maker's margin account.
+- `placeAndExecuteMarketBuy` `quoteSize` is in pricePrecision units (1e4 = 1 AUSD): `5e4` spent exactly 5,000,000 AUSD base units and returned 9,803,921 YES (fill at 0.51). Passing `5e6` reverted `TransferFromFailed()` (`0x7939f424`). The return value is base received.
+- `placeAndExecuteMarketSell` `_size` is in sizePrecision units (1e6 = 1 YES, the same as YES base units here); selling all 9,803,921 YES returned 4,901,900 AUSD base units at the 0.50 bid.
+- `bestBidAsk()` returns 1e18-scaled prices (`490000000000000000` = 0.49).
+- Gas: `deployProxy` from a contract 1.20M–1.22M; market buy 354,231; market sell 283,246.
+- BOT path: approve `MarginAccount`, `deposit(bot, token, amount)` for YES and AUSD, then `batchProvisionLiquidity` with prices `[4900,4800,5100,5200]`, flips `[5000,4900,5000,5100]`, sizes 10e6, `isBuy [t,t,f,f]` emits four logs.
+- Real AUSD works as the quote token.
 
 ## 3. Chainlink CRE (settlement)
 
@@ -89,7 +96,7 @@ Open: PRF on the target phones (iOS Safari, Android Chrome) at the production do
 | Testnet token | `0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC`, 6 decimals, exposes `DOMAIN_SEPARATOR` (permit) | [V: `cast call`] |
 | Mainnet token | `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` (reference only) | [V: [Agora deployments](https://docs.agora.finance/developer/contract-deployments.md)] |
 | Testnet faucet | `0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C`, `requestFunds(address)` | [V: `cast code`, `token()` returns AUSD] |
-| Faucet behaviour | On 2026-10-04 every fresh address reverted `MaxFrequencyExceeded()`; on 2026-10-05 `eth_call` succeeds for fresh addresses. Amount and cadence unknown | [U: S1] |
+| Faucet behaviour | On 2026-10-04 every fresh address reverted `MaxFrequencyExceeded()`; on 2026-10-05 `eth_call` succeeds for fresh addresses. On a fork, one `requestFunds` paid 10,000 AUSD (10,000,000,000 base units); a second request in the same block reverted `MaxFrequencyExceeded()` even from other fresh addresses, so the limit looks global [I]; the faucet held about 998M AUSD. Live cadence unknown | [V: fork simulation 2026-10-05]; cadence [U: S1] |
 
 Fallback quote token if S1 fails: Kuru testnet USDC `0x3bA3d39AFcf8bb994f7964B3e0171Ea2Ba361570` (6 decimals, code verified). The quote token is one config value (`AUSD`) so the switch touches no code.
 
@@ -131,3 +138,5 @@ Public testnet RPC and faucet; Monad Solonet for local runs; Envio HyperSync; mo
 **S7 — 2026-10-05 [V: spike S7, local run].** Three NASA ScienceCasts: [Space Gardening](https://images.nasa.gov/details/248_SpaceGardening) (268 s), [Thinking Inside the Box](https://images.nasa.gov/details/282_ThinkingInsideBox) (250 s), [The CIPHER Project](https://images.nasa.gov/details/319_CIPHER) (205 s). `base.en` / large Vosk exact normalized non-stop-token agreement: 335/356 (94.10%), 310/341 (90.91%), 245/274 (89.42%); median skew 130/205/250 ms, p99 1,040/1,010/920 ms. `small.en`: 333/354 (94.07%), 323/347 (93.08%), 260/274 (94.89%); medians 90/270/290 ms, p99 620/1,220/900 ms. Greedy one-to-one pair totals at 1,000/1,500/2,000/3,000 ms: base 881/890/895/899; small 908/916/916/917. These rates include numeral/compound rendering differences, not plural/hyphen-expanded settlement or ground-truth accuracy. CPU wall times (same clip order): base 39.45/37.23/32.63 s; small 112.90/98.60/82.69 s; Vosk 110.48/92.90/70.68 s plus one 67.80 s model load. Full per-word CSVs, skew distributions, hashes, flags and disagreements are in the external S7 report/scratch, not the repo.
 
 Keep 1,500 ms [I]: tightening loses 9 base / 8 small pairs; widening to 3,000 ms gains only 9 / 1. Lexical disagreements dominate; three related narrated clips do not validate noisy dialogue [U: expanded S7]. NASA's [media guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/) supply public-domain evidence with third-party/endorsement/crypto restrictions; these are research inputs, not cleared episode assets.
+
+**S2 + S3 — 2026-10-05, fork only [V: fork simulation at block ≈68,192,576].** A contract deployed a YES/AUSD book with the section 2 parameters, BOT seeded a flip ladder through `MarginAccount`, and the contract bought and sold YES with `isMargin = false`; findings are in section 2. Probe: `handoff\sayso\spikes\s3`, `forge test --via-ir --fork-url https://testnet-rpc.monad.xyz -vv` → `test_mockQuote` and `test_ausdQuote` pass (without `--via-ir` the probe fails with `Stack too deep`). The live run from BOT and one live `Trade` log stay [U] until the ops keys hold MON.

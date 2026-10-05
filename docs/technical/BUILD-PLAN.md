@@ -16,7 +16,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 |---|---|---|---|---|
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DOING | 8/10 | Phase 0+1 review, PROGRESS entry | none |
-| Spikes | DOING | 1/6 | Fix the S2+S3 fork probe, then run it live | S1–S4 need MON; S4 needs the CRE CLI and account |
+| Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
 | 2 Contracts | TODO | 0/11 | 2.1 OutcomeToken tests | deploy (2.9) needs DEPLOYER MON |
 | 3 Transcription | TODO | 0/3 | 3.1 transcribe CLI | 3.3 needs cleared clips |
 | 4 CRE resolver | TODO | 0/3 | 4.1 `cre init` | CRE CLI install and login |
@@ -78,8 +78,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
   - [ ] if unusable: switch `AUSD` config to Kuru testnet USDC and say so in INTEGRATIONS and PRD
 - [ ] **S2 + S3** Kuru book from a contract · DOING
   - [x] fork probe drafted: `spikes\s3\test\KuruProbe.t.sol` (149 lines) deploys a token and its book via `Router.deployProxy(0, …)`
-  - [ ] probe compiles — currently `Stack too deep` (observed 2026-10-05); use `via_ir` or split locals
-  - [ ] fork run green, including `test_ausdQuote` (last recorded run failed it)
+  - [x] probe compiles and the fork run is green, including `test_ausdQuote` — proof: `forge test --via-ir --fork-url https://testnet-rpc.monad.xyz -vv` → 2 passed (2026-10-05); findings in INTEGRATIONS section 2 · `Stack too deep` only without `--via-ir`
   - [ ] live run from BOT: provision a flip ladder, contract-side `placeAndExecuteMarketBuy/Sell` with `isMargin = false` — proof: tx hashes; who is debited; where tokens land; `quoteSize` units; one live `Trade` log
 - [ ] **S4** CRE on Monad testnet · BLOCKED (CLI not installed; user account)
   - [ ] CRE CLI 1.36.0 installed; `cre login`; `cre account access` requested — proof: `cre version`, access request id
