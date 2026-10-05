@@ -66,7 +66,7 @@ Outcome-token clones are registered dynamically from `WordAdded` so their `Trans
 ```sql
 CREATE TABLE clips (
   id            TEXT PRIMARY KEY,          -- manifest id
-  clip_id       TEXT NOT NULL UNIQUE,      -- 0x bytes32, keccak256(sha256(media) || manifest id)
+  clip_id       TEXT NOT NULL UNIQUE,      -- 0x bytes32, keccak256(raw 32-byte sha256(media) || UTF-8 manifest id)
   media_sha256  TEXT NOT NULL,
   duration_ms   INTEGER NOT NULL,
   licence       TEXT NOT NULL,             -- team-recorded | public-domain | CC0
@@ -74,7 +74,7 @@ CREATE TABLE clips (
   words_json    TEXT NOT NULL,             -- six words, curator order
   root_a        TEXT NOT NULL,
   root_b        TEXT NOT NULL,
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL           -- set by the studio at ingest; absent from offline clip.json
 );
 
 CREATE TABLE chunks (
@@ -173,5 +173,12 @@ Clip manifests and transcripts are studio data, not tracked files: a public word
   "proof": ["0x…", "0x…"]
 }
 ```
+
+**Offline transcription output** (`tools/transcribe`, written outside the repo; an existing clip directory is refused):
+
+- Input manifest: `{id, licence, sourceUrl?, words}`; `id` is a lowercase ASCII slug, `words` six distinct valid targets in curator order, `licence` one of `team-recorded | public-domain | CC0`.
+- `<out>/<id>/clip.json`: the `clips` row fields above except `created_at`, so two runs on the same media are byte-identical.
+- `<out>/<id>/flag-plan.json`: each word → its agreed first-said time or `null`.
+- `<out>/<id>/chunks/{A,B}/<index>.json`: the chunk payload above. The final chunk ends at the next 10 s boundary.
 
 **CRE report:** `abi.encode(uint32 episodeId, uint256[] wordIds, uint8[] outcomes, bytes32 evidenceHash)`; outcome `2` = Yes, `3` = No (matching `WordState`); `evidenceHash = keccak256` of the concatenated leaves the workflow verified.

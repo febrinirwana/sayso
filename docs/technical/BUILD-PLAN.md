@@ -18,7 +18,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 1 Core (TDD) | DONE | 10/10 | none | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
 | 2 Contracts | DOING | 3/11 | 2.4 trades | deploy (2.9) needs DEPLOYER MON |
-| 3 Transcription | TODO | 0/3 | 3.1 transcribe CLI | 3.3 needs cleared clips |
+| 3 Transcription | DOING | 1/3 | 3.2 fixture | 3.3 needs cleared clips |
 | 4 CRE resolver | TODO | 0/3 | 4.1 `cre init` | CRE CLI install and login |
 | 5 Studio | TODO | 0/8 | 5.1 Hono skeleton | live run needs funded keys |
 | 6 Indexer | TODO | 0/3 | 6.1 after Phase 2 events are final | none |
@@ -107,14 +107,14 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 **Acceptance:** all unit and invariant tests green; contracts deployed and verified; gas table filled; only the CRE forwarder can move a word to Yes or No.
 **Proof recorded:** SMART-CONTRACTS deployment log and gas table; PROGRESS Phase 2.
 
-## Phase 3 — Transcription and fixture · TODO
+## Phase 3 — Transcription and fixture · DOING
 
 **Goal:** any clip becomes two committed transcripts, chunk files, two roots and a flag plan with one command, reproducibly.
 
-- [ ] **3.1** `tools/transcribe` Bun CLI
-  - [ ] runs `whisper-cli` 1.9.4 (`ggml-base.en`, `-ml 1 -sow -ojf`, segment offsets in ms) and Vosk 0.3.45 (`vosk-model-en-us-0.22`, Python 3.12 via `uv`, `SetWords(True)`) exactly as spike S7 did
-  - [ ] normalises with `packages/core`, writes chunk files, `rootA`, `rootB` and the flag plan into the studio data directory (never the repo)
-  - [ ] prints `clipId`, `rootA`, `rootB` — proof: run on one clip, output pasted in PROGRESS
+- [x] **3.1** `tools/transcribe` Bun CLI — proof: `bun run --cwd tools/transcribe typecheck && bun run --cwd tools/transcribe test` → exit 0, 29/29; two real runs on the fixture WAV (whisper.cpp 1.9.4 `ggml-base.en` `-l en -t 4 -ng -ml 1 -sow -ojf`; Vosk 0.3.45 `vosk-model-en-us-0.22`, Python 3.12 via `uv`, `SetWords(True)`) exit 0 and write ten byte-identical files outside the repo; printed `clipId 0xd32d252d…02cc43`, `rootA 0x1839363f…db7f`, `rootB 0x9fb6c343…2e49`, block SAID 10,860 ms, market SAID 7,090 ms, four words NO (no agreement)
+  - [x] runs `whisper-cli` 1.9.4 and Vosk 0.3.45 exactly as spike S7 did; engine and model paths come from `WHISPER_CLI`, `WHISPER_MODEL`, `VOSK_MODEL` (optional `VOSK_PYTHON_PROJECT`)
+  - [x] normalises, chunks, hashes and roots with `packages/core` only; writes `<out>/<id>/{clip.json,flag-plan.json,chunks/{A,B}/<index>.json}` and refuses an `--out` inside the repo
+  - [x] prints `clipId`, `rootA`, `rootB` and the flag plan
 - [ ] **3.2** `clips/fixtures/`: one short public-domain clip's manifest, chunks and expected roots (no media), used by core, CRE and studio tests — proof: a core test recomputes the tracked roots
 - [ ] **3.3** Clip library in studio data (untracked): 8+ clips of 3–5 min, 6 curated words each (agreed-said words and decoys), licence recorded per clip · needs cleared clips (BLOCKERS 6) — proof: library manifest count and licence column
 
