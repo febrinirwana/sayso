@@ -123,10 +123,10 @@ All player trades go through `SaysoMarkets`, so one AUSD approval (or ERC-2612 p
 
 - **Buy YES:** pull AUSD, `placeAndExecuteMarketBuy` on the word's book (IOC), send YES to the player.
 - **Sell YES / cash out:** pull YES (the contract is the token's trusted spender), `placeAndExecuteMarketSell`, send AUSD.
-- **Buy NO:** pull `n` AUSD, mint `n` sets, sell `n` YES with a minimum out, send `n` NO plus the sale proceeds.
-- **Sell NO:** buy `n` YES with pooled collateral inside the call, burn `n` sets, repay, send the remainder; the collateral invariant is checked at the end of the call.
+- **Buy NO:** mint `n` sets against pooled collateral, sell all `n` YES (a partial fill reverts), send `n` NO, then pull only `n − proceeds` AUSD from the player.
+- **Sell NO:** buy at least `n` YES with pooled collateral, sized by walking the book's asks, burn `n` sets, pay `n − cost`, return rounding dust YES; the collateral invariant (`AUSD balance >= totalSets`) is checked at the end of the call.
 
-Kuru's non-margin settlement path for contract callers is spike S3 [U].
+Kuru's non-margin settlement for a contract caller is verified on a fork (the contract approves the book only; fills move wallet to wallet); the live testnet run is still open [`INTEGRATIONS.md` section 2, S2+S3]. Exact rules are in `SMART-CONTRACTS.md` sections 3 and 6.
 
 ### 5.3 SAID flag (instant)
 

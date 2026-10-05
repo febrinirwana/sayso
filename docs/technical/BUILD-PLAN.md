@@ -44,12 +44,12 @@ The live tracker for the build: every phase, every task, what proves it and wher
 
 **Goal:** a clean clone installs, type-checks, lints, tests and compiles with one command each.
 
-- [x] **0.1** Bun workspace root, Biome 2.5.15, shared tsconfig (TS 7.0.2), `.env.example` with every key from ARCHITECTURE section 10 — proof: `50d8874` · clean clone `bun install && bun run verify` green
+- [x] **0.1** Bun workspace root, Biome 2.5.15, shared tsconfig (TS 7.0.2), `.env.example` with every key from ARCHITECTURE section 10 — proof: `50d8874` · `bun run verify` first green from a clean clone at `44b625e` (the root alone has no workspace to test); re-run green from a clean clone at `4cfbf4a` by the Phase 0+1 review (159/159)
 - [x] **0.2** `packages/core` skeleton with Vitest — proof: `44b625e` · Vitest 4/4
 - [x] **0.3** Foundry with solc 0.8.37, Prague, Soldeer deps (forge-std 1.17.0, OZ 5.7.0 + upgradeable) — proof: `f265eee` · `forge soldeer install && forge build` exit 0; a throwaway OZ + forge-std import compiled with 0 warnings and was deleted
 
 **Acceptance:** `bun run verify` and `forge build` green from a clean clone; `.env.example` complete; every commit authored by Febri Nirwana.
-**Proof recorded:** `handoff\sayso\PROGRESS.md` Phase 0. Review folded into the Phase 1 review (1.9).
+**Proof recorded:** `handoff\sayso\PROGRESS.md` Phase 0. Review folded into the Phase 1 review (1.9). This tracker was created at `cd6a859`, after Phases 0 and 1 landed, so their boxes were ticked retroactively; from Phase 2 on, a box is ticked in the commit that does the work.
 
 ## Phase 1 — `packages/core` (TDD) · DOING
 
