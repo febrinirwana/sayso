@@ -2,7 +2,7 @@
 
 Contract surface for SAYSO on Monad testnet (10143): storage, functions, events, invariants, Kuru and CRE wiring, gas and deployment. Flows that call these functions are in `ARCHITECTURE.md` section 5.
 
-Toolchain: Foundry 1.8.4, Solidity 0.8.37, OpenZeppelin Contracts 5.7.0 (plus the upgradeable package at the same version for clone initializers), forge-std 1.17.0. Dependencies install through Soldeer and are pinned in `contracts/soldeer.lock`; `evm_version = "prague"`, the fork Monad executes [V: [Monad Hardhat guide](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat)].
+Toolchain: Foundry 1.8.4, Solidity 0.8.37, OpenZeppelin Contracts 5.7.0 (plus the upgradeable package at the same version for clone initializers), forge-std 1.17.0. Dependencies install through Soldeer and are pinned in `contracts/soldeer.lock`; `evm_version = "prague"`, the fork Monad executes [V: [Monad Hardhat guide](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat)]; `network = "monad"` makes tests and gas reports use Monad's gas model and 128 KB code limit [V: `forge config` shows the key on 1.8.3].
 
 ## 1. Contracts
 
@@ -10,7 +10,7 @@ Toolchain: Foundry 1.8.4, Solidity 0.8.37, OpenZeppelin Contracts 5.7.0 (plus th
 |---|---|
 | `SaysoMarkets` | Episodes, words, collateral, trade entry points, CRE receiver. Inherits CRE `ReceiverTemplate` (which brings `Ownable`). |
 | `OutcomeToken` | ERC-20 implementation (6 decimals) cloned twice per word: YES and NO. Mint and burn only by `SaysoMarkets`; `SaysoMarkets` is a trusted spender, so players never approve outcome tokens. |
-| `KuruTrade` (library) | Wraps Kuru order book calls; hides the non-margin settlement details settled by spike S3. |
+| `KuruTrade` (library) | Wraps Kuru order book calls: market deployment and approvals, IOC buy and sell, exact-size YES buy. Converts 6-decimal amounts to Kuru units and measures every fill by balance delta. |
 
 ## 2. Storage
 
@@ -45,7 +45,7 @@ struct Word {
 }
 ```
 
-Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`.
+Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`, `reportOrigin`, `totalSets` (Σ `word.sets` over all words, the AUSD the contract must hold).
 
 ## 3. Functions
 
@@ -59,15 +59,15 @@ Amounts are in 6-decimal units for AUSD, YES and NO.
 | `burnSet(uint256 wordId, uint256 amount, address to)` | holder | Word not final. Burns both sides, returns AUSD. |
 | `buyYes(uint256 wordId, uint256 ausdIn, uint256 minYesOut) returns (uint256 yesOut)` | anyone | Word listed and not final. IOC market buy. |
 | `sellYes(uint256 wordId, uint256 yesIn, uint256 minAusdOut) returns (uint256 ausdOut)` | holder | Word listed and not final. IOC market sell. Cash-out uses this against the 0.98 bid. |
-| `buyNo(uint256 wordId, uint256 noAmount, uint256 maxAusdIn) returns (uint256 ausdSpent)` | anyone | Mint `noAmount` sets, sell `noAmount` YES with minimum out `noAmount − maxAusdIn`, send NO and refund proceeds. Episode not closed. |
-| `sellNo(uint256 wordId, uint256 noIn, uint256 minAusdOut) returns (uint256 ausdOut)` | holder | Buy `noIn` YES with pooled AUSD inside the call, burn `noIn` sets, send the remainder. Reverts unless collateral for every word is intact at the end. |
+| `buyNo(uint256 wordId, uint256 noAmount, uint256 maxAusdIn) returns (uint256 ausdSpent)` | anyone | Episode not closed. Mints `noAmount` sets, sells all `noAmount` YES (reverts on a partial fill), sends NO, then pulls only `noAmount − proceeds` from the player, which must be ≤ `maxAusdIn`. |
+| `sellNo(uint256 wordId, uint256 noIn, uint256 minAusdOut) returns (uint256 ausdOut)` | holder | Buys at least `noIn` YES with pooled AUSD (quote sized by walking `getL2Book` asks), burns `noIn` sets, pays `noIn − spent` and returns YES dust from rounding to the player. Reverts unless `AUSD.balanceOf(this) >= totalSets` at the end. |
 | `flagSaid(uint256 wordId, uint16 chunkA, uint16 chunkB, uint32 offsetMs)` | operator | Episode live; word Open. Sets SaidPending. Display and trigger only; settles nothing. |
 | `markEvidence(uint32 episodeId, uint256[] wordIds)` | operator | Every word SaidPending and in the episode. Emits `EvidenceReady`. |
 | `closeEpisode(uint32 episodeId)` | operator | `block.timestamp >= endsAt`; once. Stops minting. |
-| `onReport(bytes metadata, bytes report)` | CRE forwarder | Via `ReceiverTemplate`: sender must be the forwarder; workflow ID must match when set. `report = abi.encode(uint32 episodeId, uint256[] wordIds, uint8[] outcomes, bytes32 evidenceHash)`. |
+| `onReport(bytes metadata, bytes report)` | CRE forwarder | Via `ReceiverTemplate`: sender must be the forwarder; workflow ID must match when set; `tx.origin` must equal `reportOrigin` when set (section 7). `report = abi.encode(uint32 episodeId, uint256[] wordIds, uint8[] outcomes, bytes32 evidenceHash)`. |
 | `redeem(uint256 wordId, uint256 amount)` | holder | Word Yes: burns YES, pays `amount`. Word No: burns NO, pays `amount`. Void: burns either side, pays `amount / 2`. |
 | `voidWord(uint256 wordId)` | owner | Episode closed for 24 h and word not final. |
-| `setOperator(address)`, `setEpisodesPaused(bool)` | owner | Forwarder and expected workflow ID setters come from `ReceiverTemplate`. |
+| `setOperator(address)`, `setEpisodesPaused(bool)`, `setReportOrigin(address)` | owner | Forwarder and expected workflow ID setters come from `ReceiverTemplate`. |
 
 Report processing (`_processReport`): for each `(wordId, outcome)`, the word belongs to `episodeId` and is Open or SaidPending; outcome `No` requires the episode closed; outcome `Yes` requires `block.timestamp >= startsAt`. Sets the state, increments `resolvedCount`, emits `WordResolved`; when every word is final, emits `EpisodeSettled`.
 
@@ -95,7 +95,7 @@ Report processing (`_processReport`): for each `(wordId, outcome)`, the word bel
 1. For every unresolved word: `YES.totalSupply == NO.totalSupply == word.sets`.
 2. `AUSD.balanceOf(SaysoMarkets) >= Σ word.sets` over words not fully redeemed, outside any call.
 3. A word leaves Open or SaidPending at most once.
-4. Only the configured forwarder, with the expected workflow ID when set, moves a word to Yes or No.
+4. Only the configured forwarder, with the expected workflow ID when set and from `reportOrigin` when set, moves a word to Yes or No.
 5. No word resolves No before its episode is closed.
 6. Redemptions for a word never pay more than `word.sets` at resolution.
 7. The owner can never move collateral except through `voidWord` redemption math.
@@ -104,12 +104,13 @@ Report processing (`_processReport`): for each `(wordId, outcome)`, the word bel
 
 `listEpisode` calls `Router.deployProxy(0, yes, AUSD, 1e6, 1e4, 100, 1e6, 1e10, 0, 0, 100)` per word: sizePrecision 1e6, pricePrecision 1e4, tick 100 (1¢), minimum 1 YES, maximum 10,000 YES, no fees [V: simulation with these parameters, `INTEGRATIONS.md` section 2]. YES prices are integers in 1/10,000 AUSD, so 0.50 is `5000` and the cash-out bid 0.98 is `9800`.
 
-The contract trades with `isMargin = false`. Whether Kuru pulls and pays the contract directly or through `MarginAccount` is spike S3; `KuruTrade` absorbs the answer so the public functions above do not change.
+The contract trades with `isMargin = false` and approves each book (never `MarginAccount`) for AUSD and that word's YES. Kuru pulls from and pays to the contract's wallet; `quoteSize` is in pricePrecision units, so `KuruTrade` passes `ausd / 100` and only spends multiples of 100 AUSD base units [V: fork simulation, `INTEGRATIONS.md` section 2]. Every fill is measured by balance delta and any unspent input is returned to the player in the same call.
 
 ## 7. CRE wiring
 
 - Constructor forwarder: simulation forwarder `0xB9F79d863261869B234c481D1f9A7af84AeAd192` while `CRE_MODE=simulation`.
-- On deploy access: owner calls `setForwarderAddress(0xF8344CFd5c43616a4366C34E3EEE75af79a74482)` and `setExpectedWorkflowId(<deployed resolver ID>)` [V: `ReceiverTemplate` source in the consumer-contracts guide].
+- **Simulation gate.** The simulation forwarder (`MockKeystoneForwarder`) checks no signatures and takes caller-supplied metadata [V: chainlink-evm `contracts/cre/src/dev/MockKeystoneForwarder.sol`], and the docs say not to set the expected workflow ID in simulation. Without a gate anyone could settle a word through it. The owner therefore sets `reportOrigin` to the REPORTER key that runs `cre workflow simulate --broadcast`; `_processReport` requires `tx.origin == reportOrigin` while it is non-zero [I: the simulator signs the forwarder call with that key; S4 confirms].
+- On deploy access: owner calls `setForwarderAddress(0xF8344CFd5c43616a4366C34E3EEE75af79a74482)`, `setExpectedWorkflowId(<deployed resolver ID>)` and `setReportOrigin(address(0))` [V: `ReceiverTemplate` source in the consumer-contracts guide].
 - Metadata arrives as 64 bytes from the production forwarder; nothing checks for 62.
 
 ## 8. Gas
@@ -118,7 +119,7 @@ Monad charges the gas limit, so every studio and web transaction sets an explici
 
 ## 9. Deployment
 
-`contracts/script/Deploy.s.sol` deploys `OutcomeToken` (implementation), then `SaysoMarkets(forwarder, AUSD, KURU_ROUTER, TOKEN_IMPL)`, sets the operator, and verifies on Monadscan and MonadVision ([verify guide](https://docs.monad.xyz/guides/verify-smart-contract/foundry.md)).
+`contracts/script/Deploy.s.sol` deploys `OutcomeToken` (implementation), then `SaysoMarkets(forwarder, AUSD, KURU_ROUTER, TOKEN_IMPL)`, sets the operator and, in simulation mode, `reportOrigin` to the REPORTER address, and verifies on Monadscan and MonadVision ([verify guide](https://docs.monad.xyz/guides/verify-smart-contract/foundry.md)).
 
 Deployment log (one row per deploy, added in the deploying commit with `cast code` proof):
 

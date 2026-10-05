@@ -174,11 +174,12 @@ Agreement rule: a word is said when both engines contain a matching token whose 
 | Actor | Can | Cannot |
 |---|---|---|
 | OPERATOR | Choose clip and words (committed before trading), flag, mark evidence, close, stop quoting | Change a transcript after commit, finalize a word, touch collateral |
-| Owner | Set forwarder and expected workflow ID (simulation to production), void a word 24 h after close with no report, pause new episodes | Withdraw collateral, finalize a word |
+| Owner | Set forwarder, expected workflow ID and report origin (simulation to production), void a word 24 h after close with no report, pause new episodes | Withdraw collateral, finalize a word |
 | CRE | Report outcomes through the forwarder | Report for a different workflow ID |
+| REPORTER key | In simulation mode, send the simulator's report transaction; `SaysoMarkets` accepts simulation-forwarder reports only when `tx.origin` is this key | Settle anything in DON mode (`reportOrigin` is zero) |
 | Studio service | Reveal chunks on schedule, drip starter balances | Sign for a player |
 
-In simulation mode, CRE runs on a single local node and the HTTP fetch is single-node consensus [V: [HTTP capability](https://docs.chain.link/cre/capabilities/http)]. Deployed workflows run BFT consensus across a DON. The README states the mode of each settlement.
+In simulation mode, CRE runs on a single local node and the HTTP fetch is single-node consensus [V: [HTTP capability](https://docs.chain.link/cre/capabilities/http)]. The simulation forwarder verifies no signatures, so the REPORTER gate is the only thing stopping a forged report; trust in that mode rests on the studio host that holds REPORTER (SMART-CONTRACTS section 7). Deployed workflows run BFT consensus across a DON. The README states the mode of each settlement.
 
 ## 9. Tech stack
 
@@ -223,7 +224,7 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 | CRE | Deployed DON workflow, else studio-run simulation | Deploy access requested with `cre account access` |
 | RPC | `https://testnet-rpc.monad.xyz` | Public endpoint; a provider key is optional |
 
-Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`.
+Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `REPORTER_PK` (signs simulated CRE reports; the only key `reportOrigin` accepts), `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`.
 
 ### Testnet MON budget
 
@@ -235,8 +236,9 @@ Testnet MON comes from a rate-limited faucet, so the plan is lean. Targets are [
 | OPERATOR | 15 MON | One `flagSaid` per word, evidence batches, closes |
 | BOT | 15 MON | Cancel and re-post of the 0.98 bid; inventory is AUSD, not MON |
 | DRIP | 60 MON | About 0.5 MON per new player, so roughly 120 players |
+| REPORTER | 5 MON | One simulated report transaction per evidence batch and per close (about 0.03 MON each) |
 
-About 100 MON in total. Players start with under 10 MON, so the web sends their transactions one block apart (the reserve-balance rule in the `mera-passkeys` skill) and each pays gas only. The drip handler refuses new drips when DRIP falls below one drip plus gas; the join flow still works and S2 shows the faucet links. S1 to S4 replace these targets with measured costs.
+About 105 MON in total. Players start with under 10 MON, so the web sends their transactions one block apart (the reserve-balance rule in the `mera-passkeys` skill) and each pays gas only. The drip handler refuses new drips when DRIP falls below one drip plus gas; the join flow still works and S2 shows the faucet links. S1 to S4 replace these targets with measured costs.
 
 ## 11. Failure modes
 
