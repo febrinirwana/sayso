@@ -126,7 +126,7 @@ Monad charges the gas limit, so every studio and web transaction sets an explici
 
 ## 9. Deployment
 
-`contracts/script/Deploy.s.sol` deploys `OutcomeToken` (implementation), then `SaysoMarkets(forwarder, AUSD, KURU_ROUTER, TOKEN_IMPL)`, sets the operator and, in simulation mode, `reportOrigin` to the REPORTER address, and verifies on Monadscan and MonadVision ([verify guide](https://docs.monad.xyz/guides/verify-smart-contract/foundry.md)).
+`contracts/script/Deploy.s.sol` deploys `OutcomeToken` (implementation), then `SaysoMarkets(forwarder, AUSD, KURU_ROUTER, TOKEN_IMPL)`, sets the operator and, in simulation mode, `reportOrigin` to the REPORTER address, and verifies on Monadscan and MonadVision ([verify guide](https://docs.monad.xyz/guides/verify-smart-contract/foundry.md)). It reads `AUSD`, `KURU_ROUTER`, `OPERATOR_ADDRESS`, `REPORTER_ADDRESS` and `CRE_MODE` (the forwarder defaults to the simulation or production forwarder by mode; `CRE_FORWARDER` overrides), and refuses any chain but 10143 and any dependency address without code. A fork dry run (`forge script script/Deploy.s.sol --fork-url https://testnet-rpc.monad.xyz --sender <DEPLOYER>`) estimated 4,351,123 gas, about 0.88 MON at the quoted max fee [V: 2026-10-05].
 
 Deployment log (one row per deploy, added in the deploying commit with `cast code` proof):
 
