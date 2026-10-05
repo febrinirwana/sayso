@@ -107,3 +107,78 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 **Acceptance:** all unit and invariant tests green; contracts deployed and verified; gas table filled; only the CRE forwarder can move a word to Yes or No.
 **Proof recorded:** SMART-CONTRACTS deployment log and gas table; PROGRESS Phase 2.
+
+## Phase 3 — Transcription and fixture · TODO
+
+**Goal:** any clip becomes two committed transcripts, chunk files, two roots and a flag plan with one command, reproducibly.
+
+- [ ] **3.1** `tools/transcribe` Bun CLI
+  - [ ] runs `whisper-cli` 1.9.4 (`ggml-base.en`, `-ml 1 -sow -ojf`, segment offsets in ms) and Vosk 0.3.45 (`vosk-model-en-us-0.22`, Python 3.12 via `uv`, `SetWords(True)`) exactly as spike S7 did
+  - [ ] normalises with `packages/core`, writes chunk files, `rootA`, `rootB` and the flag plan into the studio data directory (never the repo)
+  - [ ] prints `clipId`, `rootA`, `rootB` — proof: run on one clip, output pasted in PROGRESS
+- [ ] **3.2** `clips/fixtures/`: one short public-domain clip's manifest, chunks and expected roots (no media), used by core, CRE and studio tests — proof: a core test recomputes the tracked roots
+- [ ] **3.3** Clip library in studio data (untracked): 8+ clips of 3–5 min, 6 curated words each (agreed-said words and decoys), licence recorded per clip · needs cleared clips (BLOCKERS 6) — proof: library manifest count and licence column
+
+**Acceptance:** rerunning the pipeline on the fixture reproduces the tracked roots byte for byte.
+**Note:** the S7 NASA clips are research inputs only; NASA's media guidelines bar implying endorsement of crypto activity, so episode clips need their own clearance [V: S7 report].
+
+## Phase 4 — CRE resolver · TODO
+
+**Goal:** CRE alone turns committed evidence into a Yes/No report that the contract accepts, and tampered evidence produces nothing.
+
+- [ ] **4.1** `cre/resolver` via `cre init` (TypeScript, per the CRE skill); config for `monad-testnet`, `SaysoMarkets` address, reveal API base URL — proof: `cre workflow simulate` compiles the workflow
+- [ ] **4.2** Handler 0 (`EvidenceReady`) and handler 1 (`EpisodeClosed`) exactly as the `cre-resolver` skill — proof: unit tests on fixtures for agree, disagree, tampered leaf, missing chunk
+- [ ] **4.3** Simulation without broadcast, then `--broadcast` on a staged episode — proof: report tx hash, `WordResolved` events, latency from close to last resolution
+
+**Acceptance:** a staged episode settles every word through the simulation forwarder; tampered data produces no report.
+
+## Phase 5 — Studio · TODO
+
+**Goal:** an episode runs end to end on testnet with nobody from the team online.
+
+- [ ] **5.1** Hono app, config, SQLite schema from ERD section 3, `GET /v1/time`, `GET /v1/health` — proof: route tests; schema applies to an empty DB
+- [ ] **5.2** Clip library loader and reveal API `/v1/episodes/:id/chunks/:engine/:index`; schedule enforced (end + 1.5 s + margin), full reveal after close — proof: tests that an early request is refused and an on-time one served
+- [ ] **5.3** Scheduler (hourly + on-demand `POST /v1/episodes`, one at a time) and runner: create, list, seed, clock, `actions` execution with explicit gas and per-key nonce streams — proof: runner test on a fake chain; one live episode
+- [ ] **5.4** House market maker: ladder seeding, quote pull at `t − 400 ms`, 0.98 bid on SAID, cancel at close, post-settlement withdraw and redeem — proof: live tx hashes for each action
+- [ ] **5.5** `flagSaid` at `t`, `markEvidence` batches at chunk boundaries, `closeEpisode` at end; SSE `/v1/episodes/:id/stream` — proof: flag latency log under 1 s
+- [ ] **5.6** CRE runner (simulation mode): watch `EvidenceReady` and `EpisodeClosed`, run the simulate command, record `cre_runs` — proof: `cre_runs` rows with report tx hashes
+- [ ] **5.7** Starter drip: once per address, rate-limited by IP hash, MON + AUSD, refuses when DRIP is low (ARCHITECTURE section 10 budget) — proof: first drip succeeds, repeat refused, low-balance refusal tested
+- [ ] **5.8** `deploy/` systemd unit and Caddy config; full episode against testnet from a local run — proof: episode id, all tx hashes, timings in PROGRESS
+
+**Acceptance:** an on-demand episode is created, listed, seeded, flagged on time (latency logged under 1 s), closed, settled by CRE and its house inventory recycled with no human action.
+
+## Phase 6 — Indexer · TODO
+
+**Goal:** trade feed, positions and leaderboard come from Envio HyperIndex.
+
+- [ ] **6.1** Envio 3.12.1 config for `SaysoMarkets` + dynamic `OutcomeToken` registration from `WordAdded`; schema from ERD section 2; add `indexer` to Bun workspaces — proof: `codegen` succeeds; local sync reaches head
+- [ ] **6.2** Handlers for every event; profit = cashIn − cashOut + settledValue, unsettled excluded (ERD) — proof: Envio test helpers cover each event
+- [ ] **6.3** Spike S6 hosting decision and deployment; GraphQL URL documented — proof: query answered from the host
+
+**Acceptance:** after a full episode, `Player.profit` matches a hand calculation from receipts for two players.
+
+## Phase 7 — Web · TODO
+
+**Goal:** a phone completes the PRD section 10 path, and it looks like SAYSO, not a template.
+
+- [ ] **7.1** Vite + TanStack Router SPA, PWA manifest (standalone, portrait), Tailwind, routes S1–S8, query client, studio and indexer clients — proof: `bun run --cwd apps/web build`; routes render at 412 px
+- [ ] **7.2** Design pass first: display, body and tabular fonts; colour tokens (studio dark, tally red, gain); split-flap card and haptic tick; recorded in PRD section 8 — proof: one rendered screen shown to the user and approved before 7.3
+- [ ] **7.3** S1 Join + Mera session + restore (`mera-passkeys` skill), PRF-unavailable screen
+- [ ] **7.4** S2 Arena: schedule, start episode, starter balance status
+- [ ] **7.5** S3 Episode (synced video, word board, flip at presentation time) and S4 Ticket (block-sequenced transactions, cash out on SAID)
+- [ ] **7.6** S5 Results with evidence links, S6 Portfolio with redeem all, S7 Leaderboard, S8 Account
+- [ ] **7.7** Playwright at 412 px with a PRF-capable virtual authenticator: join, trade, flip, cash out, redeem, clear storage, restore — proof: green run; every screen screenshotted into `handoff\sayso\screens\`
+
+**Acceptance:** the PRD section 10 path works on a real phone against testnet; S5 (Mera on devices) passes at the real domain.
+
+## Phase 8 — Ship · TODO
+
+**Goal:** judges can use it unaided from 14 to 27 Oct, and the README proves every bounty claim.
+
+- [ ] **8.1** Deploy web, studio and indexer to the VPS and domain; set `VITE_RP_ID` before any real passkey · needs VPS + domain — proof: HTTPS URL, `/v1/health` green
+- [ ] **8.2** CRE deploy if access arrived (`setForwarderAddress`, `setExpectedWorkflowId`, `CRE_MODE=don`); else keep simulation and say so — proof: workflow id or the stated mode in README
+- [ ] **8.3** Rehearsal with 10+ real players — proof: episodes, players, trades, flag and settlement latency recorded
+- [ ] **8.4** `README.md`: one-liner, TESTNET, video, how it works (mermaid), why Monad, bounty table (requirement → feature → code path → video timestamp), addresses and tx hashes, settlement mode, run locally, AI-tool disclosure, licence
+- [ ] **8.5** Demo video under 3 minutes showing the never-cut path (script in `handoff\sayso\VIDEO.md`)
+
+**Acceptance:** a tester completes the PRD section 10 path alone on a phone from the public URL; README links resolve.
