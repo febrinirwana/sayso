@@ -101,7 +101,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 - [ ] **2.7** Invariant suite, SMART-CONTRACTS section 5 items 1–7 — proof: `forge test --match-contract Invariant` green, runs and depth recorded
 - [ ] **2.8** Gas: `forge test --gas-report` → `packages/core/src/gas.ts` (measured + 20 %); confirm an eight-word `listEpisode` fits the 30M tx limit or lower the cap and update PRD — proof: gas table in SMART-CONTRACTS
 - [ ] **2.9** `Deploy.s.sol` to testnet with the simulation forwarder `0xB9F79d863261869B234c481D1f9A7af84AeAd192`; verify on Monadscan and MonadVision · needs DEPLOYER MON — proof: deployment log row, `cast code` non-empty, verification links
-- [ ] **2.10** `packages/core/abi/sayso.ts` generated from forge artifacts; deployed addresses in `addresses.ts` — proof: generator check passes; `scripts/check-addresses.ts` green
+- [ ] **2.10** `packages/core/abi/sayso.ts` generated from forge artifacts; deployed addresses in `addresses.ts` — proof: generator check passes; `scripts/check-addresses.ts` green · generator and first export landed early so CRE and studio code import one ABI; regenerate after each contract stage; addresses wait on 2.9
 - [ ] **2.11** Phase 2 review — proof: reviewer PASS in PROGRESS
 
 **Acceptance:** all unit and invariant tests green; contracts deployed and verified; gas table filled; only the CRE forwarder can move a word to Yes or No.

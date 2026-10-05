@@ -11,6 +11,7 @@
       "!**/.claude",
       "!**/contracts",
       "!**/packages/core/abi/kuru.ts",
+      "!**/packages/core/abi/sayso.ts",
       "!**/clips/fixtures",
       "!**/routeTree.gen.ts"
     ]
