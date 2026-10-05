@@ -78,8 +78,22 @@ describe("transcript chunks", () => {
     ["reverse", 2, 1],
     ["negative start", -1, 1],
     ["negative end", 0, -1],
+    ["NaN end", 0, Number.NaN],
+    ["infinite end", 0, Number.POSITIVE_INFINITY],
+    ["fractional start", 0.5, 1],
+    ["unsafe end", 0, Number.MAX_SAFE_INTEGER + 1],
   ])("rejects an invalid token %s", (word, start, end) => {
     expect(() => chunkTranscript([[word, start, end]], 10_000)).toThrow();
+  });
+
+  it.each<Token>([
+    ["NaN end", 0, Number.NaN],
+    ["infinite start", Number.NEGATIVE_INFINITY, 1],
+    ["fractional end", 0, 1.5],
+    ["reverse", 2, 1],
+  ])("refuses to commit token %s rather than hash a lossy JSON value", (word, start, end) => {
+    expect(() => canonicalTokensJson([[word, start, end]])).toThrow();
+    expect(() => tokensHash([[word, start, end]])).toThrow();
   });
 });
 

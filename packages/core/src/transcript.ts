@@ -36,9 +36,10 @@ export function chunkTranscript(tokens: readonly Token[], durationMs: number): C
     }),
   );
   for (const token of tokens) {
-    const [, startMs, endMs] = token;
-    if (startMs < 0 || endMs < 0 || startMs > endMs || startMs >= durationMs) {
-      throw new RangeError("Token times must be ordered, nonnegative and start before duration");
+    assertTokenTimes(token);
+    const [, startMs] = token;
+    if (startMs >= durationMs) {
+      throw new RangeError("Token start must fall before the transcript duration");
     }
     const chunk = chunks[chunkIndexOf(startMs)];
     if (!chunk) {
@@ -52,8 +53,25 @@ export function chunkTranscript(tokens: readonly Token[], durationMs: number): C
   return chunks;
 }
 
+// Committed times must survive JSON unchanged: NaN and Infinity would serialize as null.
+function assertTokenTimes([, startMs, endMs]: Token): void {
+  if (
+    !Number.isSafeInteger(startMs) ||
+    !Number.isSafeInteger(endMs) ||
+    startMs < 0 ||
+    startMs > endMs
+  ) {
+    throw new RangeError("Token times must be ordered, nonnegative safe integers");
+  }
+}
+
 export function canonicalTokensJson(tokens: readonly Token[]): string {
-  return JSON.stringify(tokens.map((token) => [token[0], token[1], token[2]]));
+  return JSON.stringify(
+    tokens.map((token) => {
+      assertTokenTimes(token);
+      return [token[0], token[1], token[2]];
+    }),
+  );
 }
 
 export function tokensHash(tokens: readonly Token[]): Hex {
