@@ -69,7 +69,8 @@ Each document owns one subject. Cross-reference; never duplicate a competing fac
 | Document | Owns |
 |---|---|
 | `docs/PRD.md` | Product, episode rules, screens, design principles, bounties, scope |
-| `docs/technical/ARCHITECTURE.md` | Components, flows, transcript commitment, trust model, pinned stack, hosting |
+| `docs/technical/BUILD-PLAN.md` | Phases, task checklist with proof, spike status, schedule; tick boxes in the same commit as the work |
+| `docs/technical/ARCHITECTURE.md` | Components, repo layout (built vs planned), flows, transcript commitment, trust model, pinned stack, hosting, MON budget |
 | `docs/technical/INTEGRATIONS.md` | Monad, Kuru, CRE, Mera, AUSD, Envio, transcription facts and spikes |
 | `docs/technical/SMART-CONTRACTS.md` | Contract storage, functions, events, invariants, deployment log |
 | `docs/technical/ERD.md` | Chain, Envio, SQLite and payload schemas |
@@ -104,7 +105,7 @@ Load the matching skill before acting.
 - Auditor stance: blockers first, evidence next, cost of each option explicit.
 - At most 3 subagents at a time. Executors edit only their assigned files and never stage or commit; the lead integrates and commits.
 - Prove a changed path at runtime, not only with a green check. UI is checked rendered at a 412 px viewport; say whether you saw it.
-- Pending work is stated as pending with its gate, never dressed up as done.
+- Pending work is stated as pending with its gate, never dressed up as done. Start each session from the status table in `docs/technical/BUILD-PLAN.md`.
 - Keep pure modules deterministic; tests cover what a player or judge would notice.
 
 ## 10. Commits
