@@ -160,10 +160,9 @@ contract SaysoMarketsTradesNoTest is MarketsFixture {
     }
 
     function testClosedEpisodeBlocksNewNoButAllowsSellingExistingNo() public {
-        // Stage 5 owns closeEpisode; preserve the inspected packed episode fields.
-        bytes32 slot = bytes32(uint256(keccak256(abi.encode(uint32(1), uint256(9)))) + 3);
-        vm.store(address(markets), slot, vm.load(address(markets), slot) | bytes32(uint256(1) << 216));
         vm.warp(END);
+        vm.prank(OPERATOR);
+        markets.closeEpisode(1);
         assertTrue(markets.episode(1).closed);
         _bid(2_000_000);
         _ask(10_000_000);

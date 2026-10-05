@@ -150,6 +150,19 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "function",
+    "name": "closeEpisode",
+    "inputs": [
+      {
+        "name": "episodeId",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "createEpisode",
     "inputs": [
       {
@@ -297,6 +310,34 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "function",
+    "name": "flagSaid",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "chunkA",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "chunkB",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "offsetMs",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "getExpectedAuthor",
     "inputs": [],
     "outputs": [
@@ -355,6 +396,24 @@ export const saysoMarketsAbi = [
         "name": "episodeId",
         "type": "uint32",
         "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "markEvidence",
+    "inputs": [
+      {
+        "name": "episodeId",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "wordIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
       }
     ],
     "outputs": [],
@@ -1300,7 +1359,17 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
+    "name": "EpisodeNotEnded",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EpisodeNotListed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EpisodeNotLive",
     "inputs": []
   },
   {
@@ -1504,7 +1573,22 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
+    "name": "WordEpisodeMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "WordIsFinal",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WordNotOpen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WordNotPending",
     "inputs": []
   },
   {

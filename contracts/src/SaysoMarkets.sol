@@ -70,6 +70,11 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
     error EpisodeIsClosed();
     error WordIsFinal();
     error InsufficientCollateral();
+    error EpisodeNotLive();
+    error EpisodeNotEnded();
+    error WordNotOpen();
+    error WordNotPending();
+    error WordEpisodeMismatch();
 
     event OperatorUpdated(address indexed previousOperator, address indexed newOperator);
     event EpisodesPausedUpdated(bool paused);
@@ -268,6 +273,38 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         if (bought > noIn) IERC20(w.yes).safeTransfer(msg.sender, bought - noIn);
         _requireCollateral();
         emit Traded(wordId, msg.sender, 3, noIn, ausdOut);
+    }
+
+    function flagSaid(uint256 wordId, uint16 chunkA, uint16 chunkB, uint32 offsetMs) external onlyOperator {
+        Word storage w = _getWord(wordId);
+        Episode storage ep = _episodes[w.episodeId];
+        if (!ep.listed) revert EpisodeNotListed();
+        if (block.timestamp < ep.startsAt || block.timestamp >= ep.endsAt) revert EpisodeNotLive();
+        if (w.state != WordState.Open) revert WordNotOpen();
+        w.state = WordState.SaidPending;
+        w.chunkA = chunkA;
+        w.chunkB = chunkB;
+        w.offsetMs = offsetMs;
+        emit WordFlagged(w.episodeId, wordId, chunkA, chunkB, offsetMs);
+    }
+
+    function markEvidence(uint32 episodeId, uint256[] calldata wordIds) external onlyOperator {
+        _getEpisode(episodeId);
+        for (uint256 i; i < wordIds.length; ++i) {
+            Word storage w = _getWord(wordIds[i]);
+            if (w.episodeId != episodeId) revert WordEpisodeMismatch();
+            if (w.state != WordState.SaidPending) revert WordNotPending();
+        }
+        emit EvidenceReady(episodeId, wordIds);
+    }
+
+    function closeEpisode(uint32 episodeId) external onlyOperator {
+        Episode storage ep = _getEpisode(episodeId);
+        if (ep.closed) revert EpisodeIsClosed();
+        if (block.timestamp < ep.endsAt) revert EpisodeNotEnded();
+        ep.closed = true;
+        ep.closedAt = uint64(block.timestamp);
+        emit EpisodeClosed(episodeId);
     }
 
     function _requireCollateral() private view {
