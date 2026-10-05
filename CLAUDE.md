@@ -54,7 +54,7 @@ Commands exist once their owning phase lands; never report one as run before it 
 | `bun install` | Install workspaces |
 | `bun run verify` | Typecheck, Biome, Vitest across workspaces |
 | `bun run --cwd apps/web dev` | Web on a phone-sized viewport |
-| `bun run --cwd apps/studio dev` | Studio against testnet with `.env` |
+| `bun run --cwd apps/studio dev` | Studio against testnet with `.env` (needs `RPC_URL`, `CHAIN_ID=10143`, `STUDIO_DATA_DIR`; ingests `STUDIO_DATA_DIR/clips` at start) |
 | `forge soldeer install` (in `contracts`) | Restore pinned forge-std and OpenZeppelin from `soldeer.lock` after a clean clone |
 | `forge test` (in `contracts`) | Unit and invariant tests; add `--gas-report` when gas changes |
 | `bun packages/core/scripts/export-sayso-abi.ts [--check]` | Regenerate (or check) `packages/core/abi/sayso.ts` from `forge build` artifacts after any contract interface change |
@@ -63,7 +63,7 @@ Commands exist once their owning phase lands; never report one as run before it 
 | `bun x --no-install cre-compile src/main.ts <out>.wasm` (in `cre/resolver`) | Build the resolver WASM without CRE login |
 | `bun run --cwd indexer codegen` / `dev` | Envio generation and local indexer |
 
-Bun installs and runs scripts; Node 24 runs Vite and Vitest.
+Bun installs and runs scripts; Node 24 runs Vite and Vitest, except `apps/studio`, whose tests run Vitest inside Bun (`bun --bun vitest run`) to exercise `bun:sqlite`.
 
 ## 7. Docs table
 

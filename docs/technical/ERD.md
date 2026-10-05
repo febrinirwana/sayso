@@ -104,7 +104,7 @@ CREATE TABLE episodes (
   origin       TEXT NOT NULL CHECK (origin IN ('hourly','on_demand')),
   starts_at_ms INTEGER NOT NULL,
   ends_at_ms   INTEGER NOT NULL,
-  state        TEXT NOT NULL,
+  state        TEXT NOT NULL,              -- Scheduled | Live | Closed | Settled (ARCHITECTURE section 4), mirrored from chain
   create_tx    TEXT, list_tx TEXT, close_tx TEXT
 );
 

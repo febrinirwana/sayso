@@ -58,7 +58,7 @@ tools/transcribe/    built     Offline pipeline: two engines -> chunks -> roots 
 clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no media) for tests;
                                real clips, manifests and transcripts stay untracked studio data
 cre/resolver/        built     CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
-apps/studio/         phase 5   Bun + Hono: scheduler, runner, market maker, drip, reveal API, CRE runner
+apps/studio/         built     Bun + Hono: config, SQLite, time, health, clip loader, reveal API built; scheduler, runner, market maker, drip, CRE runner in phase 5
 indexer/             phase 6   Envio HyperIndex config, schema, handlers
 apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing
 deploy/              phase 5   systemd unit and Caddy config
@@ -188,7 +188,7 @@ Versions are the latest stable releases checked on 2026-10-05 (`npm view`, GitHu
 | Layer | Choice | Version |
 |---|---|---|
 | Runtime, installs | Bun | 1.3.14 |
-| Vite and Vitest runtime | Node | 24.21.0 |
+| Vite and Vitest runtime | Node (the studio's Vitest runs inside Bun for `bun:sqlite`) | 24.21.0 |
 | Language | TypeScript | 7.0.2 |
 | UI | React | 19.3.0 |
 | Build | Vite, `@vitejs/plugin-react` | 8.3.2, 6.1.1 |
@@ -224,7 +224,7 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 | CRE | Deployed DON workflow, else studio-run simulation | Deploy access requested with `cre account access` |
 | RPC | `https://testnet-rpc.monad.xyz` | Public endpoint; a provider key is optional |
 
-Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `REPORTER_PK` (signs simulated CRE reports; the only key `reportOrigin` accepts), `OPERATOR_ADDRESS` and `REPORTER_ADDRESS` (public addresses `Deploy.s.sol` wires), `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`, and the offline transcription paths `WHISPER_CLI`, `WHISPER_MODEL`, `VOSK_MODEL`, optional `VOSK_PYTHON_PROJECT`.
+Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `REPORTER_PK` (signs simulated CRE reports; the only key `reportOrigin` accepts), `OPERATOR_ADDRESS` and `REPORTER_ADDRESS` (public addresses `Deploy.s.sol` wires), `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `STUDIO_DATA_DIR` (outside the repo: `studio.sqlite` plus `clips/<id>/` transcribe output, ingested at start), `PORT=3001`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`, and the offline transcription paths `WHISPER_CLI`, `WHISPER_MODEL`, `VOSK_MODEL`, optional `VOSK_PYTHON_PROJECT`. Studio role keys and `SAYSO_MARKETS` may be absent while only the read API runs; loaded keys live in private fields and never appear in logs, JSON or `/v1/health`.
 
 ### Testnet MON budget
 

@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — Studio SQLite tests need Bun, not Node
+
+- **Cause:** `bun run test` launches Vitest under Node, which cannot resolve `bun:sqlite`; a probe failed with `Cannot find package 'bun:sqlite'` while `bun --bun vitest run` ran a real SQLite transaction.
+- **Rule:** Keep the studio test script on `bun --bun vitest run` and test against the production schema; never swap in a mocked database to make Node happy.
+
 ### 2026/10/05 — SDK compiler dependencies must be explicit under Bun isolation
 
 - **Cause:** CRE SDK 1.23.0's compile scripts import `typescript` but list it only as a dev dependency. Bun's isolated linker resolves it upward from the SDK's realpath and found the root TypeScript 7, which has no compiler API; a workspace-local TypeScript pin did not help, and patching the manifest alone did not change the locked graph.
