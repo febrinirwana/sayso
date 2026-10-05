@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — Resolve contract reads before a one-call prank
+
+- **Cause:** In `vm.prank(player); OutcomeToken(markets.word(id).no).transfer(...)` the `word` getter consumed the prank, so the transfer ran as the test contract and a set test failed for the wrong reason.
+- **Rule:** Read addresses into locals before `vm.prank`, or use `vm.startPrank` when several calls must share the caller.
+
 ### 2026/10/05 — Prove exhausted order-book levels, not only partial fills
 
 - **Cause:** The first fork probe filled part of one Kuru level; Kuru charges one extra quote unit when a level is exhausted, so exact-size YES buys sized with plain ceil rounding reverted on the real book while the mock passed.

@@ -17,7 +17,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DONE | 10/10 | none | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
-| 2 Contracts | DOING | 2/11 | 2.3 sets | deploy (2.9) needs DEPLOYER MON |
+| 2 Contracts | DOING | 3/11 | 2.4 trades | deploy (2.9) needs DEPLOYER MON |
 | 3 Transcription | TODO | 0/3 | 3.1 transcribe CLI | 3.3 needs cleared clips |
 | 4 CRE resolver | TODO | 0/3 | 4.1 `cre init` | CRE CLI install and login |
 | 5 Studio | TODO | 0/8 | 5.1 Hono skeleton | live run needs funded keys |
@@ -94,7 +94,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 - [x] **2.1** `OutcomeToken`: clone-initializable ERC-20, 6 decimals, mint/burn only by markets, markets as trusted spender — proof: `5fdc530` · `forge test --match-contract OutcomeTokenTest` 12/12 (init-once on implementation and clone, unauthorised mint/burn, allowance-free markets transfer, books still need allowances); full offline `forge test` 27/27
 - [x] **2.2** `SaysoMarkets` storage, roles, `createEpisode` (roots A/B committed), `listEpisode` via `KuruTrade` — proof: this commit · `forge test --match-contract SaysoMarketsEpisodesTest` 26/26 (event payloads, roles, time and word-count bounds, once-only listing, per-word books and approvals); full offline `forge test` 54 passed, 1 fork suite skipped; local `anvil --network monad` create + list of two words (`createEpisode` 974,182 gas, `listEpisode` 2,638,817 with mock books)
-- [ ] **2.3** Sets: `mintSet`, `mintSetWithPermit`, `burnSet` — proof: tests incl. ERC-2612 permit path and burn after partial trades
+- [x] **2.3** Sets: `mintSet`, `mintSetWithPermit`, `burnSet` — proof: this commit · `forge test --match-contract SaysoMarketsSetsTest` 10/10, red first (0/10 against stage 2): real `vm.sign` permit, front-run permit still mints, invalid permit without allowance mints nothing, failed NO burn rolls back YES and counters; full offline `forge test` 64 passed, 1 fork suite skipped; local `anvil --network monad` mint 3 / burn 1 left YES = NO = sets = held AUSD = 2,000,000
 - [ ] **2.4** Trades: `buyYes`, `sellYes`, `buyNo`, `sellNo` + `Traded` — proof: tests shaped by S2+S3 findings; fork test against testnet Kuru once S2 passes
 - [ ] **2.5** Lifecycle: `flagSaid`, `markEvidence` (emits `EvidenceReady` batches), `closeEpisode` (emits `EpisodeClosed`) — proof: role and state-transition tests
 - [ ] **2.6** Receiver: inherit `ReceiverTemplate`; `_processReport` with every rejection rule; `redeem`; `voidWord` after 24 h (pays 0.5) — proof: tests with 64-byte metadata, wrong forwarder, wrong workflow id, unknown word, early No

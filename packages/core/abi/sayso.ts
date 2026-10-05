@@ -69,6 +69,29 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "function",
+    "name": "burnSet",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "createEpisode",
     "inputs": [
       {
@@ -274,6 +297,72 @@ export const saysoMarketsAbi = [
         "name": "episodeId",
         "type": "uint32",
         "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintSet",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintSetWithPermit",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1090,6 +1179,16 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
+    "name": "EpisodeIsClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EpisodeNotListed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EpisodesPaused",
     "inputs": []
   },
@@ -1254,6 +1353,11 @@ export const saysoMarketsAbi = [
   {
     "type": "error",
     "name": "UnknownWord",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WordIsFinal",
     "inputs": []
   },
   {

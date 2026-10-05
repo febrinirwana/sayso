@@ -3,12 +3,15 @@ pragma solidity 0.8.37;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ReceiverTemplate} from "./vendor/chainlink/ReceiverTemplate.sol";
 import {OutcomeToken} from "./OutcomeToken.sol";
 import {KuruTrade} from "./KuruTrade.sol";
 
 contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
+    using SafeERC20 for IERC20;
     enum EpisodeState { Scheduled, Live, Closed, Settled }
     enum WordState { Open, SaidPending, Yes, No, Void }
 
@@ -63,6 +66,9 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
     error EpisodeAlreadyListed();
     error EpisodeEnded();
     error ReportsDisabled();
+    error EpisodeNotListed();
+    error EpisodeIsClosed();
+    error WordIsFinal();
 
     event OperatorUpdated(address indexed previousOperator, address indexed newOperator);
     event EpisodesPausedUpdated(bool paused);
@@ -168,6 +174,47 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
             w.market = KuruTrade.deployMarket(KURU_ROUTER, w.yes, address(AUSD));
             emit WordListed(ids[i], w.market);
         }
+    }
+
+    function mintSet(uint256 wordId, uint256 amount, address to) external nonReentrant {
+        _mintSet(wordId, amount, to);
+    }
+
+    function mintSetWithPermit(
+        uint256 wordId, uint256 amount, address to, uint256 deadline, uint8 v, bytes32 r, bytes32 s
+    ) external nonReentrant {
+        // A relayer may already have submitted this permit; allowance remains authoritative.
+        try IERC20Permit(address(AUSD)).permit(msg.sender, address(this), amount, deadline, v, r, s) {} catch {}
+        _mintSet(wordId, amount, to);
+    }
+
+    function _mintSet(uint256 wordId, uint256 amount, address to) private {
+        Word storage w = _getWord(wordId);
+        _requireUnresolved(w);
+        Episode storage ep = _episodes[w.episodeId];
+        if (!ep.listed) revert EpisodeNotListed();
+        if (ep.closed) revert EpisodeIsClosed();
+        AUSD.safeTransferFrom(msg.sender, address(this), amount);
+        w.sets += amount;
+        totalSets += amount;
+        OutcomeToken(w.yes).mint(to, amount);
+        OutcomeToken(w.no).mint(to, amount);
+        emit SetMinted(wordId, to, amount);
+    }
+
+    function burnSet(uint256 wordId, uint256 amount, address to) external nonReentrant {
+        Word storage w = _getWord(wordId);
+        _requireUnresolved(w);
+        OutcomeToken(w.yes).burn(msg.sender, amount);
+        OutcomeToken(w.no).burn(msg.sender, amount);
+        w.sets -= amount;
+        totalSets -= amount;
+        AUSD.safeTransfer(to, amount);
+        emit SetBurned(wordId, msg.sender, amount);
+    }
+
+    function _requireUnresolved(Word storage w) private view {
+        if (w.state != WordState.Open && w.state != WordState.SaidPending) revert WordIsFinal();
     }
 
     function _getEpisode(uint32 episodeId) private view returns (Episode storage ep) {
