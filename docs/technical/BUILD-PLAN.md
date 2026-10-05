@@ -17,7 +17,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DOING | 8/10 | Phase 0+1 review, PROGRESS entry | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
-| 2 Contracts | TODO | 0/11 | 2.1 OutcomeToken tests | deploy (2.9) needs DEPLOYER MON |
+| 2 Contracts | DOING | 1/11 | 2.2 SaysoMarkets episodes and listing | deploy (2.9) needs DEPLOYER MON |
 | 3 Transcription | TODO | 0/3 | 3.1 transcribe CLI | 3.3 needs cleared clips |
 | 4 CRE resolver | TODO | 0/3 | 4.1 `cre init` | CRE CLI install and login |
 | 5 Studio | TODO | 0/8 | 5.1 Hono skeleton | live run needs funded keys |
@@ -88,11 +88,11 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 - [ ] **S6** Envio hosting choice (runs in Phase 6) — proof: GraphQL query answered from the chosen host
 - [x] **S7** Engine agreement — proof: `76f9a65` · three NASA clips, agreement 89–95 %, median skew 90–290 ms, p99 ≤ 1,220 ms; keep 1,500 ms [I]; Vosk pinned to 0.3.45 (0.3.50 has no wheel)
 
-## Phase 2 — Contracts (Foundry, TDD) · TODO
+## Phase 2 — Contracts (Foundry, TDD) · DOING
 
 **Goal:** `SaysoMarkets` + `OutcomeToken` + `KuruTrade` deployed on testnet, verified, with every rule in [SMART-CONTRACTS](SMART-CONTRACTS.md) enforced by a test.
 
-- [ ] **2.1** `OutcomeToken`: clone-initializable ERC-20, 6 decimals, mint/burn only by markets, markets as trusted spender — proof: unit tests for init-once, unauthorised mint/burn revert, allowance-free transfer by markets
+- [x] **2.1** `OutcomeToken`: clone-initializable ERC-20, 6 decimals, mint/burn only by markets, markets as trusted spender — proof: this commit · `forge test --match-contract OutcomeTokenTest` 12/12 (init-once on implementation and clone, unauthorised mint/burn, allowance-free markets transfer, books still need allowances); full offline `forge test` 27/27
 - [ ] **2.2** `SaysoMarkets` storage, roles, `createEpisode` (roots A/B committed), `listEpisode` via `KuruTrade` — proof: tests with mock router/book; event payloads asserted
 - [ ] **2.3** Sets: `mintSet`, `mintSetWithPermit`, `burnSet` — proof: tests incl. ERC-2612 permit path and burn after partial trades
 - [ ] **2.4** Trades: `buyYes`, `sellYes`, `buyNo`, `sellNo` + `Traded` — proof: tests shaped by S2+S3 findings; fork test against testnet Kuru once S2 passes
