@@ -100,14 +100,14 @@ Report processing (`_processReport`): first requires a non-zero configured forwa
 ## 5. Invariants (Foundry invariant tests)
 
 1. For every unresolved word: `YES.totalSupply == NO.totalSupply == word.sets`.
-2. `AUSD.balanceOf(SaysoMarkets) >= Î£ word.sets` over words not fully redeemed, outside any call. Every trade also enforces it as a postcondition.
+2. `AUSD.balanceOf(SaysoMarkets) >= Σ word.sets` over words not fully redeemed, outside any call. Every trade also enforces it as a postcondition.
 3. A word leaves Open or SaidPending at most once.
 4. Only the configured forwarder, with the expected workflow ID when set and from `reportOrigin` when set, moves a word to Yes or No.
 5. No word resolves No before its episode is closed.
 6. Redemptions for a word never pay more than `word.sets` at resolution. For Yes/No the reserve is the outstanding winning supply. For Void it is `floor(YES.totalSupply / 2) + floor(NO.totalSupply / 2)`, recomputed at void and after every redemption; each call pays `floor(amount / 2)`, so splitting odd amounts can only lower the payout. Rounding dust leaves the reserve but stays in the contract as surplus AUSD; nothing can sweep it.
 7. The owner can never move collateral; `voidWord` only changes state and reserves.
 
-`contracts/test/invariant/` checks all seven properties after every action, with eight words and three holders. Ghost state records final transitions, reserve at resolution, measured payouts, unauthorized reports, premature No outcomes and administrative AUSD movement. Default campaign: 128 runs Ã— depth 64 = 8,192 handler invocations; expected rejections are caught, so calls are not successful-operation counts. The deterministic path asserts actual fills, refunds, token balances/supply burns and winning/Void payouts for every trade direction and both Void sides. A temporary zero-payout mutation failed `0 != 3` before restoration. Current `forge build --sizes`: runtime 19,803 bytes, initcode 20,415; runtime remains below EIP-170's 24,576 bytes and Monad's 131,072 bytes.
+`contracts/test/invariant/` checks all seven properties after every action, with eight words and three holders. Ghost state records final transitions, reserve at resolution, measured payouts, unauthorized reports, premature No outcomes and administrative AUSD movement. Default campaign: 128 runs × depth 64 = 8,192 handler invocations; expected rejections are caught, so calls are not successful-operation counts. The deterministic path asserts actual fills, refunds, token balances/supply burns and winning/Void payouts for every trade direction and both Void sides. A temporary zero-payout mutation failed `0 != 3` before restoration. Current `forge build --sizes`: runtime 19,836 bytes, initcode 20,448; runtime remains below EIP-170's 24,576 bytes and Monad's 131,072 bytes.
 
 ## 6. Kuru wiring
 
@@ -157,7 +157,7 @@ The helper has measured entries for every intermediate episode/batch count. Trad
 
 ## 9. Deployment
 
-`contracts/script/Deploy.s.sol` deploys `OutcomeToken` (implementation), then `SaysoMarkets(forwarder, AUSD, KURU_ROUTER, TOKEN_IMPL)`, sets the operator and, in simulation mode, `reportOrigin` to the REPORTER address, and verifies on Monadscan and MonadVision ([verify guide](https://docs.monad.xyz/guides/verify-smart-contract/foundry.md)). It reads `AUSD`, `KURU_ROUTER`, `OPERATOR_ADDRESS`, `REPORTER_ADDRESS` and `CRE_MODE` (the forwarder defaults to the simulation or production forwarder by mode; `CRE_FORWARDER` overrides), and refuses any chain but 10143 and any dependency address without code. A fork dry run (`forge script script/Deploy.s.sol --fork-url https://testnet-rpc.monad.xyz --sender <DEPLOYER>`) estimated 4,351,123 gas, about 0.88 MON at the quoted max fee [V: 2026-10-05].
+`contracts/script/Deploy.s.sol` deploys `OutcomeToken` and `SaysoMarkets(forwarder, AUSD, KURU_ROUTER, TOKEN_IMPL)`, installs settlement authentication, then sets the operator. Before broadcasting it refuses non-10143 chains, codeless dependencies, zero simulation `REPORTER_ADDRESS`, and missing/zero DON `CRE_WORKFLOW_ID`. Simulation installs `reportOrigin`; DON installs the approved resolver workflow ID and leaves the origin restriction disabled. It reads `AUSD`, `KURU_ROUTER`, `OPERATOR_ADDRESS`, `CRE_MODE`, and the mode-specific authentication value; optional `CRE_FORWARDER` overrides the directory default. Updated configured simulation fork dry run estimated 6,923,395 gas (~1.405 MON at the quoted max fee); missing authentication dry runs rejected before broadcast [V: 2026-10-05]. Testnet deployment and [explorer verification](https://docs.monad.xyz/guides/verify-smart-contract/foundry.md) remain pending, not performed by a dry run.
 
 Deployment log (one row per deploy, added in the deploying commit with `cast code` proof):
 

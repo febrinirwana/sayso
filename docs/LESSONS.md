@@ -4,6 +4,12 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — Require settlement identity before deployment broadcasts
+
+- **Cause:** The deployment script accepted a zero simulation reporter and did not install a DON workflow ID, while both receiver checks are conditional; a valid forwarder alone did not bind outcomes to the authorized resolver.
+- **Rule:** Reject missing mode-specific identity before `startBroadcast`, install authentication before enabling the operator, and test both unsafe and configured deployment paths.
+
+
 ### 2026/10/05 — Studio SQLite tests need Bun, not Node
 
 - **Cause:** `bun run test` launches Vitest under Node, which cannot resolve `bun:sqlite`; a probe failed with `Cannot find package 'bun:sqlite'` while `bun --bun vitest run` ran a real SQLite transaction.

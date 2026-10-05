@@ -99,14 +99,14 @@ stateDiagram-v2
   [*] --> Open
   Open --> SaidPending: flagSaid (OPERATOR)
   SaidPending --> Yes: CRE report YES
-  Open --> Yes: CRE report YES after close (flag missed)
+  Open --> Yes: CRE report YES after start (flag missed)
   Open --> No: CRE report NO after close
-  SaidPending --> No: CRE report NO (false flag)
+  SaidPending --> No: CRE report NO after close (false flag)
   Open --> Void: owner, 24 h after close, no report
   SaidPending --> Void: owner, 24 h after close, no report
 ```
 
-A word is tradable while its episode is Scheduled or Live and the word is Open or SaidPending. Set minting stops at Closed. Void redeems YES and NO at 0.5 AUSD each.
+A listed word trades while it is Open or SaidPending, including after episode close: YES buys/sells and NO sells remain allowed until finalization. Closing stops new complete sets (`mintSet`, permit mint and `buyNo`), not transfers or `burnSet`. Void redeems each side at `floor(amount / 2)` base units per call.
 
 ## 5. Flows
 
@@ -225,6 +225,8 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 | RPC | `https://testnet-rpc.monad.xyz` | Public endpoint; a provider key is optional |
 
 Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `REPORTER_PK` (signs simulated CRE reports; the only key `reportOrigin` accepts), `OPERATOR_ADDRESS` and `REPORTER_ADDRESS` (public addresses `Deploy.s.sol` wires), `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `STUDIO_DATA_DIR` (outside the repo: `studio.sqlite` plus `clips/<id>/` transcribe output, ingested at start), `PORT=3001`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`, and the offline transcription paths `WHISPER_CLI`, `WHISPER_MODEL`, `VOSK_MODEL`, optional `VOSK_PYTHON_PROJECT`. Studio role keys and `SAYSO_MARKETS` may be absent while only the read API runs; loaded keys live in private fields and never appear in logs, JSON or `/v1/health`.
+
+Deployment authentication is mandatory before broadcast: simulation requires nonzero `REPORTER_ADDRESS`; DON requires nonzero `CRE_WORKFLOW_ID` for the approved resolver and installs it before enabling the operator. A forwarder alone does not bind a DON report to SAYSO.
 
 ### Testnet MON budget
 
