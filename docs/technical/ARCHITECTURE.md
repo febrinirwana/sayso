@@ -217,6 +217,19 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 
 Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`.
 
+### Testnet MON budget
+
+Testnet MON comes from a rate-limited faucet, so the plan is lean. Targets are [I] until S1 to S4 measure real gas; Monad charges the declared gas limit at a 100 gwei minimum base fee [V: monskills `gas`], so a 300k-gas call costs about 0.03 MON.
+
+| Key | Target | Spends on |
+|---|---|---|
+| DEPLOYER | 10 MON | Contract deploys and market creation, once |
+| OPERATOR | 15 MON | One `flagSaid` per word, evidence batches, closes |
+| BOT | 15 MON | Cancel and re-post of the 0.98 bid; inventory is AUSD, not MON |
+| DRIP | 60 MON | About 0.5 MON per new player, so roughly 120 players |
+
+About 100 MON in total. Players start with under 10 MON, so the web sends their transactions one block apart (the reserve-balance rule in the `mera-passkeys` skill) and each pays gas only. The drip handler refuses new drips when DRIP falls below one drip plus gas; the join flow still works and S2 shows the faucet links. S1 to S4 replace these targets with measured costs.
+
 ## 11. Failure modes
 
 | Failure | Behaviour |
