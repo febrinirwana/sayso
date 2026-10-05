@@ -557,6 +557,24 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "function",
+    "name": "redeem",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "renounceOwnership",
     "inputs": [],
     "outputs": [],
@@ -764,6 +782,19 @@ export const saysoMarketsAbi = [
         "name": "newOwner",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "voidWord",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -1359,6 +1390,11 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
+    "name": "EpisodeNotClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EpisodeNotEnded",
     "inputs": []
   },
@@ -1370,6 +1406,11 @@ export const saysoMarketsAbi = [
   {
     "type": "error",
     "name": "EpisodeNotLive",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EpisodeNotStarted",
     "inputs": []
   },
   {
@@ -1432,6 +1473,21 @@ export const saysoMarketsAbi = [
   {
     "type": "error",
     "name": "InvalidForwarderAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidOutcome",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidReportLength",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidReportOrigin",
     "inputs": []
   },
   {
@@ -1526,11 +1582,6 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
-    "name": "ReportsDisabled",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "SafeCastOverflowedUintDowncast",
     "inputs": [
       {
@@ -1573,12 +1624,22 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "error",
+    "name": "VoidNotAvailable",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "WordEpisodeMismatch",
     "inputs": []
   },
   {
     "type": "error",
     "name": "WordIsFinal",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WordNotFinal",
     "inputs": []
   },
   {

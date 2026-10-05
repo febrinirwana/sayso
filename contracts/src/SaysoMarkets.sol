@@ -65,7 +65,6 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
     error UnknownWord();
     error EpisodeAlreadyListed();
     error EpisodeEnded();
-    error ReportsDisabled();
     error EpisodeNotListed();
     error EpisodeIsClosed();
     error WordIsFinal();
@@ -75,6 +74,13 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
     error WordNotOpen();
     error WordNotPending();
     error WordEpisodeMismatch();
+    error InvalidReportOrigin();
+    error InvalidReportLength();
+    error InvalidOutcome();
+    error EpisodeNotClosed();
+    error EpisodeNotStarted();
+    error WordNotFinal();
+    error VoidNotAvailable();
 
     event OperatorUpdated(address indexed previousOperator, address indexed newOperator);
     event EpisodesPausedUpdated(bool paused);
@@ -341,8 +347,73 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         return string(value);
     }
 
-    // Until receiver processing lands, even authenticated reports must fail closed.
-    function _processReport(bytes calldata) internal pure override {
-        revert ReportsDisabled();
+    function redeem(uint256 wordId, uint256 amount) external nonReentrant {
+        Word storage w = _getWord(wordId);
+        uint256 payout;
+        if (w.state == WordState.Yes || w.state == WordState.No) {
+            OutcomeToken(w.state == WordState.Yes ? w.yes : w.no).burn(msg.sender, amount);
+            payout = amount;
+            _reduceReserve(w, w.sets - amount);
+        } else if (w.state == WordState.Void) {
+            // The fixed API selects YES when it covers the request, otherwise NO.
+            address token = IERC20(w.yes).balanceOf(msg.sender) >= amount ? w.yes : w.no;
+            OutcomeToken(token).burn(msg.sender, amount);
+            payout = amount / 2;
+            _reduceReserve(w, IERC20(w.yes).totalSupply() / 2 + IERC20(w.no).totalSupply() / 2);
+        } else {
+            revert WordNotFinal();
+        }
+        if (payout != 0) AUSD.safeTransfer(msg.sender, payout);
+        _requireCollateral();
+        emit Redeemed(wordId, msg.sender, amount, payout);
+    }
+
+    function voidWord(uint256 wordId) external onlyOwner {
+        Word storage w = _getWord(wordId);
+        _requireUnresolved(w);
+        Episode storage ep = _episodes[w.episodeId];
+        if (!ep.closed || block.timestamp < uint256(ep.closedAt) + 24 hours) revert VoidNotAvailable();
+        w.state = WordState.Void;
+        // Reserve only remaining payable halves; rounding dust stays as surplus AUSD.
+        _reduceReserve(w, IERC20(w.yes).totalSupply() / 2 + IERC20(w.no).totalSupply() / 2);
+        ++ep.resolvedCount;
+        emit WordVoided(wordId);
+        _settleEpisode(w.episodeId, ep);
+    }
+
+    function _reduceReserve(Word storage w, uint256 remaining) private {
+        totalSets -= w.sets - remaining;
+        w.sets = remaining;
+    }
+
+    function _settleEpisode(uint32 episodeId, Episode storage ep) private {
+        if (ep.resolvedCount == ep.wordCount) emit EpisodeSettled(episodeId);
+    }
+
+    function _processReport(bytes calldata report) internal override {
+        address forwarder = this.getForwarderAddress();
+        if (forwarder == address(0) || msg.sender != forwarder) revert InvalidSender(msg.sender, forwarder);
+        if (reportOrigin != address(0) && tx.origin != reportOrigin) revert InvalidReportOrigin();
+        (uint32 episodeId, uint256[] memory ids, uint8[] memory outcomes, bytes32 evidenceHash) =
+            abi.decode(report, (uint32, uint256[], uint8[], bytes32));
+        Episode storage ep = _getEpisode(episodeId);
+        if (ids.length == 0 || ids.length != outcomes.length) revert InvalidReportLength();
+        for (uint256 i; i < ids.length; ++i) {
+            Word storage w = _getWord(ids[i]);
+            if (w.episodeId != episodeId) revert WordEpisodeMismatch();
+            _requireUnresolved(w);
+            uint8 outcome = outcomes[i];
+            if (outcome == uint8(WordState.No)) {
+                if (!ep.closed) revert EpisodeNotClosed();
+            } else if (outcome == uint8(WordState.Yes)) {
+                if (block.timestamp < ep.startsAt) revert EpisodeNotStarted();
+            } else {
+                revert InvalidOutcome();
+            }
+            w.state = WordState(outcome);
+            ++ep.resolvedCount;
+            emit WordResolved(episodeId, ids[i], outcome, evidenceHash);
+        }
+        _settleEpisode(episodeId, ep);
     }
 }

@@ -308,14 +308,4 @@ contract SaysoMarketsEpisodesTest is MarketsFixture {
         markets.word(0);
     }
 
-    function testReportsFailClosedBeforeReceiverStage() public {
-        uint32 id = _createEpisode(1);
-        uint256[] memory ids = markets.episodeWords(id);
-        uint8[] memory outcomes = new uint8[](1);
-        outcomes[0] = 2;
-        vm.prank(FORWARDER);
-        vm.expectRevert(SaysoMarkets.ReportsDisabled.selector);
-        markets.onReport("", abi.encode(id, ids, outcomes, bytes32(0)));
-        assertEq(uint8(markets.word(1).state), uint8(SaysoMarkets.WordState.Open));
-    }
 }

@@ -41,11 +41,11 @@ struct Word {
     address yes;
     address no;
     address market;       // Kuru YES/AUSD order book
-    uint256 sets;         // outstanding complete sets = AUSD collateral for this word
+    uint256 sets;         // before finalization: outstanding complete sets; after: remaining maximum payout liability
 }
 ```
 
-Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`, `reportOrigin`, `totalSets` (Σ `word.sets` over all words, the AUSD the contract must hold).
+Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`, `reportOrigin`, `totalSets` (Σ `word.sets` over all words: the AUSD the contract must hold; after a word finalizes its `sets` is the remaining payout reserve, not token supply).
 
 Readers: `episode(uint32) returns (Episode)`, `word(uint256) returns (Word)`, `episodeWords(uint32) returns (uint256[])`; unknown ids revert. Episode and word ids start at 1, and word ids are global across episodes. Outcome clones are named `YES <word>` / `NO <word>` (trailing NUL bytes dropped) with symbols `YES` / `NO`.
 
@@ -67,13 +67,13 @@ Amounts are in 6-decimal units for AUSD, YES and NO.
 | `markEvidence(uint32 episodeId, uint256[] wordIds)` | operator | Existing episode; every word exists, belongs to it and is SaidPending. Validates the whole batch, then emits one `EvidenceReady`; changes no state. Allowed after clip end and while paused. |
 | `closeEpisode(uint32 episodeId)` | operator | `block.timestamp >= endsAt`; once. Sets `closed`, records `closedAt = block.timestamp` (the 24 h void clock starts here) and emits `EpisodeClosed`. Stops `mintSet`, `mintSetWithPermit` and `buyNo`; burns and trades that create no sets continue until each word resolves. Pause does not block it. |
 | `onReport(bytes metadata, bytes report)` | CRE forwarder | Via `ReceiverTemplate`: sender must be the forwarder; workflow ID must match when set; `tx.origin` must equal `reportOrigin` when set (section 7). `report = abi.encode(uint32 episodeId, uint256[] wordIds, uint8[] outcomes, bytes32 evidenceHash)`. |
-| `redeem(uint256 wordId, uint256 amount)` | holder | Word Yes: burns YES, pays `amount`. Word No: burns NO, pays `amount`. Void: burns either side, pays `amount / 2`. |
-| `voidWord(uint256 wordId)` | owner | Episode closed for 24 h and word not final. |
+| `redeem(uint256 wordId, uint256 amount)` | holder | Word Yes: burns the caller's YES, pays `amount`. Word No: burns NO, pays `amount`. Void: burns `amount` YES when the caller's YES balance covers it, otherwise `amount` NO, and pays `floor(amount / 2)`; a holder of both Void sides redeems each side in its own call. Reduces the word's reserve before paying, is non-reentrant and ends with the collateral check. Unresolved words cannot redeem; final words cannot `burnSet`. |
+| `voidWord(uint256 wordId)` | owner | Word Open or SaidPending, episode closed, `block.timestamp >= closedAt + 24 h`. Sets Void, recomputes the reserve, increments `resolvedCount`, emits `WordVoided` and, if it was the last open word, `EpisodeSettled`. Moves no AUSD. |
 | `setOperator(address)`, `setEpisodesPaused(bool)`, `setReportOrigin(address)` | owner | Forwarder and expected workflow ID setters come from `ReceiverTemplate`. |
 
 All four trade functions are non-reentrant and end by requiring `AUSD.balanceOf(SaysoMarkets) >= totalSets` (`InsufficientCollateral`), so an existing shortfall can never be carried through a successful trade.
 
-Report processing (`_processReport`): for each `(wordId, outcome)`, the word belongs to `episodeId` and is Open or SaidPending; outcome `No` requires the episode closed; outcome `Yes` requires `block.timestamp >= startsAt`. Sets the state, increments `resolvedCount`, emits `WordResolved`; when every word is final, emits `EpisodeSettled`.
+Report processing (`_processReport`): first requires a non-zero configured forwarder equal to `msg.sender` (independent of the template's optional check) and, while `reportOrigin` is non-zero, `tx.origin == reportOrigin`. Decodes `(uint32 episodeId, uint256[] wordIds, uint8[] outcomes, bytes32 evidenceHash)`; the episode must exist and the arrays must have equal, non-zero length. Every word must exist, belong to the episode and be Open or SaidPending. Only outcomes 2 (Yes) and 3 (No) are accepted: Yes requires `block.timestamp >= startsAt`; No requires the episode closed. Open → Yes (a missed flag) and SaidPending → No (a false flag) are valid. Any invalid entry, duplicates included, reverts the whole report. Each accepted word increments `resolvedCount` and emits `WordResolved`; finalizing the last word emits `EpisodeSettled` exactly once. Reports move no AUSD.
 
 ## 4. Events
 
@@ -104,8 +104,8 @@ Report processing (`_processReport`): for each `(wordId, outcome)`, the word bel
 3. A word leaves Open or SaidPending at most once.
 4. Only the configured forwarder, with the expected workflow ID when set and from `reportOrigin` when set, moves a word to Yes or No.
 5. No word resolves No before its episode is closed.
-6. Redemptions for a word never pay more than `word.sets` at resolution.
-7. The owner can never move collateral except through `voidWord` redemption math.
+6. Redemptions for a word never pay more than `word.sets` at resolution. For Yes/No the reserve is the outstanding winning supply. For Void it is `floor(YES.totalSupply / 2) + floor(NO.totalSupply / 2)`, recomputed at void and after every redemption; each call pays `floor(amount / 2)`, so splitting odd amounts can only lower the payout. Rounding dust leaves the reserve but stays in the contract as surplus AUSD; nothing can sweep it.
+7. The owner can never move collateral; `voidWord` only changes state and reserves.
 
 ## 6. Kuru wiring
 
@@ -121,6 +121,7 @@ The contract trades with `isMargin = false` and approves each book (never `Margi
 - **Simulation gate.** The simulation forwarder (`MockKeystoneForwarder`) checks no signatures and takes caller-supplied metadata [V: chainlink-evm `contracts/cre/src/dev/MockKeystoneForwarder.sol`], and the docs say not to set the expected workflow ID in simulation. Without a gate anyone could settle a word through it. The owner therefore sets `reportOrigin` to the REPORTER key that runs `cre workflow simulate --broadcast`; `_processReport` requires `tx.origin == reportOrigin` while it is non-zero [I: the simulator signs the forwarder call with that key; S4 confirms].
 - On deploy access: owner calls `setForwarderAddress(0xF8344CFd5c43616a4366C34E3EEE75af79a74482)`, `setExpectedWorkflowId(<deployed resolver ID>)` and `setReportOrigin(address(0))` [V: `ReceiverTemplate` source in the consumer-contracts guide].
 - Metadata arrives as 64 bytes from the production forwarder; nothing checks for 62.
+- **Forwarder re-check.** The vendored template skips its sender check when the forwarder is set to zero; `_processReport` independently requires a non-zero forwarder equal to `msg.sender`, so zeroing the forwarder disables settlement instead of opening it. Clearing `reportOrigin` removes only the origin gate, never forwarder or workflow-ID authentication.
 
 ## 8. Gas
 

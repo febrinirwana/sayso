@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.37;
 
-import {MarketsFixture} from "./utils/MarketsFixture.sol";
+import {ReportFixture} from "./utils/ReportFixture.sol";
 import {SaysoMarkets} from "../src/SaysoMarkets.sol";
 import {OutcomeToken} from "../src/OutcomeToken.sol";
 import {KuruTrade} from "../src/KuruTrade.sol";
@@ -12,7 +12,7 @@ interface INoTrades {
     function sellNo(uint256 wordId, uint256 noIn, uint256 minAusdOut) external returns (uint256);
 }
 
-contract SaysoMarketsTradesNoTest is MarketsFixture {
+contract SaysoMarketsTradesNoTest is ReportFixture {
     INoTrades private trades;
     OutcomeToken private yes;
     OutcomeToken private no;
@@ -175,9 +175,8 @@ contract SaysoMarketsTradesNoTest is MarketsFixture {
     }
 
     function testResolvedWordsRejectBothNoTrades() public {
-        // Stage 6 owns settlement; state occupies byte 4 of the inspected word slot.
-        bytes32 slot = keccak256(abi.encode(uint256(1), uint256(10)));
-        vm.store(address(markets), slot, vm.load(address(markets), slot) | bytes32(uint256(2) << 32));
+        vm.warp(START);
+        _resolve(1, 2);
         assertEq(uint8(markets.word(1).state), uint8(SaysoMarkets.WordState.Yes));
         vm.prank(PLAYER);
         vm.expectRevert(SaysoMarkets.WordIsFinal.selector);
