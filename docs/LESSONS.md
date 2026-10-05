@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — Prove exhausted order-book levels, not only partial fills
+
+- **Cause:** The first fork probe filled part of one Kuru level; Kuru charges one extra quote unit when a level is exhausted, so exact-size YES buys sized with plain ceil rounding reverted on the real book while the mock passed.
+- **Rule:** Before trusting quote maths or a mock, run partial, exhausted-integral and exhausted-fractional levels against the real book on a fork and pin each number in a parity test.
+
 ### 2026/10/05 — Kuru amounts use the book's precision, not the token's decimals
 
 - **Cause:** `placeAndExecuteMarketBuy` takes `quoteSize` in pricePrecision units (1e4 = 1 AUSD), while `bestBidAsk` returns 1e18-scaled prices; passing 6-decimal AUSD amounts reverted `TransferFromFailed()` on a fork (spike S2+S3).

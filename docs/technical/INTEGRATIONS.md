@@ -52,7 +52,9 @@ ABIs are vendored from the published SDK package (0.0.95) into `packages/core/ab
 - `placeAndExecuteMarketSell` `_size` is in sizePrecision units (1e6 = 1 YES, the same as YES base units here); selling all 9,803,921 YES returned 4,901,900 AUSD base units at the 0.50 bid.
 - `bestBidAsk()` returns 1e18-scaled prices (`490000000000000000` = 0.49).
 - `getL2Book()` returns one block-number word, best-first bid `(price, size)` word pairs, one zero price word with no size word, then best-first ask pairs ending at the payload end. Prices use pricePrecision (5100 = 0.51), sizes sizePrecision (10,000,000 = 10 YES). Only manual orders appear; the SDK adds vault AMM prices separately [V: fork, SDK 0.0.95 `dist/market/orderBook.js`].
-- Gas: `deployProxy` from a contract 1.20M–1.22M; market buy 354,231; market sell 283,246.
+- Exhausting a resting ask level debits `floor(size × price / 1e6) + 1` quoteSize units for that level, one unit more than the exact cost even when it is integral; a partially filled level costs the remaining input. 8 AUSD across 10 YES at 0.51 and 10 YES at 0.52 returns 15,576,730 YES; an exact 10 YES level at 0.51 costs 5,100,100 AUSD base units [V: fork, block 68,306,112, `contracts/test/fork/KuruTrade.fork.t.sol` 9/9].
+- IOC partial fills leave the rest with the caller: 5 AUSD against a sole 2 YES ask at 0.51 spends 1,020,100 and returns 3,979,900 to the caller's wallet; selling 5 YES into a 2 YES bid sells 2 and leaves 3 [V: fork, same run].
+- Gas (warm `gasleft` deltas around library calls on the fork, not transaction limits): `deployProxy` via `KuruTrade` 1.27M–1.28M; market buy 290k–336k; market sell 299k; exact-size buy over two levels 381k. The earlier probe measured buy 354,231 and sell 283,246 as whole calls.
 - BOT path: approve `MarginAccount`, `deposit(bot, token, amount)` for YES and AUSD, then `batchProvisionLiquidity` with prices `[4900,4800,5100,5200]`, flips `[5000,4900,5000,5100]`, sizes 10e6, `isBuy [t,t,f,f]` emits four logs.
 - Real AUSD works as the quote token.
 

@@ -64,7 +64,7 @@ contract MockOrderBook is IKuruOrderBook {
             if (level.size == 0) continue;
             uint256 affordable = remaining * params.sizePrecision / level.price;
             uint256 filled = affordable < level.size ? affordable : level.size;
-            uint256 cost = filled == affordable ? remaining : filled * level.price / params.sizePrecision;
+            uint256 cost = filled == affordable ? remaining : filled * level.price / params.sizePrecision + 1;
             baseOut += filled;
             level.size -= uint96(filled);
             remaining -= cost;

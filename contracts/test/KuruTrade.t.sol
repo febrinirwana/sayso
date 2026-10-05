@@ -88,7 +88,7 @@ contract KuruTradeTest is Test {
         ISeedBook(market).seedAsk(5100, 10e6);
         ISeedBook(market).seedAsk(5200, 10e6);
         (uint256 received, uint256 spent) = trader.buy(market, address(base), address(quoteToken), 8e6, 0);
-        assertEq(received, 15_576_923);
+        assertEq(received, 15_576_730);
         assertEq(spent, 8e6);
     }
 
@@ -96,8 +96,8 @@ contract KuruTradeTest is Test {
         ISeedBook(market).seedAsk(5100, 2e6);
         (uint256 received, uint256 spent) = trader.buy(market, address(base), address(quoteToken), 5e6, 0);
         assertEq(received, 2e6);
-        assertEq(spent, 1_020_000);
-        assertEq(quoteToken.balanceOf(address(trader)), 18_980_000);
+        assertEq(spent, 1_020_100);
+        assertEq(quoteToken.balanceOf(address(trader)), 18_979_900);
     }
 
     function test_sellRoundsProceedsDown() public {
@@ -130,6 +130,15 @@ contract KuruTradeTest is Test {
         ISeedBook(market).seedAsk(5100, 10e6);
         vm.expectRevert(bytes4(keccak256("SlippageExceeded()")));
         trader.buyExact(market, address(base), address(quoteToken), 1e6, 509_999);
+    }
+
+    function test_exactBuyCoversIntegralFullLevelRounding() public {
+        ISeedBook(market).seedAsk(5100, 10e6);
+        ISeedBook(market).seedAsk(5200, 10e6);
+        (uint256 received, uint256 spent) =
+            trader.buyExact(market, address(base), address(quoteToken), 15e6 + 1, 7_700_200);
+        assertEq(received, 15_000_192);
+        assertEq(spent, 7_700_200);
     }
 
     function test_quoteRejectsInsufficientAsks() public {

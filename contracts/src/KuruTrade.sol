@@ -77,7 +77,11 @@ library KuruTrade {
             if (price == 0) break;
             uint256 size = _word(book, offset + 32);
             uint256 fill = Math.min(size, baseWanted);
-            quoteIn += Math.mulDiv(fill, price, SIZE_PRECISION, Math.Rounding.Ceil) * QUOTE_UNIT;
+            // Kuru debits floor(cost) + 1 quote units when exhausting a resting level.
+            uint256 cost = fill == size
+                ? Math.mulDiv(fill, price, SIZE_PRECISION) + 1
+                : Math.mulDiv(fill, price, SIZE_PRECISION, Math.Rounding.Ceil);
+            quoteIn += cost * QUOTE_UNIT;
             baseWanted -= fill;
             if (baseWanted == 0) return quoteIn;
             offset += 64;
