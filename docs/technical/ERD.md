@@ -61,6 +61,8 @@ Outcome-token clones are registered dynamically from `WordAdded` so their `Trans
 
 **Profit.** `profit = cashIn − cashOut + settledValue`, where `cashOut` is AUSD spent (buys, `mintSet`), `cashIn` is AUSD received (sells, `burnSet`, redemptions), and `settledValue` is unredeemed winning tokens at 1 AUSD and void tokens at 0.5. Unsettled positions are excluded, so the leaderboard never ranks on a price the player cannot realize. The nickname is derived from the address in `packages/core` and never stored.
 
+Set cash attribution uses the actual economic parties: `SetMinted.payer` gets `cashOut`; its `account` receives both tokens. `SetBurned.recipient` gets `cashIn`; its `account` burns both tokens. Outcome-token `Transfer` alone updates balances. Neither transaction origin nor the event's token holder is substituted for the cash payer/recipient.
+
 ## 3. Studio SQLite
 
 ```sql

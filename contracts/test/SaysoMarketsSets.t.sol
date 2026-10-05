@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.37;
 
-import {MarketsFixture} from "./utils/MarketsFixture.sol";
+import {ReportFixture} from "./utils/ReportFixture.sol";
 import {OutcomeToken} from "../src/OutcomeToken.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {SetCaller} from "./utils/SetCaller.sol";
 
 interface ISetActions {
     function mintSet(uint256 wordId, uint256 amount, address to) external;
@@ -11,10 +12,10 @@ interface ISetActions {
     function burnSet(uint256 wordId, uint256 amount, address to) external;
 }
 
-contract SaysoMarketsSetsTest is MarketsFixture {
+contract SaysoMarketsSetsTest is ReportFixture {
     ISetActions private actions;
-    event SetMinted(uint256 indexed wordId, address indexed account, uint256 amount);
-    event SetBurned(uint256 indexed wordId, address indexed account, uint256 amount);
+    event SetMinted(uint256 indexed wordId, address indexed payer, address indexed account, uint256 amount);
+    event SetBurned(uint256 indexed wordId, address indexed account, address indexed recipient, uint256 amount);
 
     function setUp() public override {
         super.setUp();
@@ -37,8 +38,8 @@ contract SaysoMarketsSetsTest is MarketsFixture {
     }
 
     function testMintFundsRecipientAndAccountsCollateralAcrossWords() public {
-        vm.expectEmit(true, true, false, true, address(markets));
-        emit SetMinted(1, OPERATOR, 3_000_000);
+        vm.expectEmit(true, true, true, true, address(markets));
+        emit SetMinted(1, PLAYER, OPERATOR, 3_000_000);
         _mint(1, 3_000_000, OPERATOR);
         _mint(2, 2_000_000, PLAYER);
         _assertSets(1, 3_000_000);
@@ -52,8 +53,8 @@ contract SaysoMarketsSetsTest is MarketsFixture {
 
     function testBurnPaysChosenRecipientWithoutOutcomeApprovals() public {
         _mint(1, 3_000_000, PLAYER);
-        vm.expectEmit(true, true, false, true, address(markets));
-        emit SetBurned(1, PLAYER, 1_000_000);
+        vm.expectEmit(true, true, true, true, address(markets));
+        emit SetBurned(1, PLAYER, OPERATOR, 1_000_000);
         vm.prank(PLAYER);
         actions.burnSet(1, 1_000_000, OPERATOR);
         _assertSets(1, 2_000_000);
@@ -151,5 +152,60 @@ contract SaysoMarketsSetsTest is MarketsFixture {
         actions.mintSetWithPermit(1, 2_000_000, signer, 2_000, 0, bytes32(0), bytes32(0));
         _assertSets(1, 0);
         assertEq(ausd.balanceOf(signer), 2_000_000);
+    }
+
+    function testContractPayerGiftMintIdentifiesEconomicPartiesNotOrigin() public {
+        SetCaller caller = new SetCaller(markets);
+        ausd.mint(address(caller), 3_000_000);
+        vm.expectEmit(true, true, true, true, address(markets));
+        emit SetMinted(1, address(caller), OPERATOR, 3_000_000);
+        vm.prank(PLAYER, PLAYER);
+        caller.mint(1, 3_000_000, OPERATOR);
+        assertEq(ausd.balanceOf(address(caller)), 0);
+        assertEq(ausd.balanceOf(PLAYER), 20_000_000);
+        assertEq(ausd.balanceOf(OPERATOR), 0);
+        assertEq(ausd.balanceOf(address(markets)), 3_000_000);
+        assertEq(OutcomeToken(markets.word(1).yes).balanceOf(OPERATOR), 3_000_000);
+        assertEq(OutcomeToken(markets.word(1).no).balanceOf(OPERATOR), 3_000_000);
+        _assertSets(1, 3_000_000);
+    }
+
+    function testContractHolderDirectedBurnIdentifiesRecipientNotOrigin() public {
+        SetCaller caller = new SetCaller(markets);
+        _mint(1, 3_000_000, address(caller));
+        vm.expectEmit(true, true, true, true, address(markets));
+        emit SetBurned(1, address(caller), OPERATOR, 1_000_000);
+        vm.prank(PLAYER, PLAYER);
+        caller.burn(1, 1_000_000, OPERATOR);
+        assertEq(ausd.balanceOf(OPERATOR), 1_000_000);
+        assertEq(ausd.balanceOf(address(caller)), 0);
+        assertEq(ausd.balanceOf(PLAYER), 17_000_000);
+        assertEq(ausd.balanceOf(address(markets)), 2_000_000);
+        assertEq(OutcomeToken(markets.word(1).yes).balanceOf(address(caller)), 2_000_000);
+        assertEq(OutcomeToken(markets.word(1).no).balanceOf(address(caller)), 2_000_000);
+        _assertSets(1, 2_000_000);
+    }
+
+    function testGiftedTransferredWinnerPaysCurrentHolderNotPayerOrOrigin() public {
+        SetCaller caller = new SetCaller(markets);
+        ausd.mint(address(caller), 3_000_000);
+        vm.prank(PLAYER, PLAYER);
+        caller.mint(1, 3_000_000, OPERATOR);
+        OutcomeToken yes = OutcomeToken(markets.word(1).yes);
+        vm.prank(OPERATOR);
+        yes.transfer(PLAYER, 1_000_000);
+        vm.warp(START);
+        _resolve(1, 2);
+        vm.prank(PLAYER, address(0xCAFE));
+        markets.redeem(1, 1_000_000);
+        assertEq(ausd.balanceOf(PLAYER), 21_000_000);
+        assertEq(ausd.balanceOf(address(caller)), 0);
+        assertEq(ausd.balanceOf(OPERATOR), 0);
+        assertEq(ausd.balanceOf(address(0xCAFE)), 0);
+        assertEq(yes.balanceOf(PLAYER), 0);
+        assertEq(yes.balanceOf(OPERATOR), 2_000_000);
+        assertEq(yes.totalSupply(), 2_000_000);
+        assertEq(ausd.balanceOf(address(markets)), 2_000_000);
+        assertEq(markets.word(1).sets, 2_000_000);
     }
 }

@@ -88,8 +88,8 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
     event EpisodeCreated(uint32 indexed episodeId, bytes32 clipId, bytes32 rootA, bytes32 rootB, uint64 startsAt, uint64 endsAt);
     event WordAdded(uint32 indexed episodeId, uint256 indexed wordId, bytes32 text, address yes, address no);
     event WordListed(uint256 indexed wordId, address market);
-    event SetMinted(uint256 indexed wordId, address indexed account, uint256 amount);
-    event SetBurned(uint256 indexed wordId, address indexed account, uint256 amount);
+    event SetMinted(uint256 indexed wordId, address indexed payer, address indexed account, uint256 amount);
+    event SetBurned(uint256 indexed wordId, address indexed account, address indexed recipient, uint256 amount);
     event Traded(uint256 indexed wordId, address indexed account, uint8 side, uint256 tokenAmount, uint256 ausdAmount);
     event WordFlagged(uint32 indexed episodeId, uint256 indexed wordId, uint16 chunkA, uint16 chunkB, uint32 offsetMs);
     event EvidenceReady(uint32 indexed episodeId, uint256[] wordIds);
@@ -211,7 +211,7 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         totalSets += amount;
         OutcomeToken(w.yes).mint(to, amount);
         OutcomeToken(w.no).mint(to, amount);
-        emit SetMinted(wordId, to, amount);
+        emit SetMinted(wordId, msg.sender, to, amount);
     }
 
     function burnSet(uint256 wordId, uint256 amount, address to) external nonReentrant {
@@ -222,7 +222,7 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         w.sets -= amount;
         totalSets -= amount;
         AUSD.safeTransfer(to, amount);
-        emit SetBurned(wordId, msg.sender, amount);
+        emit SetBurned(wordId, msg.sender, to, amount);
     }
 
     function buyYes(uint256 wordId, uint256 ausdIn, uint256 minYesOut) external nonReentrant returns (uint256 yesOut) {

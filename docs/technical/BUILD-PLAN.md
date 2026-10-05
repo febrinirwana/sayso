@@ -17,7 +17,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DONE | 10/10 | none | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1â€“S4 need MON; S4 needs the CRE CLI and account |
-| 2 Contracts | DOING | 8/11 | 2.11 source review | DEPLOYER MON |
+| 2 Contracts | DOING | 9/11 | 2.9 deploy, then 2.10 addresses | DEPLOYER MON |
 | 3 Transcription | DOING | 2/3 | 3.3 clip library | 3.3 needs cleared clips |
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
 | 5 Studio | DOING | 2/8 | 5.3 scheduler and runner | live run needs funded keys |
@@ -102,7 +102,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 - [x] **2.8** Gas: `forge test --gas-report` (113 permanent tests plus 2 throwaway probes passed, 1 fork suite skipped) and real AUSD/Kuru Monad fork at block 68,394,814 → `packages/core/src/gas.ts`, `gasLimit(kind,count?)` returns measured +20% rounded up. Isolated snapshots for all episode/batch counts; actual local-fork eight-word create/list receipts used 3,395,766 / 9,559,637 gas with limits 4,074,920 / 11,471,565, both status 1; eight books fit the 30M transaction limit. Table and measurement limits in SMART-CONTRACTS section 8; live house-ladder/permit/forwarder overhead remeasurement stays gated by S1–S4
 - [ ] **2.9** `Deploy.s.sol` to testnet with the simulation forwarder `0xB9F79d863261869B234c481D1f9A7af84AeAd192`; verify on Monadscan and MonadVision Â· needs DEPLOYER MON â€” proof: deployment log row, `cast code` non-empty, verification links
 - [ ] **2.10** `packages/core/abi/sayso.ts` generated from forge artifacts; deployed addresses in `addresses.ts` â€” proof: generator check passes; `scripts/check-addresses.ts` green Â· generator and first export landed early so CRE and studio code import one ABI; regenerate after each contract stage; addresses wait on 2.9
-- [ ] **2.11** Phase 2 review â€” proof: reviewer PASS in PROGRESS
+- [x] **2.11** Phase 2 source review — reviewer PASS after R1–R4 corrections: fail-closed deploy authentication, explicit gift cashflow parties, non-vacuous invariant fills/payouts and aligned lifecycle docs. Lead corrected contract proof: 119 passed, 0 failed, 1 skipped; invariant 128 × 64; ABI check matched. Report: `handoff/sayso/reports/review-phase2.md`. Live deployment/CRE acceptance remains open; indexer consumer verification is tracked separately
 
 **Acceptance:** all unit and invariant tests green; contracts deployed and verified; gas table filled; only the CRE forwarder can move a word to Yes or No.
 **Proof recorded:** SMART-CONTRACTS deployment log and gas table; PROGRESS Phase 2.

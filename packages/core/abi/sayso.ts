@@ -1166,6 +1166,12 @@ export const saysoMarketsAbi = [
         "internalType": "address"
       },
       {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
         "name": "amount",
         "type": "uint256",
         "indexed": false,
@@ -1183,6 +1189,12 @@ export const saysoMarketsAbi = [
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
+      },
+      {
+        "name": "payer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "account",
