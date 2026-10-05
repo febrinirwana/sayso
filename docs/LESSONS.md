@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — SDK compiler dependencies must be explicit under Bun isolation
+
+- **Cause:** CRE SDK 1.23.0's compile scripts import `typescript` but list it only as a dev dependency. Bun's isolated linker resolves it upward from the SDK's realpath and found the root TypeScript 7, which has no compiler API; a workspace-local TypeScript pin did not help, and patching the manifest alone did not change the locked graph.
+- **Rule:** Patch the SDK manifest to declare its compiler and keep the nested resolution in `bun.lock`; prove a clean `bun install --frozen-lockfile` still builds the WASM, and re-check both on any SDK upgrade.
+
 ### 2026/10/05 — Resolve contract reads before a one-call prank
 
 - **Cause:** In `vm.prank(player); OutcomeToken(markets.word(id).no).transfer(...)` the `word` getter consumed the prank, so the transfer ran as the test contract and a set test failed for the wrong reason.

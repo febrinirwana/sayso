@@ -57,7 +57,7 @@ contracts/           built     Foundry (Soldeer deps): unit, fork (MONAD_FORK=1)
 tools/transcribe/    built     Offline pipeline: two engines -> chunks -> roots -> flag plan (Bun CLI + vosk/ uv project)
 clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no media) for tests;
                                real clips, manifests and transcripts stay untracked studio data
-cre/resolver/        phase 4   CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
+cre/resolver/        built     CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
 apps/studio/         phase 5   Bun + Hono: scheduler, runner, market maker, drip, reveal API, CRE runner
 indexer/             phase 6   Envio HyperIndex config, schema, handlers
 apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing

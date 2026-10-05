@@ -1,0 +1,6 @@
+{
+  "chainSelectorName": "monad-testnet",
+  "saysoMarkets": "REPLACE_WITH_CAST_CODE_VERIFIED_TESTNET_SAYSO_MARKETS_ADDRESS",
+  "revealApiBaseUrl": "REPLACE_WITH_STUDIO_REVEAL_API_BASE_URL",
+  "reportGasLimit": "REPLACE_WITH_MEASURED_REPORT_GAS_PLUS_20_PERCENT"
+}

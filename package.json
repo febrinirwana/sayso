@@ -22,5 +22,8 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "typescript": "7.0.2"
+  },
+  "patchedDependencies": {
+    "@chainlink/cre-sdk@1.23.0": "cre/resolver/patches/@chainlink%2Fcre-sdk@1.23.0.patch"
   }
 }

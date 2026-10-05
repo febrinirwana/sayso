@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index 3730ddb23147c09bd9e6d09530b3bfb79c8d7058..3a84435711ede452e2dfa4a29f683483eca90df3 100644
+--- a/package.json	
++++ b/package.json
+@@ -74,6 +74,7 @@
+ 		"@solana/addresses": "6.10.0",
+ 		"@solana/codecs": "6.10.0",
+ 		"@standard-schema/spec": "1.0.0",
++		"typescript": "5.9.3",
+ 		"viem": "^2.54.2",
+ 		"zod": "3.25.76"
+ 	},

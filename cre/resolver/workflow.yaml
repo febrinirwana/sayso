@@ -1,0 +1,8 @@
+monad-testnet:
+  user-workflow:
+    workflow-name: sayso-resolver-testnet
+    deployment-registry: private
+  workflow-artifacts:
+    workflow-path: ./src/main.ts
+    config-path: ./config.monad-testnet.json
+    secrets-path: ""

@@ -76,9 +76,13 @@ ABIs are vendored from the published SDK package (0.0.95) into `packages/core/ab
 
 Workflow `cre/resolver` (TypeScript): handlers for `EvidenceReady` and `EpisodeClosed` log triggers; EVM read for `rootA`/`rootB`; HTTP GET of revealed chunks; proof verification and `agreedSpokenTime` from `packages/core`; one report per trigger. Details in `.claude/skills/cre-resolver/SKILL.md`.
 
-Non-interactive simulation from a log transaction: `cre workflow simulate <dir> --target <t> --non-interactive --trigger-index <i> --evm-tx-hash <tx> --evm-event-index <n> --broadcast` [V: vendored `chainlink-cre-skill/references/simulation.md`].
+Non-interactive simulation from a log transaction, run with cwd `cre/resolver` (where `project.yaml` lives): `cre workflow simulate . --target monad-testnet --non-interactive --trigger-index <0 EvidenceReady | 1 EpisodeClosed> --evm-tx-hash <tx> --evm-event-index <receipt log index> --broadcast` [V: vendored `chainlink-cre-skill/references/simulation.md`; flags read from CLI 1.36.0 `workflow simulate --help`].
 
-Open: tenant chain list (`cre workflow supported-chains --output json`) and whether `--broadcast` needs a linked key or Early Access for our tenant [U: S4].
+Build without login: `bun x --no-install cre-compile src/main.ts <out>.wasm` from `cre/resolver` produces the WASM with no CRE authentication or RPC; the first run downloads Javy v8.1.0 into `~/.cache/javy` [V: clean frozen-lockfile install, 4,244,093-byte WASM]. The SDK's compile scripts import the legacy TypeScript compiler API but declare TypeScript only as a dev dependency, so under the root's TypeScript 7 they fail (`ts.ScriptTarget.ESNext` undefined). Fix: `cre/resolver/patches/@chainlink%2Fcre-sdk@1.23.0.patch` adds `typescript: 5.9.3` to the SDK's dependencies and `bun.lock` carries the nested resolution; resolver typecheck still calls the root TypeScript 7 binary [V].
+
+`config.monad-testnet.json` ships with `REPLACE_WITH_…` values for the `SaysoMarkets` address, reveal API URL and report gas, which the workflow's config schema rejects, so nothing runs against an invented address.
+
+Open: tenant chain list (`cre workflow supported-chains --output json`); whether `--broadcast` needs a linked funded key or Early Access; first non-broadcast simulation of both trigger indices on a staged episode; measured report gas; tampered reveal data producing no report under the real CLI [U: S4].
 
 ## 4. Mera (accounts)
 

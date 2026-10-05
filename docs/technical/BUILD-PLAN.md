@@ -19,7 +19,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
 | 2 Contracts | DOING | 4/11 | 2.5 lifecycle | deploy (2.9) needs DEPLOYER MON |
 | 3 Transcription | DOING | 2/3 | 3.3 clip library | 3.3 needs cleared clips |
-| 4 CRE resolver | TODO | 0/3 | 4.1 `cre init` | CRE CLI install and login |
+| 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
 | 5 Studio | TODO | 0/8 | 5.1 Hono skeleton | live run needs funded keys |
 | 6 Indexer | TODO | 0/3 | 6.1 after Phase 2 events are final | none |
 | 7 Web | TODO | 0/7 | 7.2 design pass, one screen shown to the user | S5 needs the real domain |
@@ -121,12 +121,12 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 **Acceptance:** rerunning the pipeline on the fixture reproduces the tracked roots byte for byte.
 **Note:** the S7 NASA clips are research inputs only; NASA's media guidelines bar implying endorsement of crypto activity, so episode clips need their own clearance [V: S7 report].
 
-## Phase 4 — CRE resolver · TODO
+## Phase 4 — CRE resolver · DOING
 
 **Goal:** CRE alone turns committed evidence into a Yes/No report that the contract accepts, and tampered evidence produces nothing.
 
-- [ ] **4.1** `cre/resolver` via `cre init` (TypeScript, per the CRE skill); config for `monad-testnet`, `SaysoMarkets` address, reveal API base URL — proof: `cre workflow simulate` compiles the workflow
-- [ ] **4.2** Handler 0 (`EvidenceReady`) and handler 1 (`EpisodeClosed`) exactly as the `cre-resolver` skill — proof: unit tests on fixtures for agree, disagree, tampered leaf, missing chunk
+- [x] **4.1** `cre/resolver` TypeScript workflow on SDK 1.23.0, `monad-testnet` target, strict config for the `SaysoMarkets` address, reveal API base URL and report gas — built by hand because `cre init` needs login — proof: `bun x --no-install cre-compile src/main.ts <tmp>.wasm` builds the WASM with no CRE auth, also from a clean `bun install --frozen-lockfile` (4,244,093 bytes, `\0asm` header); `cre workflow simulate` itself moves to 4.3
+- [x] **4.2** Handler 0 (`EvidenceReady`) and handler 1 (`EpisodeClosed`) exactly as the `cre-resolver` skill; any missing, malformed or tampered chunk aborts the whole report — proof: `bun run --cwd cre/resolver test` 19/19 on core-built fixtures (agree → Yes, false flag → No at close, one engine only → No, >1,500 ms apart → No, tampered token/leaf/root → no report, missing chunk → no report, wrong clip/episode rejected, report ABI decodes as `(uint32,uint256[],uint8[],bytes32)` with Yes = 2, No = 3); root `bun run verify` 215/215
 - [ ] **4.3** Simulation without broadcast, then `--broadcast` on a staged episode — proof: report tx hash, `WordResolved` events, latency from close to last resolution
 
 **Acceptance:** a staged episode settles every word through the simulation forwarder; tampered data produces no report.

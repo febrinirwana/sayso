@@ -59,7 +59,8 @@ Commands exist once their owning phase lands; never report one as run before it 
 | `forge test` (in `contracts`) | Unit and invariant tests; add `--gas-report` when gas changes |
 | `bun packages/core/scripts/export-sayso-abi.ts [--check]` | Regenerate (or check) `packages/core/abi/sayso.ts` from `forge build` artifacts after any contract interface change |
 | `bun run --cwd tools/transcribe transcribe -- --media <file> --manifest <manifest.json> --out <studioDataDir>` | Offline Whisper + Vosk transcription into studio data outside the repo; `--help` lists env and file contract |
-| `cre workflow simulate cre/resolver --target <t> --non-interactive --trigger-index <i> ...` | Resolver run; see `cre-resolver` skill |
+| `cre workflow simulate . --target monad-testnet --non-interactive --trigger-index <i> ...` (in `cre/resolver`) | Resolver run; see `cre-resolver` skill and INTEGRATIONS section 3 |
+| `bun x --no-install cre-compile src/main.ts <out>.wasm` (in `cre/resolver`) | Build the resolver WASM without CRE login |
 | `bun run --cwd indexer codegen` / `dev` | Envio generation and local indexer |
 
 Bun installs and runs scripts; Node 24 runs Vite and Vitest.
