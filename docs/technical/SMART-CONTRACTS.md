@@ -61,8 +61,8 @@ Amounts are in 6-decimal units for AUSD, YES and NO.
 | `burnSet(uint256 wordId, uint256 amount, address to)` | holder | Word not final (also after close). Burns both sides from the caller, pays `amount` AUSD to `to`. `SetMinted.account` is the recipient; `SetBurned.account` is the holder. |
 | `buyYes(uint256 wordId, uint256 ausdIn, uint256 minYesOut) returns (uint256 yesOut)` | anyone | Word listed and not final (trading continues after close until the word resolves; close only stops new sets). IOC market buy; unspent AUSD is refunded in the call. |
 | `sellYes(uint256 wordId, uint256 yesIn, uint256 minAusdOut) returns (uint256 ausdOut)` | holder | Word listed and not final. IOC market sell; unsold YES is returned in the call. Cash-out uses this against the 0.98 bid. `Traded` carries the measured fill and the net AUSD moved, refunds excluded. |
-| `buyNo(uint256 wordId, uint256 noAmount, uint256 maxAusdIn) returns (uint256 ausdSpent)` | anyone | Episode not closed. Mints `noAmount` sets, sells all `noAmount` YES (reverts on a partial fill), sends NO, then pulls only `noAmount − proceeds` from the player, which must be ≤ `maxAusdIn`. |
-| `sellNo(uint256 wordId, uint256 noIn, uint256 minAusdOut) returns (uint256 ausdOut)` | holder | Buys at least `noIn` YES with pooled AUSD (quote sized by walking `getL2Book` asks), burns `noIn` sets, pays `noIn − spent` and returns YES dust from rounding to the player. Reverts unless `AUSD.balanceOf(this) >= totalSets` at the end. |
+| `buyNo(uint256 wordId, uint256 noAmount, uint256 maxAusdIn) returns (uint256 ausdSpent)` | anyone | Episode listed and not closed; word Open or SaidPending. Creates `noAmount` sets, sells all `noAmount` YES via IOC (partial fill reverts), sends `noAmount` NO and pulls only the measured net cost `noAmount − proceeds` from the player, which must be ≤ `maxAusdIn`; proceeds above `noAmount` revert. |
+| `sellNo(uint256 wordId, uint256 noIn, uint256 minAusdOut) returns (uint256 ausdOut)` | holder | Word listed and not final, also after close. Pulls `noIn` NO, buys at least `noIn` YES with pooled AUSD via `KuruTrade.buyExactBase` (quote cap `noIn − minAusdOut`), burns exactly `noIn` of both sides, pays `noIn − spent` and sends YES rounding dust to the player. Thin asks or payout slippage revert the whole call. |
 | `flagSaid(uint256 wordId, uint16 chunkA, uint16 chunkB, uint32 offsetMs)` | operator | Episode live; word Open. Sets SaidPending. Display and trigger only; settles nothing. |
 | `markEvidence(uint32 episodeId, uint256[] wordIds)` | operator | Every word SaidPending and in the episode. Emits `EvidenceReady`. |
 | `closeEpisode(uint32 episodeId)` | operator | `block.timestamp >= endsAt`; once. Stops minting. |
@@ -70,6 +70,8 @@ Amounts are in 6-decimal units for AUSD, YES and NO.
 | `redeem(uint256 wordId, uint256 amount)` | holder | Word Yes: burns YES, pays `amount`. Word No: burns NO, pays `amount`. Void: burns either side, pays `amount / 2`. |
 | `voidWord(uint256 wordId)` | owner | Episode closed for 24 h and word not final. |
 | `setOperator(address)`, `setEpisodesPaused(bool)`, `setReportOrigin(address)` | owner | Forwarder and expected workflow ID setters come from `ReceiverTemplate`. |
+
+All four trade functions are non-reentrant and end by requiring `AUSD.balanceOf(SaysoMarkets) >= totalSets` (`InsufficientCollateral`), so an existing shortfall can never be carried through a successful trade.
 
 Report processing (`_processReport`): for each `(wordId, outcome)`, the word belongs to `episodeId` and is Open or SaidPending; outcome `No` requires the episode closed; outcome `Yes` requires `block.timestamp >= startsAt`. Sets the state, increments `resolvedCount`, emits `WordResolved`; when every word is final, emits `EpisodeSettled`.
 
@@ -93,12 +95,12 @@ Report processing (`_processReport`): for each `(wordId, outcome)`, the word bel
 | `EpisodesPausedUpdated(bool paused)` | none |
 | `ReportOriginUpdated(address previousOrigin, address newOrigin)` | both |
 
-`Traded` is the leaderboard's source: it carries exact token and AUSD amounts per player action, so profit never depends on decoding Kuru internals.
+`Traded` is the leaderboard's source: it carries exact token and AUSD amounts per player action, so profit never depends on decoding Kuru internals. Side 0: YES received, AUSD spent. Side 1: YES sold, AUSD paid. Side 2: NO received, net AUSD pulled. Side 3: NO burned, AUSD paid. YES rounding dust returned by `sellNo` is not in the event; every amount is a measured fill, not ideal price arithmetic.
 
 ## 5. Invariants (Foundry invariant tests)
 
 1. For every unresolved word: `YES.totalSupply == NO.totalSupply == word.sets`.
-2. `AUSD.balanceOf(SaysoMarkets) >= Σ word.sets` over words not fully redeemed, outside any call.
+2. `AUSD.balanceOf(SaysoMarkets) >= Σ word.sets` over words not fully redeemed, outside any call. Every trade also enforces it as a postcondition.
 3. A word leaves Open or SaidPending at most once.
 4. Only the configured forwarder, with the expected workflow ID when set and from `reportOrigin` when set, moves a word to Yes or No.
 5. No word resolves No before its episode is closed.

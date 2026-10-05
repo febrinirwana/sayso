@@ -69,6 +69,7 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
     error EpisodeNotListed();
     error EpisodeIsClosed();
     error WordIsFinal();
+    error InsufficientCollateral();
 
     event OperatorUpdated(address indexed previousOperator, address indexed newOperator);
     event EpisodesPausedUpdated(bool paused);
@@ -220,6 +221,7 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         (yesOut, spent) = KuruTrade.marketBuy(w.market, w.yes, address(AUSD), ausdIn, minYesOut);
         if (ausdIn > spent) AUSD.safeTransfer(msg.sender, ausdIn - spent);
         if (yesOut != 0) IERC20(w.yes).safeTransfer(msg.sender, yesOut);
+        _requireCollateral();
         emit Traded(wordId, msg.sender, 0, yesOut, spent);
     }
 
@@ -231,7 +233,45 @@ contract SaysoMarkets is ReceiverTemplate, ReentrancyGuardTransient {
         (ausdOut, sold) = KuruTrade.marketSell(w.market, w.yes, address(AUSD), yesIn, minAusdOut);
         if (yesIn > sold) yes.safeTransfer(msg.sender, yesIn - sold);
         if (ausdOut != 0) AUSD.safeTransfer(msg.sender, ausdOut);
+        _requireCollateral();
         emit Traded(wordId, msg.sender, 1, sold, ausdOut);
+    }
+
+    function buyNo(uint256 wordId, uint256 noAmount, uint256 maxAusdIn) external nonReentrant returns (uint256 ausdSpent) {
+        Word storage w = _getTradableWord(wordId);
+        if (_episodes[w.episodeId].closed) revert EpisodeIsClosed();
+        w.sets += noAmount;
+        totalSets += noAmount;
+        OutcomeToken(w.yes).mint(address(this), noAmount);
+        (uint256 proceeds, uint256 sold) = KuruTrade.marketSell(w.market, w.yes, address(AUSD), noAmount, 0);
+        if (sold != noAmount) revert KuruTrade.InsufficientLiquidity();
+        if (proceeds > noAmount) revert KuruTrade.SlippageExceeded();
+        ausdSpent = noAmount - proceeds;
+        if (ausdSpent > maxAusdIn) revert KuruTrade.SlippageExceeded();
+        OutcomeToken(w.no).mint(msg.sender, noAmount);
+        AUSD.safeTransferFrom(msg.sender, address(this), ausdSpent);
+        _requireCollateral();
+        emit Traded(wordId, msg.sender, 2, noAmount, ausdSpent);
+    }
+
+    function sellNo(uint256 wordId, uint256 noIn, uint256 minAusdOut) external nonReentrant returns (uint256 ausdOut) {
+        Word storage w = _getTradableWord(wordId);
+        if (minAusdOut > noIn) revert KuruTrade.SlippageExceeded();
+        IERC20(w.no).safeTransferFrom(msg.sender, address(this), noIn);
+        (uint256 bought, uint256 spent) = KuruTrade.buyExactBase(w.market, w.yes, address(AUSD), noIn, noIn - minAusdOut);
+        OutcomeToken(w.yes).burn(address(this), noIn);
+        OutcomeToken(w.no).burn(address(this), noIn);
+        w.sets -= noIn;
+        totalSets -= noIn;
+        ausdOut = noIn - spent;
+        if (ausdOut != 0) AUSD.safeTransfer(msg.sender, ausdOut);
+        if (bought > noIn) IERC20(w.yes).safeTransfer(msg.sender, bought - noIn);
+        _requireCollateral();
+        emit Traded(wordId, msg.sender, 3, noIn, ausdOut);
+    }
+
+    function _requireCollateral() private view {
+        if (AUSD.balanceOf(address(this)) < totalSets) revert InsufficientCollateral();
     }
 
     function _getTradableWord(uint256 wordId) private view returns (Word storage w) {

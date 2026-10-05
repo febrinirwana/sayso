@@ -50,10 +50,10 @@ Status column: **built** means tracked code exists today; a phase number means t
 packages/core/       built     Pure TypeScript shared by web, studio and CRE. No I/O, no React.
   src/               built       match, transcript, merkle, units, nickname, addresses, explorer;
                                  one *.test.ts beside each module; index.ts is the only entry
-  abi/               built       vendored Kuru ABIs (kuru.ts) + SOURCE.md; sayso.ts in phase 2
+  abi/               built       vendored Kuru ABIs (kuru.ts) + SOURCE.md; sayso.ts generated from forge artifacts
   scripts/           built       vendor-kuru-abi, export-merkle-vectors, check-addresses
-contracts/           built     Foundry (Soldeer deps): test/MerkleVectors.t.sol + fixtures today;
-                               src/ SaysoMarkets, OutcomeToken, KuruTrade and script/ in phase 2
+contracts/           built     Foundry (Soldeer deps): unit, fork (MONAD_FORK=1) and Merkle vector tests;
+                               src/ SaysoMarkets, OutcomeToken, KuruTrade, vendor/chainlink; script/Deploy.s.sol
 tools/transcribe/    built     Offline pipeline: two engines -> chunks -> roots -> flag plan (Bun CLI + vosk/ uv project)
 clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no media) for tests;
                                real clips, manifests and transcripts stay untracked studio data

@@ -92,6 +92,35 @@ export const saysoMarketsAbi = [
   },
   {
     "type": "function",
+    "name": "buyNo",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "noAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxAusdIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "ausdSpent",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "buyYes",
     "inputs": [
       {
@@ -486,6 +515,35 @@ export const saysoMarketsAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "sellNo",
+    "inputs": [
+      {
+        "name": "wordId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "noIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minAusdOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "ausdOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1270,6 +1328,16 @@ export const saysoMarketsAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientCollateral",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientLiquidity",
+    "inputs": []
   },
   {
     "type": "error",
