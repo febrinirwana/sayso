@@ -45,7 +45,7 @@ struct Word {
 }
 ```
 
-Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`, `reportOrigin`, `totalSets` (ÃŽÂ£ `word.sets` over all words: the AUSD the contract must hold; after a word finalizes its `sets` is the remaining payout reserve, not token supply).
+Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`, `reportOrigin`, `totalSets` (Σ `word.sets` over all words: the AUSD the contract must hold; after a word finalizes its `sets` is the remaining payout reserve, not token supply).
 
 Readers: `episode(uint32) returns (Episode)`, `word(uint256) returns (Word)`, `episodeWords(uint32) returns (uint256[])`; unknown ids revert. Episode and word ids start at 1, and word ids are global across episodes. Outcome clones are named `YES <word>` / `NO <word>` (trailing NUL bytes dropped) with symbols `YES` / `NO`.
 
@@ -112,11 +112,11 @@ Report processing (`_processReport`): first requires a non-zero configured forwa
 
 ## 6. Kuru wiring
 
-`listEpisode` calls `Router.deployProxy(0, yes, AUSD, 1e6, 1e4, 100, 1e6, 1e10, 0, 0, 100)` per word: sizePrecision 1e6, pricePrecision 1e4, tick 100 (1Ã‚Â¢), minimum 1 YES, maximum 10,000 YES, no fees [V: simulation with these parameters, `INTEGRATIONS.md` section 2]. YES prices are integers in 1/10,000 AUSD, so 0.50 is `5000` and the cash-out bid 0.98 is `9800`.
+`listEpisode` calls `Router.deployProxy(0, yes, AUSD, 1e6, 1e4, 100, 1e6, 1e10, 0, 0, 100)` per word: sizePrecision 1e6, pricePrecision 1e4, tick 100 (1¢), minimum 1 YES, maximum 10,000 YES, no fees [V: simulation with these parameters, `INTEGRATIONS.md` section 2]. YES prices are integers in 1/10,000 AUSD, so 0.50 is `5000` and the cash-out bid 0.98 is `9800`.
 
 The contract trades with `isMargin = false` and approves each book (never `MarginAccount`) for AUSD and that word's YES. Kuru pulls from and pays to the contract's wallet; `quoteSize` is in pricePrecision units, so `KuruTrade` passes `ausd / 100` and only spends multiples of 100 AUSD base units [V: fork simulation, `INTEGRATIONS.md` section 2]. Every fill is measured by balance delta and any unspent input is returned to the player in the same call.
 
-`KuruTrade` treats a zero input as a no-op, including AUSD below the 100-unit quote quantum; a positive minimum output still reverts `SlippageExceeded`. `buyExactBase` walks the manual asks from `getL2Book` and reserves `floor(size Ãƒâ€” price / 1e6) + 1` quote units for each level it fully consumes (Kuru's exhausted-level charge, `INTEGRATIONS.md` section 2) and `ceil` for the last, partial level; it then buys and reverts `InsufficientLiquidity` unless the measured YES delta covers the request. The overshoot is rounding dust (191 YES base units on the fork's two-level case). Vault AMM liquidity is ignored because SAYSO never funds it. The off-chain `quoteCost` in `packages/core` uses `ceil`, so a ticket that exhausts a level can under-quote by one quantum (0.0001 AUSD); minimum-out tolerances absorb it.
+`KuruTrade` treats a zero input as a no-op, including AUSD below the 100-unit quote quantum; a positive minimum output still reverts `SlippageExceeded`. `buyExactBase` walks the manual asks from `getL2Book` and reserves `floor(size × price / 1e6) + 1` quote units for each level it fully consumes (Kuru's exhausted-level charge, `INTEGRATIONS.md` section 2) and `ceil` for the last, partial level; it then buys and reverts `InsufficientLiquidity` unless the measured YES delta covers the request. The overshoot is rounding dust (191 YES base units on the fork's two-level case). Vault AMM liquidity is ignored because SAYSO never funds it. The off-chain `quoteCost` in `packages/core` uses `ceil`, so a ticket that exhausts a level can under-quote by one quantum (0.0001 AUSD); minimum-out tolerances absorb it.
 
 ## 7. CRE wiring
 
@@ -128,7 +128,7 @@ The contract trades with `isMargin = false` and approves each book (never `Margi
 
 ## 8. Gas
 
-Monad bills the gas limit. `packages/core/src/gas.ts` exports `gasLimit(kind, count?)`, returning `ceil(measured Ã— 1.20)`. Episode word counts are 2â€“8 (default six); evidence/report batches are 1â€“8 (default one). Counts outside the measured range are refused.
+Monad bills the gas limit. `packages/core/src/gas.ts` exports `gasLimit(kind, count?)`, returning `ceil(measured × 1.20)`. Episode word counts are 2–8 (default six); evidence/report batches are 1–8 (default one). Counts outside the measured range are refused.
 
 [V: Monad-mode fork at block 68,394,814, real AUSD and Kuru; `forge test --isolate` with per-call gas snapshots]. Eight-word create and list were also sent as actual transactions on a local Monad-mode Anvil fork with the limits below; receipts used exactly 3,395,766 and 9,559,637 gas, both status 1. Eight books fit the **30M transaction** limit; no word-cap change is needed.
 
