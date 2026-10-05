@@ -1,0 +1,23 @@
+{
+  "clipId": "0xd32d252d8fa2e68d00e49913493cad9b782c8a78de6ad165fac7cc9a8c02cc43",
+  "rootA": "0x1839363f31d7583ccb0364ab4c4876e0bd9d59467b33ffe18ac70bcdafb9db7f",
+  "rootB": "0x9fb6c3430f29253d220b2baa2d359f2daec38fc2877d87bc1f78e4b05cee2e49",
+  "mediaSha256": "0xc839d79419a45f6e979e9569478257bfa92859b5d15140c17d1f797b7a0feb29",
+  "durationMs": 32090,
+  "flagPlan": {
+    "block": {
+      "t_ms": 10860,
+      "chunk_a": 1,
+      "chunk_b": 1
+    },
+    "market": {
+      "t_ms": 7090,
+      "chunk_a": 0,
+      "chunk_b": 0
+    },
+    "monad": null,
+    "rocket": null,
+    "ocean": null,
+    "forest": null
+  }
+}

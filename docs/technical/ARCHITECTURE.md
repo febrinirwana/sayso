@@ -55,7 +55,7 @@ packages/core/       built     Pure TypeScript shared by web, studio and CRE. No
 contracts/           built     Foundry (Soldeer deps): test/MerkleVectors.t.sol + fixtures today;
                                src/ SaysoMarkets, OutcomeToken, KuruTrade and script/ in phase 2
 tools/transcribe/    built     Offline pipeline: two engines -> chunks -> roots -> flag plan (Bun CLI + vosk/ uv project)
-clips/fixtures/      phase 3   One tracked fixture clip (manifest + chunks, no media) for tests;
+clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no media) for tests;
                                real clips, manifests and transcripts stay untracked studio data
 cre/resolver/        phase 4   CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
 apps/studio/         phase 5   Bun + Hono: scheduler, runner, market maker, drip, reveal API, CRE runner

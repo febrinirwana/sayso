@@ -1,0 +1,16 @@
+{
+  "block": {
+    "t_ms": 10860,
+    "chunk_a": 1,
+    "chunk_b": 1
+  },
+  "market": {
+    "t_ms": 7090,
+    "chunk_a": 0,
+    "chunk_b": 0
+  },
+  "monad": null,
+  "rocket": null,
+  "ocean": null,
+  "forest": null
+}

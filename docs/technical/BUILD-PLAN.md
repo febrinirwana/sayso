@@ -18,7 +18,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 1 Core (TDD) | DONE | 10/10 | none | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
 | 2 Contracts | DOING | 3/11 | 2.4 trades | deploy (2.9) needs DEPLOYER MON |
-| 3 Transcription | DOING | 1/3 | 3.2 fixture | 3.3 needs cleared clips |
+| 3 Transcription | DOING | 2/3 | 3.3 clip library | 3.3 needs cleared clips |
 | 4 CRE resolver | TODO | 0/3 | 4.1 `cre init` | CRE CLI install and login |
 | 5 Studio | TODO | 0/8 | 5.1 Hono skeleton | live run needs funded keys |
 | 6 Indexer | TODO | 0/3 | 6.1 after Phase 2 events are final | none |
@@ -115,7 +115,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
   - [x] runs `whisper-cli` 1.9.4 and Vosk 0.3.45 exactly as spike S7 did; engine and model paths come from `WHISPER_CLI`, `WHISPER_MODEL`, `VOSK_MODEL` (optional `VOSK_PYTHON_PROJECT`)
   - [x] normalises, chunks, hashes and roots with `packages/core` only; writes `<out>/<id>/{clip.json,flag-plan.json,chunks/{A,B}/<index>.json}` and refuses an `--out` inside the repo
   - [x] prints `clipId`, `rootA`, `rootB` and the flag plan
-- [ ] **3.2** `clips/fixtures/`: one short public-domain clip's manifest, chunks and expected roots (no media), used by core, CRE and studio tests — proof: a core test recomputes the tracked roots
+- [x] **3.2** `clips/fixtures/tts-market/`: a 32,090 ms team-generated CC0 speech clip (Windows TTS via tracked `generate.ps1`; no media tracked) with manifest, both engines' chunks, expected roots and flag plan, used by transcribe, CRE and studio tests — proof: `tools/transcribe/src/fixture.test.ts` recomputes every leaf, proof, both roots and the flag plan from the tracked chunks and compares them byte for byte → 29/29; the real CLI output matched all nine tracked payload files. Deviation: TTS instead of a public-domain recording keeps the fixture licence-free and the words known; regenerating on another Windows voice changes the media hash, so the tracked chunks, not the WAV, are the reference
 - [ ] **3.3** Clip library in studio data (untracked): 8+ clips of 3–5 min, 6 curated words each (agreed-said words and decoys), licence recorded per clip · needs cleared clips (BLOCKERS 6) — proof: library manifest count and licence column
 
 **Acceptance:** rerunning the pipeline on the fixture reproduces the tracked roots byte for byte.

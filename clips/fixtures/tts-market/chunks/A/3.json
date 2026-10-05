@@ -1,0 +1,29 @@
+{
+  "clipId": "0xd32d252d8fa2e68d00e49913493cad9b782c8a78de6ad165fac7cc9a8c02cc43",
+  "engine": "A",
+  "index": 3,
+  "startMs": 30000,
+  "endMs": 40000,
+  "tokens": [
+    [
+      "to",
+      30190,
+      30310
+    ],
+    [
+      "our",
+      30310,
+      30490
+    ],
+    [
+      "example",
+      30490,
+      31600
+    ]
+  ],
+  "leaf": "0xeb1401827f8d0dff1e53ba846ec230eea195f1241bf1679e72cf768378aacb3f",
+  "proof": [
+    "0xe3f294119fb614607047043c4108314c3565777ff5ddd449af38ce05803848b2",
+    "0xd4118a9130fa08535e9e17f1dcc8bc518ddd70d5c6fe05fc58d819a9df6a138d"
+  ]
+}
