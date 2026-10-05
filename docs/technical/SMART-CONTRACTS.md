@@ -47,14 +47,16 @@ struct Word {
 
 Immutables: `AUSD`, `KURU_ROUTER`, `TOKEN_IMPL`. Mutable: `operator`, `episodesPaused`, `reportOrigin`, `totalSets` (Σ `word.sets` over all words, the AUSD the contract must hold).
 
+Readers: `episode(uint32) returns (Episode)`, `word(uint256) returns (Word)`, `episodeWords(uint32) returns (uint256[])`; unknown ids revert. Episode and word ids start at 1, and word ids are global across episodes. Outcome clones are named `YES <word>` / `NO <word>` (trailing NUL bytes dropped) with symbols `YES` / `NO`.
+
 ## 3. Functions
 
 Amounts are in 6-decimal units for AUSD, YES and NO.
 
 | Function | Caller | Rules |
 |---|---|---|
-| `createEpisode(bytes32 clipId, bytes32 rootA, bytes32 rootB, uint64 startsAt, uint64 endsAt, bytes32[] words) returns (uint32 episodeId)` | operator | 1 to 8 words; `startsAt >= block.timestamp`; `endsAt > startsAt`; not paused. Clones YES and NO per word. |
-| `listEpisode(uint32 episodeId)` | operator | Deploys one Kuru market per word (`deployProxy` type 0, parameters in section 6) and approves each book for AUSD and that word's YES. Trading requires `listed`. |
+| `createEpisode(bytes32 clipId, bytes32 rootA, bytes32 rootB, uint64 startsAt, uint64 endsAt, bytes32[] words) returns (uint32 episodeId)` | operator | 1 to 8 words, none zero; `startsAt >= block.timestamp`; `endsAt > startsAt`; not paused. Clones YES and NO per word. |
+| `listEpisode(uint32 episodeId)` | operator | Existing episode, once, before `endsAt` (pausing does not block listing an episode already created). Deploys one Kuru market per word (`deployProxy` type 0, parameters in section 6) and approves each book for AUSD and that word's YES. Trading requires `listed`. |
 | `mintSet(uint256 wordId, uint256 amount, address to)` / `mintSetWithPermit(..., deadline, v, r, s)` | anyone | Episode listed and not closed; word Open or SaidPending. Pulls `amount` AUSD, mints `amount` YES and NO. |
 | `burnSet(uint256 wordId, uint256 amount, address to)` | holder | Word not final. Burns both sides, returns AUSD. |
 | `buyYes(uint256 wordId, uint256 ausdIn, uint256 minYesOut) returns (uint256 yesOut)` | anyone | Word listed and not final. IOC market buy. |
@@ -87,6 +89,9 @@ Report processing (`_processReport`): for each `(wordId, outcome)`, the word bel
 | `EpisodeSettled(uint32 episodeId)` | `episodeId` |
 | `Redeemed(uint256 wordId, address account, uint256 tokenAmount, uint256 ausdOut)` | `wordId`, `account` |
 | `WordVoided(uint256 wordId)` | `wordId` |
+| `OperatorUpdated(address previousOperator, address newOperator)` | both |
+| `EpisodesPausedUpdated(bool paused)` | none |
+| `ReportOriginUpdated(address previousOrigin, address newOrigin)` | both |
 
 `Traded` is the leaderboard's source: it carries exact token and AUSD amounts per player action, so profit never depends on decoding Kuru internals.
 
