@@ -4,6 +4,8 @@ export const TOKEN_DECIMALS = 6;
 export const ONE = 1_000_000n;
 export const MIN_SIZE = ONE;
 export const MAX_SIZE = 10_000_000_000n;
+/** AUSD base units per Kuru quoteSize unit (1e6 / pricePrecision); Kuru settles quote only in these steps. */
+export const QUOTE_UNIT = 100n;
 
 const DECIMAL = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 
@@ -81,12 +83,13 @@ function quoteNumerator(size: bigint, price: number): bigint {
 
 export function quoteCost(size: bigint, price: number): bigint {
   const numerator = quoteNumerator(size, price);
-  const precision = BigInt(PRICE_PRECISION);
-  return (numerator + precision - 1n) / precision;
+  const step = BigInt(PRICE_PRECISION) * QUOTE_UNIT;
+  return ((numerator + step - 1n) / step) * QUOTE_UNIT;
 }
 
 export function quoteProceeds(size: bigint, price: number): bigint {
-  return quoteNumerator(size, price) / BigInt(PRICE_PRECISION);
+  const step = BigInt(PRICE_PRECISION) * QUOTE_UNIT;
+  return (quoteNumerator(size, price) / step) * QUOTE_UNIT;
 }
 
 export function noCost(size: bigint, bestBid: number): bigint {

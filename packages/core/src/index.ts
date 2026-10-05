@@ -37,6 +37,7 @@ export {
   PRICE_PRECISION,
   parseAmount,
   priceToKuru,
+  QUOTE_UNIT,
   quoteCost,
   quoteProceeds,
   sizeToKuru,

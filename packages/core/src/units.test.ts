@@ -8,6 +8,7 @@ import {
   noCost,
   parseAmount,
   priceToKuru,
+  QUOTE_UNIT,
   quoteCost,
   quoteProceeds,
   sizeToKuru,
@@ -99,10 +100,13 @@ describe("token amounts", () => {
 });
 
 describe("quote rounding", () => {
-  it("rounds buyer cost up and seller proceeds down on an odd size", () => {
-    expect(quoteCost(1_000_001n, 5000)).toBe(500_001n);
+  it("rounds buyer cost up and seller proceeds down to Kuru's 100-unit quote quantum", () => {
+    expect(quoteCost(1_000_001n, 5000)).toBe(500_100n);
     expect(quoteProceeds(1_000_001n, 5000)).toBe(500_000n);
     expect(noCost(1_000_001n, 5000)).toBe(500_001n);
+    // Fork-observed: selling 9,803,921 YES at the 0.50 bid paid 4,901,900 AUSD units.
+    expect(quoteProceeds(9_803_921n, 5000)).toBe(4_901_900n);
+    expect(quoteCost(1n, 100)).toBe(QUOTE_UNIT);
   });
 
   it("keeps exact quotes exact at both price boundaries", () => {
