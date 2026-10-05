@@ -44,22 +44,30 @@ Chain is truth. Envio and SQLite are read models; nothing a player owns lives on
 
 ## 2. Repo layout
 
+Status column: **built** means tracked code exists today; a phase number means the folder arrives in that BUILD-PLAN phase.
+
 ```
-apps/web/            PWA: screens, Mera session, signing, tx sequencing
-apps/studio/         Bun + Hono service: scheduler, runner, market maker, drip, reveal API, CRE runner
-packages/core/       Pure TypeScript shared by web, studio and CRE: matcher, chunking, Merkle,
-                     price math, ABIs, addresses, types. No I/O, no React.
-contracts/           Foundry: SaysoMarkets, OutcomeToken, scripts, tests
-cre/resolver/        CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
-indexer/             Envio HyperIndex config, schema, handlers
-tools/transcribe/    Offline transcription pipeline: two engines -> chunks -> roots
-clips/fixtures/      One tracked fixture clip (manifest + chunks) for tests; real clips, manifests and
-                     transcripts are studio data so outcomes stay hidden until reveal
-docs/                PRD, LESSONS, technical/*
-.claude/skills/      Tracked project skills
+packages/core/       built     Pure TypeScript shared by web, studio and CRE. No I/O, no React.
+  src/               built       match, transcript, merkle, units, nickname, addresses, explorer;
+                                 one *.test.ts beside each module; index.ts is the only entry
+  abi/               built       vendored Kuru ABIs (kuru.ts) + SOURCE.md; sayso.ts in phase 2
+  scripts/           built       vendor-kuru-abi, export-merkle-vectors, check-addresses
+contracts/           built     Foundry (Soldeer deps): test/MerkleVectors.t.sol + fixtures today;
+                               src/ SaysoMarkets, OutcomeToken, KuruTrade and script/ in phase 2
+tools/transcribe/    phase 3   Offline pipeline: two engines -> chunks -> roots -> flag plan
+clips/fixtures/      phase 3   One tracked fixture clip (manifest + chunks, no media) for tests;
+                               real clips, manifests and transcripts stay untracked studio data
+cre/resolver/        phase 4   CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
+apps/studio/         phase 5   Bun + Hono: scheduler, runner, market maker, drip, reveal API, CRE runner
+indexer/             phase 6   Envio HyperIndex config, schema, handlers
+apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing
+deploy/              phase 5   systemd unit and Caddy config
+docs/                built     PRD, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN, SMART-CONTRACTS,
+                               ERD, INTEGRATIONS
+.claude/skills/      built     Vendored + project skills (skills-lock.json pins sources)
 ```
 
-Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `indexer`, `tools/*`.
+Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`; `indexer` joins in phase 6 (Bun rejects a workspace path that does not exist yet).
 
 ## 3. Components and boundaries
 
@@ -196,7 +204,7 @@ Versions are the latest stable releases checked on 2026-10-05 (`npm view`, GitHu
 | Contracts | Foundry, Solidity, OpenZeppelin Contracts | 1.8.4, 0.8.37, 5.7.0 |
 | Settlement | CRE CLI, `@chainlink/cre-sdk` | 1.36.0, 1.23.0 |
 | Indexer | Envio HyperIndex | 3.12.1 |
-| Transcription | whisper.cpp, Vosk | 1.9.4, 0.3.50 |
+| Transcription | whisper.cpp (`ggml-base.en`), Vosk (`vosk-model-en-us-0.22`) | 1.9.4, 0.3.45 (latest published wheel; 0.3.50 is a source-only tag, S7) |
 | Lint and format | Biome | 2.5.15 |
 | Tests | Vitest, Playwright | 5.0.3, 1.63.0 |
 

@@ -101,14 +101,16 @@ Fallback quote token if S1 fails: Kuru testnet USDC `0x3bA3d39AFcf8bb994f7964B3e
 
 ## 7. Transcription (offline, free)
 
-| Engine | Version | Licence | Use |
+| Engine | Version | Licence | Use / model |
 |---|---|---|---|
-| whisper.cpp (`whisper-cli`, word timestamps, JSON output) | 1.9.4 | MIT | Engine A |
-| Vosk (Kaldi-based, different model family) | 0.3.50 | Apache-2.0 | Engine B |
+| whisper.cpp (`whisper-cli`, word timestamps, JSON output) | 1.9.4 | MIT | Engine A; `ggml-base.en.bin`, also benchmarked `ggml-small.en.bin` |
+| Vosk (Kaldi-based, different model family) | 0.3.45 | Apache-2.0 | Engine B; `vosk-model-en-us-0.22` (large); latest published Python wheel, 0.3.50 is a source-only tag |
 
 Both run on a laptop or the VPS ahead of time; nothing transcribes in a request path. Two architecturally different engines make the agreement rule meaningful.
 
-Open: agreement rate and timestamp skew between the engines on real clips [U: S7].
+Windows x64 whisper binaries come from [b5130](https://github.com/ggml-org/whisper.cpp/releases/tag/b5130), the build linked by [v1.9.4](https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.4) at the same commit; `whisper-cli --version` prints 1.9.4. Vosk 0.3.50 is absent from [PyPI](https://pypi.org/project/vosk/); the [upstream tag](https://github.com/alphacep/vosk-api/releases/tag/v0.3.50) has no binaries [V: spike S7, local install + release APIs].
+
+S7 measured both English Whisper models against large Vosk; results below. Keep the 1,500 ms rule for now [I: S7 recommendation]; noisy conversational clips and ground-truth accuracy remain unmeasured [U: expanded S7].
 
 ## 8. Free Monad developer resources used
 
@@ -124,4 +126,8 @@ Public testnet RPC and faucet; Monad Solonet for local runs; Envio HyperSync; mo
 | S4 | CRE simulation writes on Monad testnet | `cre workflow simulate --broadcast` delivers a report to a `ReceiverTemplate` consumer through the simulation forwarder; access request submitted |
 | S5 | Mera PRF on phones at the real domain | Create, sign, clear storage, restore the same address on iOS and Android |
 | S6 | Envio hosting | Indexer serves a GraphQL query for testnet events from the chosen host |
-| S7 | Engine agreement | On three clips, agreed-word rate and median skew recorded; rule threshold confirmed |
+| S7 | Engine agreement | Measured 2026-10-05; retain 1,500 ms on this sample [I]; broader conversational validation remains open |
+
+**S7 — 2026-10-05 [V: spike S7, local run].** Three NASA ScienceCasts: [Space Gardening](https://images.nasa.gov/details/248_SpaceGardening) (268 s), [Thinking Inside the Box](https://images.nasa.gov/details/282_ThinkingInsideBox) (250 s), [The CIPHER Project](https://images.nasa.gov/details/319_CIPHER) (205 s). `base.en` / large Vosk exact normalized non-stop-token agreement: 335/356 (94.10%), 310/341 (90.91%), 245/274 (89.42%); median skew 130/205/250 ms, p99 1,040/1,010/920 ms. `small.en`: 333/354 (94.07%), 323/347 (93.08%), 260/274 (94.89%); medians 90/270/290 ms, p99 620/1,220/900 ms. Greedy one-to-one pair totals at 1,000/1,500/2,000/3,000 ms: base 881/890/895/899; small 908/916/916/917. These rates include numeral/compound rendering differences, not plural/hyphen-expanded settlement or ground-truth accuracy. CPU wall times (same clip order): base 39.45/37.23/32.63 s; small 112.90/98.60/82.69 s; Vosk 110.48/92.90/70.68 s plus one 67.80 s model load. Full per-word CSVs, skew distributions, hashes, flags and disagreements are in the external S7 report/scratch, not the repo.
+
+Keep 1,500 ms [I]: tightening loses 9 base / 8 small pairs; widening to 3,000 ms gains only 9 / 1. Lexical disagreements dominate; three related narrated clips do not validate noisy dialogue [U: expanded S7]. NASA's [media guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/) supply public-domain evidence with third-party/endorsement/crypto restrictions; these are research inputs, not cleared episode assets.

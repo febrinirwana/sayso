@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/05 — A release tag is not an installable version
+
+- **Cause:** Vosk 0.3.50 is tagged on GitHub but has no binaries and no PyPI wheel; the pinned version could not be installed (spike S7).
+- **Rule:** Before pinning, install the exact version from the registry the project uses. Pin what installs; note the tag gap beside the pin.
+
 ### 2026/10/05 — Run the proof before writing it in a commit body
 
 - **Cause:** A commit body can state a check that was never executed; the history then carries an unverified claim.
