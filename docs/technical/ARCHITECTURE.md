@@ -58,7 +58,7 @@ tools/transcribe/    built     Offline pipeline: two engines -> chunks -> roots 
 clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no media) for tests;
                                real clips, manifests and transcripts stay untracked studio data
 cre/resolver/        built     CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
-apps/studio/         built     Bun + Hono: config, SQLite, time, health, clip loader, reveal API built; scheduler, runner, market maker, drip, CRE runner in phase 5
+apps/studio/         built     Bun + Hono: SQLite, time/health, clip reveal, scheduler/lifecycle runner and SSE; permanent maker, drip and CRE runner pending phase 5
 indexer/             phase 6   Envio HyperIndex config, schema, handlers
 apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing
 deploy/              phase 5   systemd unit and Caddy config
@@ -160,6 +160,8 @@ The outcome of every word is fixed before the first trade and provable afterward
 5. Each engine's leaves stay in chunk order and form a Merkle tree with commutative keccak pair hashing, the same scheme as OpenZeppelin `MerkleProof`; an odd node is promoted unchanged. `rootA` and `rootB` go onchain in `createEpisode`.
 6. `clipId = keccak256(sha256(media file) ‖ manifestId)`: the raw 32-byte digest followed by the UTF-8 manifest id (`encodePacked(bytes32, string)`), not the digest's hex text. Anyone holding the media can rerun the pinned engines and audit both transcripts.
 7. **Reveal schedule.** The reveal API serves chunk `i` with its proof only after studio time passes `startsAt + chunkEnd + 2,000 ms` (presentation delay plus margin). After `closeEpisode`, every chunk is public.
+
+**Clock boundaries:** onchain `endsAt − startsAt = ceil(mediaDurationMs / 1000)` seconds, preserving the committed chunk count the CRE resolver derives. The studio closes at `endsAt + 2,000 ms`, not before the delayed player hears the final word. After a late restart, an Open word whose flag window elapsed stays Open for CRE's full-transcript close decision; the studio records the missed action instead of submitting an impossible flag.
 
 Agreement rule: a word is said when both engines contain a matching token whose start times differ by at most 1,500 ms. The agreed spoken timestamp `t` is the earlier start. The flag schedule is computed offline from this rule.
 

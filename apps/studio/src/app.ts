@@ -1,6 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import type { Address } from "viem";
+import { EpisodeError, type EpisodeRunner } from "./runner.ts";
 
 export type ChainSnapshot = {
   headNumber: string;
@@ -8,7 +10,13 @@ export type ChainSnapshot = {
   balances: { role: string; address: Address; monWei: string }[];
 };
 export type ChainReader = { snapshot(): Promise<ChainSnapshot> };
-export type AppDeps = { db: Database; now(): number; chain: ChainReader };
+export type AppDeps = {
+  db: Database;
+  now(): number;
+  chain: ChainReader;
+  runner?: EpisodeRunner | undefined;
+  ip?(request: Request): string;
+};
 type CreRun = {
   id: number;
   episode_id: number;
@@ -33,8 +41,40 @@ type RevealRow = {
   proof_json: string;
 };
 
-export function createApp({ db, now, chain }: AppDeps) {
+export function createApp({ db, now, chain, runner, ip }: AppDeps) {
   const app = new Hono();
+  app.post("/v1/episodes", async (context) => {
+    if (!runner) return context.body(null, 503);
+    try {
+      const episodeId = await runner.request("on_demand", ip?.(context.req.raw) ?? "unknown");
+      return context.json({ episodeId }, 201);
+    } catch (error) {
+      return context.body(null, error instanceof EpisodeError ? error.status : 503);
+    }
+  });
+  app.get("/v1/episodes/:id/stream", (context) => {
+    const id = Number(context.req.param("id"));
+    if (
+      !runner ||
+      !Number.isSafeInteger(id) ||
+      id < 1 ||
+      !db.query("SELECT id FROM episodes WHERE id = ?").get(id)
+    )
+      return context.body(null, 404);
+    context.header("Cache-Control", "no-store");
+    return streamSSE(context, async (stream) => {
+      const aborted = Promise.withResolvers<void>();
+      let writes: Promise<unknown> = Promise.resolve();
+      const unsubscribe = runner.subscribe(id, (event) => {
+        writes = writes
+          .then(() => stream.writeSSE({ event: event.event, data: JSON.stringify(event.data) }))
+          .catch(() => aborted.resolve());
+      });
+      stream.onAbort(() => aborted.resolve());
+      await aborted.promise;
+      unsubscribe?.();
+    });
+  });
   app.get("/v1/time", (context) => context.json({ serverMs: now() }));
   app.get("/v1/health", async (context) => {
     // Exclude error text: upstream errors can contain RPC credentials or subprocess inputs.

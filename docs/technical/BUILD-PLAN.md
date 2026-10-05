@@ -20,7 +20,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 2 Contracts | DOING | 9/11 | 2.9 deploy, then 2.10 addresses | DEPLOYER MON |
 | 3 Transcription | DOING | 2/3 | 3.3 clip library | 3.3 needs cleared clips |
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
-| 5 Studio | DOING | 2/8 | 5.3 scheduler and runner | live run needs funded keys |
+| 5 Studio | DOING | 3/8 | 5.4 permanent maker and 5.3 seeded runner | live run needs funded keys |
 | 6 Indexer | TODO | 0/3 | 6.1 after Phase 2 events are final | none |
 | 7 Web | TODO | 0/7 | 7.2 design pass, one screen shown to the user | S5 needs the real domain |
 | 8 Ship | TODO | 0/5 | after Phase 7 | VPS, domain, team registration |
@@ -131,18 +131,18 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 **Acceptance:** a staged episode settles every word through the simulation forwarder; tampered data produces no report.
 
-## Phase 5 â€” Studio Â· DOING
+## Phase 5 — Studio · DOING
 
 **Goal:** an episode runs end to end on testnet with nobody from the team online.
 
-- [x] **5.1** Hono app, config, SQLite schema from ERD section 3, `GET /v1/time`, `GET /v1/health` â€” proof: `bun run --cwd apps/studio test` 22/22 on real `bun:sqlite` (Vitest runs inside Bun; under Node it cannot load `bun:sqlite`), schema applies to an empty DB, config refuses `CHAIN_ID` â‰  10143 and JSON/inspect output carries no key material; production `main.ts` against a local fake RPC answered `/v1/time` and `/v1/health` (`status ok`, head lag 796 ms, last CRE run with its mode)
-- [x] **5.2** Clip library loader and reveal API `/v1/episodes/:id/chunks/:engine/:index`; schedule enforced (`startsAt + chunkEnd + 2,000 ms`, inclusive), full reveal once the episode is Closed or Settled â€” proof: same run covers fixture ingest, tampered chunk and root mismatch refused, boundary âˆ’ 1 ms â†’ empty `425`, exact boundary â†’ payload, unknown episode/engine/index â†’ empty `404`; live smoke: `curl` chunk A/3 of a Live episode â†’ `425 Too Early` with no body, of a Closed episode â†’ `200` with tokens, leaf and proof
-- [ ] **5.3** Scheduler (hourly + on-demand `POST /v1/episodes`, one at a time) and runner: create, list, seed, clock, `actions` execution with explicit gas and per-key nonce streams â€” proof: runner test on a fake chain; one live episode
-- [ ] **5.4** House market maker: ladder seeding, quote pull at `t âˆ’ 400 ms`, 0.98 bid on SAID, cancel at close, post-settlement withdraw and redeem â€” proof: live tx hashes for each action
-- [ ] **5.5** `flagSaid` at `t`, `markEvidence` batches at chunk boundaries, `closeEpisode` at end; SSE `/v1/episodes/:id/stream` â€” proof: flag latency log under 1 s
-- [ ] **5.6** CRE runner (simulation mode): watch `EvidenceReady` and `EpisodeClosed`, run the simulate command, record `cre_runs` â€” proof: `cre_runs` rows with report tx hashes
-- [ ] **5.7** Starter drip: once per address, rate-limited by IP hash, MON + AUSD, refuses when DRIP is low (ARCHITECTURE section 10 budget) â€” proof: first drip succeeds, repeat refused, low-balance refusal tested
-- [ ] **5.8** `deploy/` systemd unit and Caddy config; full episode against testnet from a local run â€” proof: episode id, all tx hashes, timings in PROGRESS
+- [x] **5.1** Hono app, config, SQLite schema from ERD section 3, `GET /v1/time`, `GET /v1/health` — proof: `bun run --cwd apps/studio test` 22/22 on real `bun:sqlite` (Vitest runs inside Bun; under Node it cannot load `bun:sqlite`), schema applies to an empty DB, config refuses `CHAIN_ID` ≠ 10143 and JSON/inspect output carries no key material; production `main.ts` against a local fake RPC answered `/v1/time` and `/v1/health` (`status ok`, head lag 796 ms, last CRE run with its mode)
+- [x] **5.2** Clip library loader and reveal API `/v1/episodes/:id/chunks/:engine/:index`; schedule enforced (`startsAt + chunkEnd + 2,000 ms`, inclusive), full reveal once the episode is Closed or Settled — proof: same run covers fixture ingest, tampered chunk and root mismatch refused, boundary − 1 ms → empty `425`, exact boundary → payload, unknown episode/engine/index → empty `404`; live smoke: `curl` chunk A/3 of a Live episode → `425 Too Early` with no body, of a Closed episode → `200` with tokens, leaf and proof
+- [ ] **5.3** Scheduler (hourly + on-demand `POST /v1/episodes`, one at a time) and runner: create, list, seed, clock, durable `actions`, explicit gas and receipt-gated sender streams — scheduler/lifecycle implementation landed with request journal, restart recovery and 42 studio tests; production returns 503 until a ready permanent maker seed hook is wired. Local real-Kuru fork smoke used a throwaway hook that actually provisioned bilateral liquidity, not a production maker. Full item remains open for 5.4 wiring and one funded live episode
+- [ ] **5.4** House market maker: ladder seeding, quote pull at `t − 400 ms`, 0.98 bid on SAID, cancel at close, post-settlement withdraw and redeem — proof: live tx hashes for each action
+- [x] **5.5** `flagSaid` at spoken `t`, `markEvidence` at verified chunk reveal boundaries, `closeEpisode` after the final 2,000 ms presentation margin; SSE `/v1/episodes/:id/stream` — proof: 42 studio tests cover no future flag leakage, receipt sequencing, persistent recovery, exact 10 s duration boundaries and skipped expired flags; real Monad/Kuru fork lifecycle smoke created/listed six words, two flag receipts took 570 / 622 ms, emitted evidence and closed episode 1. This is local fork proof, not live testnet settlement; funded live proof stays with 5.8
+- [ ] **5.6** CRE runner (simulation mode): watch `EvidenceReady` and `EpisodeClosed`, run the simulate command, record `cre_runs` — proof: `cre_runs` rows with report tx hashes
+- [ ] **5.7** Starter drip: once per address, rate-limited by IP hash, MON + AUSD, refuses when DRIP is low (ARCHITECTURE section 10 budget) — proof: first drip succeeds, repeat refused, low-balance refusal tested
+- [ ] **5.8** `deploy/` systemd unit and Caddy config; full episode against testnet from a local run — proof: episode id, all tx hashes, timings in PROGRESS
 
 **Acceptance:** an on-demand episode is created, listed, seeded, flagged on time (latency logged under 1 s), closed, settled by CRE and its house inventory recycled with no human action.
 

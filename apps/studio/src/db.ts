@@ -42,17 +42,32 @@ CREATE TABLE IF NOT EXISTS episodes (
   state        TEXT NOT NULL,
   create_tx    TEXT, list_tx TEXT, close_tx TEXT
 );
+CREATE TABLE IF NOT EXISTS episode_requests (
+  id INTEGER PRIMARY KEY,
+  origin TEXT NOT NULL CHECK (origin IN ('hourly','on_demand')),
+  clip_id TEXT NOT NULL REFERENCES clips(clip_id),
+  ip_hash TEXT,
+  requested_ms INTEGER NOT NULL,
+  starts_at_ms INTEGER NOT NULL,
+  ends_at_ms INTEGER NOT NULL,
+  create_tx TEXT,
+  episode_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'creating',
+  error TEXT,
+  raw_tx TEXT
+);
 CREATE TABLE IF NOT EXISTS actions (
   id           INTEGER PRIMARY KEY,
   episode_id   INTEGER NOT NULL REFERENCES episodes(id),
-  kind         TEXT NOT NULL CHECK (kind IN ('seed','pull','bid','flag','evidence','close','redeem')),
+  kind         TEXT NOT NULL CHECK (kind IN ('create','list','seed','pull','bid','flag','evidence','close','redeem')),
   word_id      INTEGER,
   scheduled_ms INTEGER NOT NULL,
   sent_ms      INTEGER,
   tx_hash      TEXT,
   block        INTEGER,
   status       TEXT NOT NULL DEFAULT 'pending',
-  error        TEXT
+  error        TEXT,
+  payload_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS house_orders (
   market     TEXT NOT NULL,
@@ -91,6 +106,17 @@ export function openDatabase(path: string): Database {
   try {
     db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
     db.transaction(() => db.exec(schema))();
+    const actionColumns = db.query<{ name: string }, []>("PRAGMA table_info(actions)").all();
+    if (!actionColumns.some((column) => column.name === "payload_json")) {
+      db.transaction(() => {
+        db.exec("ALTER TABLE actions RENAME TO actions_previous");
+        db.exec(schema);
+        db.exec(`INSERT INTO actions (id, episode_id, kind, word_id, scheduled_ms, sent_ms,
+          tx_hash, block, status, error) SELECT id, episode_id, kind, word_id, scheduled_ms,
+          sent_ms, tx_hash, block, status, error FROM actions_previous`);
+        db.exec("DROP TABLE actions_previous");
+      })();
+    }
     return db;
   } catch (error) {
     db.close();

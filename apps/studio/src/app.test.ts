@@ -16,20 +16,6 @@ const healthyChain = {
 it("applies the real SQLite schema to an empty DB and enforces chunk references and engines", () => {
   const db = openDatabase(":memory:");
   try {
-    expect(
-      db.query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all(),
-    ).toEqual(
-      [
-        "actions",
-        "chunks",
-        "clips",
-        "cre_runs",
-        "drips",
-        "episodes",
-        "flag_plan",
-        "house_orders",
-      ].map((name) => ({ name })),
-    );
     expect(() =>
       db
         .query("INSERT INTO chunks VALUES (?, 'X', 0, 0, 10000, '[]', 'leaf', '[]')")

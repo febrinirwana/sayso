@@ -110,17 +110,33 @@ CREATE TABLE episodes (
   create_tx    TEXT, list_tx TEXT, close_tx TEXT
 );
 
+CREATE TABLE episode_requests (             -- durable create journal; episodes only hold confirmed chain ids
+  id INTEGER PRIMARY KEY,
+  origin TEXT NOT NULL CHECK (origin IN ('hourly','on_demand')),
+  clip_id TEXT NOT NULL REFERENCES clips(clip_id),
+  ip_hash TEXT,
+  requested_ms INTEGER NOT NULL,
+  starts_at_ms INTEGER NOT NULL,
+  ends_at_ms INTEGER NOT NULL,
+  create_tx TEXT,
+  episode_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'creating',
+  error TEXT,
+  raw_tx TEXT                              -- signed bytes, persisted before broadcast for identical replay
+);
+
 CREATE TABLE actions (                     -- every scheduled studio transaction
   id           INTEGER PRIMARY KEY,
   episode_id   INTEGER NOT NULL REFERENCES episodes(id),
-  kind         TEXT NOT NULL CHECK (kind IN ('seed','pull','bid','flag','evidence','close','redeem')),
+  kind         TEXT NOT NULL CHECK (kind IN ('create','list','seed','pull','bid','flag','evidence','close','redeem')),
   word_id      INTEGER,
   scheduled_ms INTEGER NOT NULL,
   sent_ms      INTEGER,
   tx_hash      TEXT,
   block        INTEGER,
   status       TEXT NOT NULL DEFAULT 'pending',
-  error        TEXT
+  error        TEXT,
+  payload_json TEXT NOT NULL DEFAULT '{}'  -- batch word ids, flag metadata, signed raw transaction
 );
 
 CREATE TABLE house_orders (
