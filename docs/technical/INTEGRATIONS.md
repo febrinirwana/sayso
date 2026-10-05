@@ -51,6 +51,7 @@ ABIs are vendored from the published SDK package (0.0.95) into `packages/core/ab
 - `placeAndExecuteMarketBuy` `quoteSize` is in pricePrecision units (1e4 = 1 AUSD): `5e4` spent exactly 5,000,000 AUSD base units and returned 9,803,921 YES (fill at 0.51). Passing `5e6` reverted `TransferFromFailed()` (`0x7939f424`). The return value is base received.
 - `placeAndExecuteMarketSell` `_size` is in sizePrecision units (1e6 = 1 YES, the same as YES base units here); selling all 9,803,921 YES returned 4,901,900 AUSD base units at the 0.50 bid.
 - `bestBidAsk()` returns 1e18-scaled prices (`490000000000000000` = 0.49).
+- `getL2Book()` returns one block-number word, best-first bid `(price, size)` word pairs, one zero price word with no size word, then best-first ask pairs ending at the payload end. Prices use pricePrecision (5100 = 0.51), sizes sizePrecision (10,000,000 = 10 YES). Only manual orders appear; the SDK adds vault AMM prices separately [V: fork, SDK 0.0.95 `dist/market/orderBook.js`].
 - Gas: `deployProxy` from a contract 1.20M–1.22M; market buy 354,231; market sell 283,246.
 - BOT path: approve `MarginAccount`, `deposit(bot, token, amount)` for YES and AUSD, then `batchProvisionLiquidity` with prices `[4900,4800,5100,5200]`, flips `[5000,4900,5000,5100]`, sizes 10e6, `isBuy [t,t,f,f]` emits four logs.
 - Real AUSD works as the quote token.

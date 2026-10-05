@@ -106,6 +106,8 @@ Report processing (`_processReport`): for each `(wordId, outcome)`, the word bel
 
 The contract trades with `isMargin = false` and approves each book (never `MarginAccount`) for AUSD and that word's YES. Kuru pulls from and pays to the contract's wallet; `quoteSize` is in pricePrecision units, so `KuruTrade` passes `ausd / 100` and only spends multiples of 100 AUSD base units [V: fork simulation, `INTEGRATIONS.md` section 2]. Every fill is measured by balance delta and any unspent input is returned to the player in the same call.
 
+`KuruTrade` treats a zero input as a no-op, including AUSD below the 100-unit quote quantum; a positive minimum output still reverts `SlippageExceeded`. `buyExactBase` walks the manual asks from `getL2Book`, rounds each level's cost up to the quote quantum, buys, and reverts `InsufficientLiquidity` unless the measured YES delta covers the request; the overshoot is under `2 × (⌊1e6 / lowest ask⌋ + 1)` YES base units across fuzzed two-level ladders. Vault AMM liquidity is ignored because SAYSO never funds it.
+
 ## 7. CRE wiring
 
 - Constructor forwarder: simulation forwarder `0xB9F79d863261869B234c481D1f9A7af84AeAd192` while `CRE_MODE=simulation`.
