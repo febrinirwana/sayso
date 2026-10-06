@@ -75,6 +75,7 @@ Each document owns one subject. Cross-reference; never duplicate a competing fac
 |---|---|
 | `docs/PRD.md` | Product, episode rules, screens, design principles, bounties, scope |
 | `docs/technical/BUILD-PLAN.md` | Phases, task checklist with proof, spike status, schedule; tick boxes in the same commit as the work |
+| `docs/BLOCKERS.md` | External delivery gates, owner actions, observed blocker evidence and closure proof |
 | `docs/technical/ARCHITECTURE.md` | Components, repo layout (built vs planned), flows, transcript commitment, trust model, pinned stack, hosting, MON budget |
 | `docs/technical/INTEGRATIONS.md` | Monad, Kuru, CRE, Mera, AUSD, Envio, transcription facts and spikes |
 | `docs/technical/SMART-CONTRACTS.md` | Contract storage, functions, events, invariants, deployment log |
