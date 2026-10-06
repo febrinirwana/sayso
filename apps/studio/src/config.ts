@@ -11,6 +11,7 @@ const envSchema = z.object({
   SAYSO_MARKETS: optionalValue(z.string().regex(/^0x[0-9a-fA-F]{40}$/)),
   STUDIO_DATA_DIR: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+  STUDIO_BEHIND_CADDY: z.enum(["true", "false"]).default("false"),
   OPERATOR_PK: optionalValue(key),
   BOT_PK: optionalValue(key),
   DRIP_PK: optionalValue(key),
@@ -31,6 +32,7 @@ export class StudioConfig {
   readonly saysoMarkets: Address | undefined;
   readonly dataDir: string;
   readonly port: number;
+  readonly behindCaddy: boolean;
   readonly indexerUrl: string | undefined;
   readonly revealApiBaseUrl: string | undefined;
   readonly startBlock: bigint | undefined;
@@ -46,6 +48,7 @@ export class StudioConfig {
     this.saysoMarkets = env.SAYSO_MARKETS as Address | undefined;
     this.dataDir = env.STUDIO_DATA_DIR;
     this.port = env.PORT;
+    this.behindCaddy = env.STUDIO_BEHIND_CADDY === "true";
     this.indexerUrl = env.INDEXER_URL as string | undefined;
     this.revealApiBaseUrl = env.STUDIO_REVEAL_URL as string | undefined;
     this.startBlock =

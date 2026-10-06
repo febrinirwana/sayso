@@ -9,6 +9,15 @@ Newest on top. Each entry: root cause, then the durable rule.
 - **Cause:** Hono bodyLimit replaces the raw Request for streamed bodies; identity keyed by the original object disappeared, causing valid drip claims to return invalid_ip.
 - **Rule:** Store the already-verified IP in request context before buffering. Exercise streamed HTTP grants and same-IP rate limits through the real middleware, not only the identity helper.
 
+### 2026/10/07 — A read-only studio checkout needs a writable CRE workflow
+
+- **Cause:** CRE compilation writes beside the workflow; relocating source without its compiler contract also failed to find `tsconfig.json`. A read-only service checkout would break settlement compilation despite a healthy HTTP process.
+- **Rule:** Keep application/dependencies read-only, copy workflow/config to private writable state, inherit strict typechecking with deployment-local include paths, and compile under the actual service sandbox before enabling broadcasts.
+
+### 2026/10/07 — Reverse-proxy IP limits need an explicit trust boundary
+
+- **Cause:** Direct-peer accounting behind Caddy groups all players under loopback; blindly trusting browser-supplied forwarding headers lets players bypass drip limits.
+- **Rule:** Require explicit same-host proxy mode, force loopback binding, overwrite a single actual-peer header at Caddy and validate it at studio. Keep direct mode header-blind; a CDN needs its own reviewed boundary.
 
 ### 2026/10/06 — Public RPC log scans need 100-block windows
 

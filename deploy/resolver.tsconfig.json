@@ -1,0 +1,5 @@
+{
+  "extends": "/opt/sayso/cre/resolver/tsconfig.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

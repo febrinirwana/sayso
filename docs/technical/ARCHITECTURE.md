@@ -223,7 +223,7 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 |---|---|---|
 | `apps/web` | Static files behind Caddy on the VPS | The domain is the passkey relying-party ID and must never change after the first real passkey |
 | `apps/studio` | Bun under systemd on the VPS | Must run 24/7 through judging (14 to 27 Oct 2026) |
-| Clip media, manifests, transcripts | Studio data directory; media served by Caddy with range requests | Ignored by git; chunks public only through the reveal API |
+| Clip media, manifests, transcripts | Private studio data; explicitly published MP4s in `/srv/sayso/media` | Caddy never serves the studio tree; chunks public only through the reveal API |
 | Indexer | Envio hosted service or self-hosted on the VPS | Spike S6 |
 | CRE | Deployed DON workflow, else studio-run simulation | Deploy access requested with `cre account access` |
 | RPC | `https://testnet-rpc.monad.xyz` | Public endpoint; a provider key is optional |
@@ -233,6 +233,44 @@ Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPL
 Studio execution additionally uses `INDEXER_URL`, `STUDIO_REVEAL_URL`, `SAYSO_START_BLOCK`, optional `CRE_RESOLVER_DIR`, `CRE_CLI_PATH`, and a private stable `DRIP_IP_SALT` (at least 32 characters, hidden from inspection). Missing maker configuration keeps episode admission unavailable; missing drip configuration keeps claims unavailable. CRE starts only after the reveal HTTP server listens. Shutdown stops admissions and drains every writer before SQLite closes.
 
 Deployment authentication is mandatory before broadcast: simulation requires nonzero `REPORTER_ADDRESS`; DON requires nonzero `CRE_WORKFLOW_ID` for the approved resolver and installs it before enabling the operator. A forwarder alone does not bind a DON report to SAYSO.
+
+### Deployment layout and procedure
+
+`deploy/sayso-studio.service` runs Bun as the dedicated `sayso` account with private state, read-only system/home, no elevated capabilities and a 180-second shutdown drain. It forces port 3001, loopback-only proxy mode, `/var/lib/sayso` data and a writable `/var/lib/sayso/resolver` workflow. Source/dependencies remain read-only; CRE compilation must not write into `/opt/sayso`.
+
+| Path | Access and purpose |
+|---|---|
+| `/opt/sayso` | Root-owned checkout and frozen dependencies, readable by studio; not writable by it |
+| `/etc/sayso/studio.env` | Root-owned mode 0600, read by systemd; studio roles/config only, no DEPLOYER key |
+| `/var/lib/sayso` | `sayso:sayso` mode 0700; SQLite/WAL, clips, private transcripts/flag plans, CRE login/cache |
+| `/var/lib/sayso/resolver` | Writable workflow/config/build outputs; `node_modules` symlink to `/opt/sayso/cre/resolver/node_modules` |
+| `/srv/sayso/web` | Published Phase 7 build only; root-owned, Caddy-readable; no synthetic smoke page ships |
+| `/srv/sayso/media` | Published MP4s only, named `<0x-lowercase-64-hex-clip-id>.mp4`; root-owned, Caddy-readable |
+| `/etc/sayso/caddy.env` | Public `SAYSO_DOMAIN` only; never role keys or studio environment |
+
+Prepare on the approved Linux host after B05/B06:
+
+1. Install verified Bun 1.3.14, Node 24.21.0, CRE CLI 1.36.0 and Caddy; Caddy 2.11.7 is the locally exercised version ([release](https://github.com/caddyserver/caddy/releases/tag/v2.11.7)). Put Bun/CRE/Node on the unit's `/usr/local/bin:/usr/bin:/bin` path. Install the official Caddy service/account.
+2. Create the dedicated non-login `sayso` account, root-owned `/opt/sayso` checkout and frozen dependencies. Prepare `/etc/sayso` mode 0700 and `/var/lib/sayso` owned by `sayso`, mode 0700. Keep public web/media roots separate and non-writable by studio.
+3. Provision `/etc/sayso/studio.env` locally, mode 0600. Include verified receiver/start block, funded distinct OPERATOR/BOT/DRIP/REPORTER, stable drip salt, indexer/reveal URLs and mode. No DEPLOYER key. No credentials in git, CLI arguments or logs.
+4. Copy resolver `src/`, `project.yaml`, `workflow.yaml`, `package.json` and deployment-populated `config.monad-testnet.json` to `/var/lib/sayso/resolver`; install `deploy/resolver.tsconfig.json` there as `tsconfig.json` and symlink `node_modules` to the checkout's resolver dependencies. Own the copied files by `sayso`. The runtime config retains strict typechecking while fixing relocated include/extends paths. Perform authenticated CRE login as that user with `HOME=/var/lib/sayso`; never rely on root's login. Verify a non-broadcast staged run before enabling autonomous episodes.
+5. Publish only rights-cleared, final encoded MP4s matching committed `media_sha256`; use their clip ID as the public filename. Do not symlink public roots into private data. Place the actual Phase 7 web build in the public web root; it is not built yet.
+6. Set the permanent domain in `/etc/sayso/caddy.env` as `SAYSO_DOMAIN=<chosen hostname>` (no scheme, path or local test port); point DNS to the host and permit ports 80/443. Use that origin for the web, reveal URL and passkey relying-party ID.
+7. Install the unit and Caddy drop-in:
+
+```sh
+sudo install -m 0644 /opt/sayso/deploy/sayso-studio.service /etc/systemd/system/
+sudo install -d /etc/systemd/system/caddy.service.d
+sudo install -m 0644 /opt/sayso/deploy/caddy.service.d/sayso.conf /etc/systemd/system/caddy.service.d/
+sudo systemd-analyze verify /etc/systemd/system/sayso-studio.service
+sudo systemctl daemon-reload
+```
+
+Validate Caddy with its public domain environment before `sudo systemctl restart caddy`; the drop-in selects `/opt/sayso/deploy/Caddyfile`. Start studio with `sudo systemctl enable --now sayso-studio`. Verify HTTPS time/health, a real MP4 range response, restart recovery and one fully funded/settled episode before calling deployment accepted. Restart studio after code/config changes; never hot-edit the resolver during an active simulation.
+
+**Proxy boundary:** direct mode ignores identity headers. `STUDIO_BEHIND_CADDY=true` binds Bun to `127.0.0.1` and requires one valid `X-Sayso-Client-IP` from a loopback peer; missing/malformed identity returns 400. Caddy overwrites the header with its actual socket peer, so arbitrary `X-Forwarded-For`/`Forwarded` headers do not bypass IP limits. This assumes trusted local processes and Caddy directly facing users; do not add a CDN/remote proxy without revisiting the boundary. API responses are `no-store`; SSE flushes immediately. `/media/*` accepts only the exact opaque MP4 path; JSON/directories are 404.
+
+Media ranges deliver prerecorded replay, not broadcaster restreaming, DRM or prevention of downloading the full clip. Recognizable clips remain a product risk (PRD §12); private transcript/flag-plan files never become static assets.
 
 ### Testnet MON budget
 
@@ -248,7 +286,7 @@ Testnet MON comes from a rate-limited faucet, so the plan is lean. Targets are [
 
 About 105 MON in total. Players start with under 10 MON, so the web sends their transactions one block apart (the reserve-balance rule in the `mera-passkeys` skill) and each pays gas only. The drip handler refuses new drips when DRIP falls below one drip plus gas; the join flow still works and S2 shows the faucet links. S1 to S4 replace these targets with measured costs.
 
-The initial starter grant is **0.5 testnet MON + 10 testnet AUSD**, once per normalized address and one new address per hour per canonical direct-peer IP, HMAC-hashed with the stable private salt. Both legs' maximum-fee budget and available AUSD are checked before sending; partial awards recover without a second native grant. Empty-code native recipients use 21,000 gas; code-bearing recipients require actual-call gas estimation. Proxy forwarding headers are not trusted as IP authority.
+The initial starter grant is **0.5 testnet MON + 10 testnet AUSD**, once per normalized address and one new address per hour per canonical client IP, HMAC-hashed with the stable private salt. Both legs' maximum-fee budget and available AUSD are checked before sending; partial awards recover without a second native grant. Empty-code native recipients use 21,000 gas; code-bearing recipients require actual-call gas estimation. Direct mode uses the socket peer; explicitly enabled same-host Caddy mode uses the overwritten identity described above, never arbitrary forwarding headers.
 
 ## 11. Failure modes
 

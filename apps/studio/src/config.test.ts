@@ -60,3 +60,12 @@ it("refuses two role writers sharing a sender nonce stream", () => {
   const key = `0x${"12".repeat(32)}`;
   expect(() => parseConfig({ ...base, OPERATOR_PK: key, DRIP_PK: key })).toThrow();
 });
+
+it("requires an explicit boolean opt-in before accepting same-host proxy identity", () => {
+  expect(parseConfig(base).behindCaddy).toBe(false);
+  expect(parseConfig({ ...base, STUDIO_BEHIND_CADDY: "true" }).behindCaddy).toBe(true);
+  expect(parseConfig({ ...base, STUDIO_BEHIND_CADDY: "false" }).behindCaddy).toBe(false);
+  for (const value of ["1", "yes", "TRUE", ""]) {
+    expect(() => parseConfig({ ...base, STUDIO_BEHIND_CADDY: value })).toThrow();
+  }
+});

@@ -11,7 +11,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 - Spike scratch work lives outside the repo in `handoff\sayso\spikes\`; results land in [INTEGRATIONS](INTEGRATIONS.md) section 9.
 - External delivery gates and owner actions are tracked in [BLOCKERS](../BLOCKERS.md). Local fork/source proof never closes a live gate.
 
-## Status at a glance (2026-10-06)
+## Status at a glance (2026-10-07)
 
 | Phase | Status | Done | Next action | Blocked by |
 |---|---|---|---|---|
@@ -19,7 +19,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 1 Core (TDD) | DONE | 10/10 | none | none |
 | Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
 | 2 Contracts | DOING | 9/11 | 2.9 deploy, then 2.10 addresses | DEPLOYER MON |
-| 3 Transcription | DOING | 2/3 | 3.3 clip library | 3.3 needs cleared clips |
+| 3 Transcription | DOING | 2/3 | 3.3 original rights-cleared English clip library | B07; Indonesian/bilingual clips additionally B10 |
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
 | 5 Studio | DOING | 4/8 | Funded live house/runner and authenticated CRE proof | B01–B04; hosting B05 |
 | 6 Indexer | DOING | 1/3 | 6.1 live sync, then 6.3 hosting | deployed receiver; Linux/macOS tooling (WSL on Windows) |
@@ -143,11 +143,13 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 - [x] **5.5** `flagSaid` at spoken `t`, `markEvidence` at verified chunk reveal boundaries, `closeEpisode` after the final 2,000 ms presentation margin; SSE `/v1/episodes/:id/stream` — proof: 42 studio tests cover no future flag leakage, receipt sequencing, persistent recovery, exact 10 s duration boundaries and skipped expired flags; real Monad/Kuru fork lifecycle smoke created/listed six words, two flag receipts took 570 / 622 ms, emitted evidence and closed episode 1. This is local fork proof, not live testnet settlement; funded live proof stays with 5.8
 - [ ] **5.6** CRE runner (simulation mode): watch `EvidenceReady` and `EpisodeClosed`, run the simulate command, record `cre_runs` — 30/30 regressions cover canonical trigger receipt-array indices, 100-block RPC catch-up, reporter nonce attribution, bounded pre-write no-report protocol, ambiguous-write reconciliation and shutdown. Runtime fake CLI submitted real local receiver/forwarder transactions; both trigger rows recorded corroborated report hashes and two resolved words. Resolver WASM rebuilt (4,247,033 bytes, `0061736d` header); authenticated real CLI broadcast remains gated by B01–B03
 - [x] **5.7** Starter drip: once per address, rate-limited by direct-peer IP HMAC, MON + AUSD, refuses when DRIP is low — 19/19 regressions cover insufficient balance, atomic reservation, concurrent claims, restart/unknown receipt recovery, reverted legs, IP canonicalization and shutdown. Real Monad/AUSD fork via HTTP granted exactly 0.5 MON + 10 AUSD to an empty-code recipient, returned 201, repeat 409 and malformed JSON 400; delegated recipient native call also confirmed with estimated gas. Local proof only; funded unattended operation remains part of 5.8
-- [ ] **5.8** `deploy/` systemd unit and Caddy config; full episode against testnet from a local run — proof: episode id, all tx hashes, timings in PROGRESS
+- [ ] **5.8** `deploy/` systemd unit and Caddy config; full episode against testnet from a local run — preparation landed: dedicated-account hardened unit, Caddy drop-in, separate opaque-MP4/public-web roots, explicit loopback proxy identity and writable strict-checked resolver. Actual Caddy 2.11.7 proof: range 206/416, JSON/directories 404, encoded traversal did not expose private data, spoofed IP replaced by actual peer, SSE delivered and reload succeeded. Hardened WSL systemd main (account/path/bind substitutions only) survived two SIGKILL restarts with a read-only SQLite marker retained, stopped SIGTERM with exit 0, and enforced deployment settings despite conflicting env. Sandboxed relocated resolver compiled to 4,247,157-byte WASM without CRE login. Public HTTPS/VPS and full funded/authenticated testnet episode remain open (B01–B06)
 
 **Acceptance:** an on-demand episode is created, listed, seeded, flagged on time (latency logged under 1 s), closed, settled by CRE and its house inventory recycled with no human action.
 
 **Continuation verification (2026-10-06):** full `bun run verify` under WSL passes all workspace typechecks, Biome with 73 non-null assertion warnings and zero errors, and 348 tests (core 172, studio 114, resolver 23, transcription 29, indexer 10). Production read API smoke: time/health 200, unconfigured drip/episode writes 503. Source-review findings and runtime corrections are recorded in `handoff\sayso\reports\review-phase5.md`; the live acceptance above is still open.
+
+**Deployment-preparation verification (2026-10-07):** full WSL `bun run verify`: all typechecks passed, zero lint errors / unchanged 73 warnings, 353 tests (studio 119). Independent operational source review PASS; security review found streamed-body identity loss, closed by a failing-before/passing-after real middleware grant/rate-limit regression and actual Caddy chunked HTTP proof. No UI shipped/visually reviewed, remote deployment or live transaction. Clip rights/language guidance and unresolved gate B10 are tracked separately.
 
 ## Phase 6 — Indexer · DOING
 

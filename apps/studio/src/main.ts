@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./app.ts";
 import { createChainReader } from "./chain.ts";
+import { clientIp } from "./client-ip.ts";
 import { parseConfig } from "./config.ts";
 import { createCreRunner } from "./cre-runner.ts";
 import { openDatabase } from "./db.ts";
@@ -110,10 +111,13 @@ try {
     });
     const server = Bun.serve({
       port: config.port,
+      hostname: config.behindCaddy ? "127.0.0.1" : "0.0.0.0",
       idleTimeout: 0,
       fetch(request, server) {
-        // Only the direct peer is trusted; forwarding headers are never an IP authority.
-        ips.set(request, server.requestIP(request)?.address ?? "unknown");
+        const peer = server.requestIP(request)?.address ?? null;
+        const ip = clientIp(request, peer, config.behindCaddy);
+        if (!ip) return new Response(null, { status: 400 });
+        ips.set(request, ip);
         return app.fetch(request);
       },
     });

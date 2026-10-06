@@ -1,0 +1,38 @@
+[Unit]
+Description=SAYSO studio (Monad TESTNET)
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=sayso
+Group=sayso
+WorkingDirectory=/opt/sayso
+EnvironmentFile=/etc/sayso/studio.env
+Environment=HOME=/var/lib/sayso
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env STUDIO_BEHIND_CADDY=true PORT=3001 STUDIO_DATA_DIR=/var/lib/sayso CRE_RESOLVER_DIR=/var/lib/sayso/resolver /usr/local/bin/bun apps/studio/src/main.ts
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=180
+UMask=0077
+StateDirectory=sayso
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/sayso
+
+[Install]
+WantedBy=multi-user.target
