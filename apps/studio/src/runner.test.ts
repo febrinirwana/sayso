@@ -393,3 +393,121 @@ it("refuses to create books when the house seed dependency reports insufficient 
   await expect(runner.request("on_demand", "judge")).rejects.toMatchObject({ status: 503 });
   expect(chain.commands).toEqual([]);
 });
+
+it("drains an admitted OPERATOR receipt before shutdown and rejects subsequent writes", async () => {
+  await runner.request("on_demand", "judge");
+  now = 167090;
+  const hold = Promise.withResolvers<void>();
+  chain.hold = hold;
+  chain.broadcasting = Promise.withResolvers<void>();
+  const ticking = runner.tick();
+  await chain.broadcasting.promise;
+  let stopped = false;
+  const stopping = runner.stop().then(() => {
+    stopped = true;
+  });
+  await expect(runner.request("on_demand", "after-stop")).rejects.toMatchObject({ status: 503 });
+  await expect(runner.tick()).rejects.toMatchObject({ status: 503 });
+  expect(stopped).toBe(false);
+  expect(db.query("SELECT status FROM actions WHERE kind='flag' AND word_id=2").get()).toEqual({
+    status: "sent",
+  });
+  const signatures = chain.prepared.size;
+  chain.hold = undefined;
+  hold.resolve();
+  await ticking;
+  await stopping;
+  expect(stopped).toBe(true);
+  expect(db.query("SELECT status FROM actions WHERE kind='flag' AND word_id=2").get()).toEqual({
+    status: "confirmed",
+  });
+  expect(chain.prepared.size).toBe(signatures);
+  expect(db.query("SELECT COUNT(*) AS n FROM episode_requests").get()).toEqual({ n: 1 });
+});
+
+it.each(["flagSaid", "markEvidence"] as const)(
+  "recovers an unknown signed %s before expiry/state checks and before another signature",
+  async (kind) => {
+    await runner.request("on_demand", "judge");
+    const broadcast = chain.broadcast.bind(chain);
+    const attempts: { hash: Hex; raw: Hex }[] = [];
+    chain.broadcast = async (tx) => {
+      if (chain.prepared.get(tx.hash)!.kind === kind) {
+        attempts.push(tx);
+        throw new Error("broadcast outcome unknown");
+      }
+      return broadcast(tx);
+    };
+    now = kind === "flagSaid" ? 167090 : 172000;
+    await expect(runner.tick()).rejects.toMatchObject({ status: 503 });
+    const signatures = chain.prepared.size;
+    chain.word = async () => ({ state: 2 });
+    now = 200000;
+    chain.hold = Promise.withResolvers<void>();
+    chain.broadcasting = Promise.withResolvers<void>();
+    chain.broadcast = async (tx) => {
+      attempts.push(tx);
+      return broadcast(tx);
+    };
+    const recovering = runner.tick();
+    await chain.broadcasting.promise;
+    expect(attempts[1]).toEqual(attempts[0]);
+    expect(chain.prepared.size).toBe(signatures);
+    expect(db.query("SELECT status FROM actions WHERE tx_hash=?").get(attempts[0]!.hash)).toEqual({
+      status: "sent",
+    });
+    const hold = chain.hold;
+    chain.hold = undefined;
+    hold.resolve();
+    await recovering;
+    expect(db.query("SELECT status FROM actions WHERE tx_hash=?").get(attempts[0]!.hash)).toEqual({
+      status: "confirmed",
+    });
+  },
+);
+
+it("drains detached maker and receipt hooks before shutdown completes", async () => {
+  const maker = Promise.withResolvers<void>();
+  const receiptHook = Promise.withResolvers<void>();
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    log: () => {},
+    seed: { ready: seed.ready, seed: seed.seed, tick: () => maker.promise },
+    onReceipt: () => receiptHook.promise,
+  });
+  await runner.request("on_demand", "judge");
+  let stopped = false;
+  const stopping = runner.stop().then(() => {
+    stopped = true;
+  });
+  await Promise.resolve();
+  expect(stopped).toBe(false);
+  maker.resolve();
+  await Promise.resolve();
+  expect(stopped).toBe(false);
+  receiptHook.resolve();
+  await stopping;
+  expect(stopped).toBe(true);
+});
+
+it.each(["flag", "create"] as const)(
+  "refuses a fresh %s signature after restart until the latest confirmed OPERATOR receipt is observed",
+  async (next) => {
+    await runner.request("on_demand", "judge");
+    const receipt = chain.receipt.bind(chain);
+    chain.receipt = async () => null;
+    if (next === "create") chain.settled = true;
+    else now = 167090;
+    runner = new EpisodeRunner({ db, now: () => now, chain, seed, log: () => {} });
+    const signatures = chain.prepared.size;
+    await expect(
+      next === "create" ? runner.request("on_demand", "other") : runner.tick(),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(chain.prepared.size).toBe(signatures);
+    chain.receipt = receipt;
+    await runner.tick();
+    expect(chain.prepared.size).toBeGreaterThan(signatures);
+  },
+);

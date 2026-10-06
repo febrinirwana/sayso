@@ -58,7 +58,7 @@ tools/transcribe/    built     Offline pipeline: two engines -> chunks -> roots 
 clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no media) for tests;
                                real clips, manifests and transcripts stay untracked studio data
 cre/resolver/        built     CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
-apps/studio/         built     Bun + Hono: SQLite, time/health, clip reveal, scheduler/lifecycle runner and SSE; permanent maker, drip and CRE runner pending phase 5
+apps/studio/         built     Bun + Hono: SQLite, reveal, scheduler/flags/SSE, permanent house maker, starter drip and receipt-backed CRE runner; funded live acceptance pending
 indexer/             built     Envio config, schema and cashflow/position handlers; live sync and hosting gated by deploy
 apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing
 deploy/              phase 5   systemd unit and Caddy config
@@ -81,7 +81,7 @@ Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`, `indexer`. Envio 3.1
 | `indexer` | Episodes, words, trades, positions, profit, leaderboard | Feed back into settlement |
 | `tools/transcribe` | Two independent transcripts per clip, chunk files, roots | Run in production request paths |
 
-Three studio keys, each its own nonce stream: **OPERATOR** (create, flag, close), **BOT** (Kuru quotes), **DRIP** (starter balances). Separate senders keep one stream's pending transaction from delaying another under Monad's reserve-balance rule [V: [reserve balance](https://docs.monad.xyz/developer-essentials/reserve-balance)].
+Four distinct studio senders, each its own nonce stream: **OPERATOR** (create, flag, close), **BOT** (Kuru quotes), **DRIP** (starter balances), **REPORTER** (simulation forwarder writes). Config rejects duplicate role addresses. Transactions persist signed bytes/hash before broadcast and wait for a strictly later block after the prior receipt; unknown outcomes recover the identical bytes, never release the sender by elapsed time. Separate senders isolate Monad reserve-balance constraints [V: [reserve balance](https://docs.monad.xyz/developer-essentials/reserve-balance)].
 
 ## 4. State machines
 
@@ -131,11 +131,11 @@ Kuru's non-margin settlement for a contract caller is verified on a fork (the co
 ### 5.3 SAID flag (instant)
 
 1. The studio knows every agreed spoken timestamp `t` in advance (replay clips, section 6).
-2. At `t − 400 ms`, BOT sends `batchCancelFlipOrders` for that word, then posts the 0.98 bid sized to players' outstanding YES.
+2. At `t − 400 ms`, BOT pulls actual active flip orders, including replacement IDs. At or after `t`, only after cancellation confirmation and chain SAID, it posts the 0.98 bid sized from non-house Envio YES. The committed indexer progress must include the pull receipt, remain within ten head blocks and stay stable through pagination; missing/stale reads leave the bid pending. Size is capped by house spendable AUSD and Kuru bounds.
 3. At `t`, OPERATOR sends `flagSaid(wordId, chunkIndexA, chunkIndexB, offsetMs)`.
 4. Phones receive the `WordFlagged` log or the SSE echo, whichever lands first, and flip the card at the player's presentation time `t + 1.5 s`, so the flip lands on the spoken word.
 
-Players watch with a fixed 1.5 s presentation delay behind the studio clock. The pull lands one block before the flag, and both land before any player hears the word. One-block inclusion is about 300 ms [V: [current facts](https://docs.monad.xyz/ai/current-facts.md)]. Players only send immediate-or-cancel orders, so after the pull no ask rests on that book for an early chain-watcher to lift.
+Players watch with a fixed 1.5 s presentation delay behind the studio clock. The planned pull is one block before the flag; actual inclusion and cash-out readiness require runtime measurement, not a timing guarantee. One-block inclusion is about 300 ms [V: [current facts](https://docs.monad.xyz/ai/current-facts.md)]. OPERATOR flags do not await BOT or CRE background work. Players only send immediate-or-cancel orders, so after a confirmed pull no house ask remains for an early chain-watcher to lift.
 
 ### 5.4 Settlement (CRE)
 
@@ -144,6 +144,8 @@ Players watch with a fixed 1.5 s presentation delay behind the studio clock. The
 - The report reaches `SaysoMarkets.onReport` only through the configured forwarder; the contract also checks the expected workflow ID.
 
 Until deploy access is granted, the studio CRE runner invokes `cre workflow simulate --broadcast` for each trigger; reports then arrive through the simulation forwarder. Each settlement records its mode (`don` or `simulation`) and the README reports which mode produced it.
+
+Simulation trigger discovery recovers confirmed action receipts and catches up canonical logs from `SAYSO_START_BLOCK`. Receipt-array log index selects the exact trigger. Success is corroborated from actual forwarder/receiver receipts and the durable REPORTER nonce, never stdout hashes. The resolver emits a bounded structured pre-write no-report marker only before report submission: a legitimate false flag releases the queue for close; a pre-write capability failure backs off safely. Interrupted/failed write execution without proof remains ambiguous and gates REPORTER until onchain reconciliation.
 
 ### 5.5 Redeem
 
@@ -228,6 +230,8 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 
 Environment (`.env.example` lists every key): `RPC_URL`, `CHAIN_ID=10143`, `DEPLOYER_PK` (contract deploys only), `OPERATOR_PK`, `BOT_PK`, `DRIP_PK`, `REPORTER_PK` (signs simulated CRE reports; the only key `reportOrigin` accepts), `OPERATOR_ADDRESS` and `REPORTER_ADDRESS` (public addresses `Deploy.s.sol` wires), `SAYSO_MARKETS`, `AUSD`, `KURU_ROUTER`, `CRE_MODE=simulation|don`, `STUDIO_DATA_DIR` (outside the repo: `studio.sqlite` plus `clips/<id>/` transcribe output, ingested at start), `PORT=3001`, `VITE_RP_ID`, `VITE_STUDIO_URL`, `VITE_INDEXER_URL`, and the offline transcription paths `WHISPER_CLI`, `WHISPER_MODEL`, `VOSK_MODEL`, optional `VOSK_PYTHON_PROJECT`. Studio role keys and `SAYSO_MARKETS` may be absent while only the read API runs; loaded keys live in private fields and never appear in logs, JSON or `/v1/health`.
 
+Studio execution additionally uses `INDEXER_URL`, `STUDIO_REVEAL_URL`, `SAYSO_START_BLOCK`, optional `CRE_RESOLVER_DIR`, `CRE_CLI_PATH`, and a private stable `DRIP_IP_SALT` (at least 32 characters, hidden from inspection). Missing maker configuration keeps episode admission unavailable; missing drip configuration keeps claims unavailable. CRE starts only after the reveal HTTP server listens. Shutdown stops admissions and drains every writer before SQLite closes.
+
 Deployment authentication is mandatory before broadcast: simulation requires nonzero `REPORTER_ADDRESS`; DON requires nonzero `CRE_WORKFLOW_ID` for the approved resolver and installs it before enabling the operator. A forwarder alone does not bind a DON report to SAYSO.
 
 ### Testnet MON budget
@@ -243,6 +247,8 @@ Testnet MON comes from a rate-limited faucet, so the plan is lean. Targets are [
 | REPORTER | 5 MON | One simulated report transaction per evidence batch and per close (about 0.03 MON each) |
 
 About 105 MON in total. Players start with under 10 MON, so the web sends their transactions one block apart (the reserve-balance rule in the `mera-passkeys` skill) and each pays gas only. The drip handler refuses new drips when DRIP falls below one drip plus gas; the join flow still works and S2 shows the faucet links. S1 to S4 replace these targets with measured costs.
+
+The initial starter grant is **0.5 testnet MON + 10 testnet AUSD**, once per normalized address and one new address per hour per canonical direct-peer IP, HMAC-hashed with the stable private salt. Both legs' maximum-fee budget and available AUSD are checked before sending; partial awards recover without a second native grant. Empty-code native recipients use 21,000 gas; code-bearing recipients require actual-call gas estimation. Proxy forwarding headers are not trusted as IP authority.
 
 ## 11. Failure modes
 

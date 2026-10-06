@@ -4,6 +4,36 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/06 — Public RPC log scans need 100-block windows
+
+- **Cause:** The integrated fork inherited Monad's public RPC limit: an `eth_getLogs` request spanning 1,000 blocks failed with HTTP 413. The maker and CRE adapters also used windows larger than the observed 100-block limit.
+- **Rule:** Scan inclusive windows of at most 100 blocks, advance durable CRE cursors only after canonical receipts are projected, and anchor book discovery to its listing block. Keep a later-trigger catch-up regression.
+
+### 2026/10/06 — Kuru flip cancellation consumes both active partners
+
+- **Cause:** A partial fill created two live paired IDs. Canceling both IDs in one batch reverted `OrderAlreadyFilledOrCancelled` after the first consumed the pair, despite the docs' idempotency wording.
+- **Rule:** Read actual `s_orders.flippedId`, cancel one representative per active pair, and confirm the complete live house snapshot is empty. Never swallow cancellation errors or trust only the original seed IDs.
+
+### 2026/10/06 — Native transfers to delegated accounts need execution gas
+
+- **Cause:** The first real HTTP drip fork proof reverted at exactly 21,000 gas because the recipient carried EIP-7702 code. A code-bearing account can execute storage writes or forward the value; a successful receipt does not imply the recipient retained it.
+- **Rule:** Use 21,000 only for empty-code recipients. Estimate the exact native invocation otherwise and budget/sign the same gas with the shared margin. A reverting receiver must fail preflight before either drip leg.
+
+### 2026/10/06 — No report is not necessarily an ambiguous write
+
+- **Cause:** The resolver legitimately withholds a report for false evidence or a pre-write capability failure. Treating every CLI completion without a report receipt as a possibly broadcast write blocked the subsequent close trigger.
+- **Rule:** A bounded, exact pre-write completion marker may authorize terminal no-report or safe retry only after exit 0. Never emit it after entering submission. Actual report proof also binds the durable sender nonce; write-time timeouts remain ambiguous.
+
+### 2026/10/06 — Recovery and shutdown must retain signer boundaries
+
+- **Cause:** Receipt-null state checks could discard a saved signed flag after expiry/finalization; fresh adapters also forgot the previous receipt block, and process shutdown could close SQLite before the operator wrote its receipt.
+- **Rule:** Replay saved bytes before unsigned skips, restore each role's latest confirmed receipt on restart, wait for a strictly later block before signing, and drain admitted work before closing the database.
+
+### 2026/10/06 — Decode git document bytes explicitly as UTF-8
+
+- **Cause:** Focused documentation staging decoded git output through the Windows default locale and corrupted math/range/cents symbols.
+- **Rule:** Capture git bytes, decode UTF-8 explicitly and read documentation with an explicit UTF-8 encoding. Do not let platform locale rewrite unchanged prose.
+
 ### 2026/10/05 — Envio event selectors must preserve authoritative ABI metadata
 
 - **Cause:** Type-only event signatures in Envio config replaced ABI field names with `_0`–`_3` and lost indexed metadata. A clean verification copy missing `vitest.config.ts` then loaded the intentionally unset production receiver instead of its isolated test config.

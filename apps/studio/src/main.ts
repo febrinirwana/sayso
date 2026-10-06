@@ -1,11 +1,17 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApp } from "./app.ts";
 import { createChainReader } from "./chain.ts";
 import { parseConfig } from "./config.ts";
+import { createCreRunner } from "./cre-runner.ts";
 import { openDatabase } from "./db.ts";
+import { DripService } from "./drip.ts";
+import { createDripChain } from "./drip-chain.ts";
 import { createEpisodeChain } from "./episode-chain.ts";
 import { loadClipLibrary } from "./library.ts";
+import { createPositionsReader, HouseMaker } from "./maker.ts";
+import { createMakerChain } from "./maker-chain.ts";
 import { EpisodeRunner } from "./runner.ts";
 
 try {
@@ -15,13 +21,81 @@ try {
   const db = openDatabase(join(config.dataDir, "studio.sqlite"));
   try {
     await loadClipLibrary(db, clipDirectory, Date.now);
+    const makerChain =
+      config.saysoMarkets && config.privateKey("bot") && config.indexerUrl
+        ? createMakerChain(config)
+        : undefined;
+    const maker =
+      makerChain && config.indexerUrl
+        ? new HouseMaker({
+            db,
+            now: Date.now,
+            chain: makerChain,
+            positions: createPositionsReader(config.indexerUrl, {
+              houseAddress: makerChain.house,
+              now: Date.now,
+              maxLagMs: 5000,
+              maxLagBlocks: 10,
+            }),
+          })
+        : undefined;
+    const salt = config.dripIpSalt();
+    const drip =
+      salt && config.privateKey("drip")
+        ? new DripService({ db, chain: createDripChain(config), ipSalt: salt })
+        : undefined;
+    const reporter = config.keyAddresses.find(({ role }) => role === "reporter");
+    const cre =
+      config.saysoMarkets &&
+      config.startBlock !== undefined &&
+      config.revealApiBaseUrl &&
+      (config.creMode === "don" || reporter)
+        ? createCreRunner({
+            db,
+            rpcUrl: config.rpcUrl,
+            receiver: config.saysoMarkets,
+            revealApiBaseUrl: config.revealApiBaseUrl,
+            resolverDir:
+              config.creResolverDir ??
+              fileURLToPath(new URL("../../../cre/resolver/", import.meta.url)),
+            cliPath: config.creCliPath,
+            mode: config.creMode,
+            startBlock: config.startBlock,
+            ...(reporter ? { reporterAddress: reporter.address } : {}),
+            processEnv: () => {
+              const env: NodeJS.ProcessEnv = {};
+              for (const name of [
+                "PATH",
+                "HOME",
+                "USERPROFILE",
+                "APPDATA",
+                "LOCALAPPDATA",
+                "SystemRoot",
+                "SYSTEMROOT",
+                "COMSPEC",
+                "TEMP",
+                "TMP",
+                "CRE_API_KEY",
+              ]) {
+                if (Bun.env[name] !== undefined) env[name] = Bun.env[name];
+              }
+              const key = config.privateKey("reporter");
+              if (key) env.CRE_ETH_PRIVATE_KEY = key;
+              return env;
+            },
+          })
+        : undefined;
     const runner =
-      config.saysoMarkets && config.privateKey("operator")
+      config.saysoMarkets && config.privateKey("operator") && maker && cre
         ? new EpisodeRunner({
             db,
             now: Date.now,
             chain: createEpisodeChain(config),
             log: (entry) => console.log(JSON.stringify({ event: "flag_latency", ...entry })),
+            seed: maker,
+            onReceipt: cre.onReceipt,
+            onBackgroundError: (source) =>
+              console.error(`Studio ${source} work unavailable; journal retained.`),
           })
         : undefined;
     await runner?.tick();
@@ -31,6 +105,7 @@ try {
       now: Date.now,
       chain: createChainReader(config),
       runner,
+      drip,
       ip: (request) => ips.get(request) ?? "unknown",
     });
     const server = Bun.serve({
@@ -42,6 +117,7 @@ try {
         return app.fetch(request);
       },
     });
+    cre?.start();
     let ticking = false;
     const clock = runner
       ? setInterval(async () => {
@@ -56,9 +132,14 @@ try {
           }
         }, 50)
       : undefined;
-    const shutdown = () => {
+    let stopping = false;
+    const shutdown = async () => {
+      if (stopping) return;
+      stopping = true;
       clearInterval(clock);
       server.stop(true);
+      await runner?.stop();
+      await Promise.all([maker?.stop(), cre?.stop(), drip?.stop()]);
       db.close();
       process.exit(0);
     };

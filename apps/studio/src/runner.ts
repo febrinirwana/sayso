@@ -78,6 +78,7 @@ export class EpisodeError extends Error {
 export type SeedHook = {
   ready(): Promise<boolean>;
   seed(episodeId: number, runner: EpisodeRunner): Promise<void>;
+  tick?(): Promise<void>;
 };
 export type RunnerDeps = {
   db: Database;
@@ -93,6 +94,7 @@ export type RunnerDeps = {
   }): void;
   seed?: SeedHook;
   onReceipt?(action: { episodeId: number; kind: ActionKind; receipt: Receipt }): Promise<void>;
+  onBackgroundError?(source: "maker" | "receipt"): void;
 };
 
 export class EpisodeRunner {
@@ -100,11 +102,47 @@ export class EpisodeRunner {
   #listeners = new Map<number, Set<(event: StreamEvent) => void>>();
   #announced = new Set<number>();
   #nextHour: number;
+  #makerWork: Promise<void> | undefined;
+  #stopped = false;
+  #receiptWork = new Set<Promise<void>>();
+  #senderRestored = false;
+  private async restoreSender() {
+    if (this.#senderRestored) return;
+    const latest = this.deps.db
+      .query<{ tx_hash: Hex; block: number }, []>(
+        "SELECT tx_hash,block FROM actions WHERE status='confirmed' AND tx_hash IS NOT NULL AND block IS NOT NULL AND kind IN ('create','list','flag','evidence','close') ORDER BY block DESC,id DESC LIMIT 1",
+      )
+      .get();
+    if (latest) {
+      const receipt = await this.deps.chain.receipt(latest.tx_hash);
+      if (!receipt?.success || receipt.hash !== latest.tx_hash || receipt.block !== latest.block)
+        throw new EpisodeError(503);
+    }
+    this.#senderRestored = true;
+  }
+  async stop(): Promise<void> {
+    this.#stopped = true;
+    await this.#tail;
+    await this.#makerWork;
+    await Promise.all(this.#receiptWork);
+  }
+  private kickMaker() {
+    if (this.#stopped || !this.deps.seed?.tick || this.#makerWork) return;
+    this.#makerWork = this.deps.seed
+      .tick()
+      .catch(() => {
+        this.deps.onBackgroundError?.("maker");
+      })
+      .finally(() => {
+        this.#makerWork = undefined;
+      });
+  }
   constructor(private readonly deps: RunnerDeps) {
     this.#nextHour = Math.ceil(deps.now() / 3_600_000) * 3_600_000;
   }
   // All operator work shares one receipt-gated nonce stream, including concurrent requests/ticks.
   private exclusive<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#stopped) return Promise.reject(new EpisodeError(503));
     const result = this.#tail.then(work);
     this.#tail = result.catch(() => {});
     return result;
@@ -146,6 +184,7 @@ export class EpisodeRunner {
         .get(Number(result.lastInsertRowid))!;
       const id = await this.create(launch);
       await this.runDue();
+      this.kickMaker();
       return id;
     });
   }
@@ -155,6 +194,8 @@ export class EpisodeRunner {
       await this.refresh();
       await this.runDue();
     });
+    if (this.#stopped) return;
+    this.kickMaker();
     if (this.deps.now() >= this.#nextHour) {
       this.#nextHour = (Math.floor(this.deps.now() / 3_600_000) + 1) * 3_600_000;
       try {
@@ -183,6 +224,7 @@ export class EpisodeRunner {
           .query<Clip, [string]>("SELECT * FROM clips WHERE clip_id = ?")
           .get(launch.clip_id)!;
         const words: string[] = JSON.parse(clip.words_json);
+        await this.restoreSender();
         transaction = await chain.prepare({
           kind: "createEpisode",
           args: [
@@ -258,6 +300,10 @@ export class EpisodeRunner {
     for (const flag of flags) {
       const wordId = wordIds[texts.indexOf(flag.word)];
       if (wordId === undefined) throw new Error("Missing chain word");
+      if (this.deps.seed?.tick) {
+        this.addAction(id, "pull", episode.starts_at_ms + flag.t_ms - 400, wordId);
+        this.addAction(id, "bid", episode.starts_at_ms + flag.t_ms, wordId);
+      }
       this.addAction(id, "flag", episode.starts_at_ms + flag.t_ms, wordId, {
         t: flag.t_ms,
         chunkA: flag.chunk_a,
@@ -310,18 +356,55 @@ export class EpisodeRunner {
     const { db, now, chain } = this.deps;
     const actions = db
       .query<Action, [number]>(
-        "SELECT * FROM actions WHERE status IN ('pending','sent') AND scheduled_ms <= ? ORDER BY scheduled_ms, id",
+        "SELECT * FROM actions WHERE status='sent' OR (status='pending' AND scheduled_ms <= ?) ORDER BY CASE WHEN status='sent' THEN 0 ELSE 1 END, scheduled_ms, id",
       )
       .all(now());
     // Notify all due spoken words before waiting on any chain receipt; nothing future escapes.
     for (const action of actions)
-      if (action.kind === "flag" && !this.#announced.has(action.id)) {
+      if (
+        action.kind === "flag" &&
+        !this.#announced.has(action.id) &&
+        now() <
+          db
+            .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
+            .get(action.episode_id)!.ends_at_ms
+      ) {
         this.#announced.add(action.id);
         this.emitFlag(action);
       }
     for (const action of actions) {
+      // BOT transactions never occupy the timed OPERATOR receipt stream.
+      if (
+        action.kind === "pull" ||
+        action.kind === "bid" ||
+        action.kind === "redeem" ||
+        (action.kind === "seed" && this.deps.seed?.tick)
+      )
+        continue;
+      if (
+        action.kind === "flag" &&
+        !action.tx_hash &&
+        now() >=
+          db
+            .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
+            .get(action.episode_id)!.ends_at_ms
+      ) {
+        db.query("UPDATE actions SET status='observed',error='flag window elapsed' WHERE id=?").run(
+          action.id,
+        );
+        continue;
+      }
       const payload: Payload = JSON.parse(action.payload_json);
       let receipt = action.tx_hash ? await chain.receipt(action.tx_hash) : null;
+      if (!receipt && action.tx_hash) {
+        if (!payload.raw) throw new EpisodeError(503);
+        try {
+          receipt = await chain.broadcast({ hash: action.tx_hash, raw: payload.raw });
+        } catch {
+          db.query("UPDATE actions SET error='transaction unavailable' WHERE id=?").run(action.id);
+          throw new EpisodeError(503);
+        }
+      }
       if (!receipt) {
         const episode = await chain.episode(action.episode_id);
         const already =
@@ -385,10 +468,8 @@ export class EpisodeRunner {
             gas: gasLimit("closeEpisode"),
           };
         else continue; // Maker owns pull/bid/redeem execution through its hook.
-        const prepared =
-          action.tx_hash && payload.raw
-            ? { hash: action.tx_hash, raw: payload.raw }
-            : await chain.prepare(command);
+        await this.restoreSender();
+        const prepared = await chain.prepare(command);
         db.query(
           "UPDATE actions SET tx_hash = ?, sent_ms = ?, status = 'sent', payload_json = ? WHERE id = ?",
         ).run(prepared.hash, now(), JSON.stringify({ ...payload, raw: prepared.raw }), action.id);
@@ -431,7 +512,21 @@ export class EpisodeRunner {
         this.emitFlag({ ...action, tx_hash: receipt.hash });
       }
       await this.refresh();
-      await this.deps.onReceipt?.({ episodeId: action.episode_id, kind: action.kind, receipt });
+      const background = this.deps.onReceipt?.({
+        episodeId: action.episode_id,
+        kind: action.kind,
+        receipt,
+      });
+      if (background) {
+        const work = background
+          .catch(() => {
+            this.deps.onBackgroundError?.("receipt");
+          })
+          .finally(() => {
+            this.#receiptWork.delete(work);
+          });
+        this.#receiptWork.add(work);
+      }
     }
   }
   private emitFlag(action: Action) {

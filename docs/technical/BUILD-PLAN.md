@@ -9,8 +9,9 @@ The live tracker for the build: every phase, every task, what proves it and wher
 - Phase status: `TODO / DOING / DONE / BLOCKED / CUT`. A phase is DONE only when every box is ticked and the phase review passed.
 - Labels: [V] verified by a command or source, [I] inference, [U] unresolved with the spike that settles it.
 - Spike scratch work lives outside the repo in `handoff\sayso\spikes\`; results land in [INTEGRATIONS](INTEGRATIONS.md) section 9.
+- External delivery gates and owner actions are tracked in [BLOCKERS](../BLOCKERS.md). Local fork/source proof never closes a live gate.
 
-## Status at a glance (2026-10-05)
+## Status at a glance (2026-10-06)
 
 | Phase | Status | Done | Next action | Blocked by |
 |---|---|---|---|---|
@@ -20,7 +21,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 2 Contracts | DOING | 9/11 | 2.9 deploy, then 2.10 addresses | DEPLOYER MON |
 | 3 Transcription | DOING | 2/3 | 3.3 clip library | 3.3 needs cleared clips |
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
-| 5 Studio | DOING | 3/8 | 5.4 permanent maker and 5.3 seeded runner | live run needs funded keys |
+| 5 Studio | DOING | 4/8 | Funded live house/runner and authenticated CRE proof | B01–B04; hosting B05 |
 | 6 Indexer | DOING | 1/3 | 6.1 live sync, then 6.3 hosting | deployed receiver; Linux/macOS tooling (WSL on Windows) |
 | 7 Web | TODO | 0/7 | 7.2 design pass, one screen shown to the user | S5 needs the real domain |
 | 8 Ship | TODO | 0/5 | after Phase 7 | VPS, domain, team registration |
@@ -116,7 +117,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
   - [x] normalises, chunks, hashes and roots with `packages/core` only; writes `<out>/<id>/{clip.json,flag-plan.json,chunks/{A,B}/<index>.json}` and refuses an `--out` inside the repo
   - [x] prints `clipId`, `rootA`, `rootB` and the flag plan
 - [x] **3.2** `clips/fixtures/tts-market/`: a 32,090 ms team-generated CC0 speech clip (Windows TTS via tracked `generate.ps1`; no media tracked) with manifest, both engines' chunks, expected roots and flag plan, used by transcribe, CRE and studio tests — proof: `tools/transcribe/src/fixture.test.ts` recomputes every leaf, proof, both roots and the flag plan from the tracked chunks and compares them byte for byte → 29/29; the real CLI output matched all nine tracked payload files. Deviation: TTS instead of a public-domain recording keeps the fixture licence-free and the words known; regenerating on another Windows voice changes the media hash, so the tracked chunks, not the WAV, are the reference
-- [ ] **3.3** Clip library in studio data (untracked): 8+ clips of 3–5 min, 6 curated words each (agreed-said words and decoys), licence recorded per clip · needs cleared clips (BLOCKERS 6) — proof: library manifest count and licence column
+- [ ] **3.3** Clip library in studio data (untracked): 8+ clips of 3–5 min, 6 curated words each (agreed-said words and decoys), licence recorded per clip · needs cleared clips ([B07](../BLOCKERS.md)) — proof: library manifest count and licence column
 
 **Acceptance:** rerunning the pipeline on the fixture reproduces the tracked roots byte for byte.
 **Note:** the S7 NASA clips are research inputs only; NASA's media guidelines bar implying endorsement of crypto activity, so episode clips need their own clearance [V: S7 report].
@@ -137,14 +138,16 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 - [x] **5.1** Hono app, config, SQLite schema from ERD section 3, `GET /v1/time`, `GET /v1/health` — proof: `bun run --cwd apps/studio test` 22/22 on real `bun:sqlite` (Vitest runs inside Bun; under Node it cannot load `bun:sqlite`), schema applies to an empty DB, config refuses `CHAIN_ID` ≠ 10143 and JSON/inspect output carries no key material; production `main.ts` against a local fake RPC answered `/v1/time` and `/v1/health` (`status ok`, head lag 796 ms, last CRE run with its mode)
 - [x] **5.2** Clip library loader and reveal API `/v1/episodes/:id/chunks/:engine/:index`; schedule enforced (`startsAt + chunkEnd + 2,000 ms`, inclusive), full reveal once the episode is Closed or Settled — proof: same run covers fixture ingest, tampered chunk and root mismatch refused, boundary − 1 ms → empty `425`, exact boundary → payload, unknown episode/engine/index → empty `404`; live smoke: `curl` chunk A/3 of a Live episode → `425 Too Early` with no body, of a Closed episode → `200` with tokens, leaf and proof
-- [ ] **5.3** Scheduler (hourly + on-demand `POST /v1/episodes`, one at a time) and runner: create, list, seed, clock, durable `actions`, explicit gas and receipt-gated sender streams — scheduler/lifecycle implementation landed with request journal, restart recovery and 42 studio tests; production returns 503 until a ready permanent maker seed hook is wired. Local real-Kuru fork smoke used a throwaway hook that actually provisioned bilateral liquidity, not a production maker. Full item remains open for 5.4 wiring and one funded live episode
-- [ ] **5.4** House market maker: ladder seeding, quote pull at `t − 400 ms`, 0.98 bid on SAID, cancel at close, post-settlement withdraw and redeem — proof: live tx hashes for each action
+- [ ] **5.3** Scheduler (hourly + on-demand `POST /v1/episodes`, one at a time) and runner: create, list, seed, clock, durable `actions`, explicit gas and receipt-gated sender streams — permanent maker and CRE hooks now wired. Runner regressions 23/23 cover signed recovery before expiry/state skips, strict restart receipt boundaries and shutdown drain. Production admission returns 503 without maker/CRE prerequisites. Integrated local Monad/AUSD/Kuru fork created/listed/seeded six words with the real BOT adapter; one funded live episode remains required (B01–B04)
+- [ ] **5.4** House market maker: ladder seeding, quote pull at `t − 400 ms`, 0.98 bid on SAID, cancel at close, post-settlement withdraw and redeem — permanent implementation and 13/13 regression tests landed. Integrated real-Kuru fork: six books/24 orders, partial IOC 15,576,730 YES, paired replacement flip pull, 1 YES cash-out for 980,000 AUSD base units, Yes/No/Void inventory recycled, zero remaining orders or duplicate actions. GraphQL transport fixture used chain-read positions; settlement used a local authenticated forwarder fixture, not CRE. Live transaction hashes and real Envio/CRE proof still required (B01–B04)
 - [x] **5.5** `flagSaid` at spoken `t`, `markEvidence` at verified chunk reveal boundaries, `closeEpisode` after the final 2,000 ms presentation margin; SSE `/v1/episodes/:id/stream` — proof: 42 studio tests cover no future flag leakage, receipt sequencing, persistent recovery, exact 10 s duration boundaries and skipped expired flags; real Monad/Kuru fork lifecycle smoke created/listed six words, two flag receipts took 570 / 622 ms, emitted evidence and closed episode 1. This is local fork proof, not live testnet settlement; funded live proof stays with 5.8
-- [ ] **5.6** CRE runner (simulation mode): watch `EvidenceReady` and `EpisodeClosed`, run the simulate command, record `cre_runs` — proof: `cre_runs` rows with report tx hashes
-- [ ] **5.7** Starter drip: once per address, rate-limited by IP hash, MON + AUSD, refuses when DRIP is low (ARCHITECTURE section 10 budget) — proof: first drip succeeds, repeat refused, low-balance refusal tested
+- [ ] **5.6** CRE runner (simulation mode): watch `EvidenceReady` and `EpisodeClosed`, run the simulate command, record `cre_runs` — 30/30 regressions cover canonical trigger receipt-array indices, 100-block RPC catch-up, reporter nonce attribution, bounded pre-write no-report protocol, ambiguous-write reconciliation and shutdown. Runtime fake CLI submitted real local receiver/forwarder transactions; both trigger rows recorded corroborated report hashes and two resolved words. Resolver WASM rebuilt (4,247,033 bytes, `0061736d` header); authenticated real CLI broadcast remains gated by B01–B03
+- [x] **5.7** Starter drip: once per address, rate-limited by direct-peer IP HMAC, MON + AUSD, refuses when DRIP is low — 19/19 regressions cover insufficient balance, atomic reservation, concurrent claims, restart/unknown receipt recovery, reverted legs, IP canonicalization and shutdown. Real Monad/AUSD fork via HTTP granted exactly 0.5 MON + 10 AUSD to an empty-code recipient, returned 201, repeat 409 and malformed JSON 400; delegated recipient native call also confirmed with estimated gas. Local proof only; funded unattended operation remains part of 5.8
 - [ ] **5.8** `deploy/` systemd unit and Caddy config; full episode against testnet from a local run — proof: episode id, all tx hashes, timings in PROGRESS
 
 **Acceptance:** an on-demand episode is created, listed, seeded, flagged on time (latency logged under 1 s), closed, settled by CRE and its house inventory recycled with no human action.
+
+**Continuation verification (2026-10-06):** full `bun run verify` under WSL passes all workspace typechecks, Biome with 73 non-null assertion warnings and zero errors, and 348 tests (core 172, studio 114, resolver 23, transcription 29, indexer 10). Production read API smoke: time/health 200, unconfigured drip/episode writes 503. Source-review findings and runtime corrections are recorded in `handoff\sayso\reports\review-phase5.md`; the live acceptance above is still open.
 
 ## Phase 6 — Indexer · DOING
 

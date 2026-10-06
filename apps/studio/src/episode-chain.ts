@@ -47,6 +47,13 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
     transport: http(config.rpcUrl),
   });
   let tail = Promise.resolve();
+  let unresolved: Hex | undefined;
+  let lastBlock = 0n;
+  function recordReceipt(receipt: TransactionReceipt): Receipt {
+    if (receipt.blockNumber > lastBlock) lastBlock = receipt.blockNumber;
+    if (unresolved === receipt.transactionHash) unresolved = undefined;
+    return decodeReceipt(receipt);
+  }
   const releaseByHash = new Map<Hex, () => void>();
   return {
     async prepare(command: Command) {
@@ -55,8 +62,31 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
       tail = gate.promise;
       await previous;
       try {
+        if (unresolved) throw new Error("Operator transaction requires recovery");
         if ((await client.getChainId()) !== 10143) throw new Error("RPC is not Monad testnet");
         if (!(await client.getCode({ address }))) throw new Error("Missing SaysoMarkets bytecode");
+        if (lastBlock > 0n && (await client.getBlockNumber({ cacheTime: 0 })) <= lastBlock) {
+          const advanced = Promise.withResolvers<void>();
+          const stop = client.watchBlockNumber({
+            pollingInterval: 100,
+            onBlockNumber(block) {
+              if (block > lastBlock) advanced.resolve();
+            },
+            onError(error) {
+              advanced.reject(error);
+            },
+          });
+          const deadline = setTimeout(
+            () => advanced.reject(new Error("Operator block unavailable")),
+            30_000,
+          );
+          try {
+            await advanced.promise;
+          } finally {
+            clearTimeout(deadline);
+            stop();
+          }
+        }
         let data: Hex;
         switch (command.kind) {
           case "createEpisode": {
@@ -125,6 +155,7 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
         });
         const raw = await wallet.signTransaction(request);
         const hash = keccak256(raw);
+        unresolved = hash;
         releaseByHash.set(hash, gate.resolve);
         return { hash, raw };
       } catch (error) {
@@ -134,19 +165,28 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
     },
     async broadcast(transaction: Prepared) {
       try {
+        if (unresolved && unresolved !== transaction.hash)
+          throw new Error("Operator sender has an unresolved transaction");
+        if (keccak256(transaction.raw) !== transaction.hash)
+          throw new Error("Operator journal hash mismatch");
+        unresolved = transaction.hash;
         // A restart can find a mined receipt or re-send the same signed bytes (same nonce/hash).
         const mined = await client
           .getTransactionReceipt({ hash: transaction.hash })
           .catch(() => null);
-        if (mined) return decodeReceipt(mined);
+        if (mined) return recordReceipt(mined);
         await client
           .sendRawTransaction({ serializedTransaction: transaction.raw })
           .catch(async (error) => {
             if (!(await client.getTransaction({ hash: transaction.hash }).catch(() => null)))
               throw error;
           });
-        return decodeReceipt(
-          await client.waitForTransactionReceipt({ hash: transaction.hash, pollingInterval: 100 }),
+        return recordReceipt(
+          await client.waitForTransactionReceipt({
+            hash: transaction.hash,
+            pollingInterval: 100,
+            timeout: 30_000,
+          }),
         );
       } finally {
         releaseByHash.get(transaction.hash)?.();
@@ -156,7 +196,7 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
     async receipt(hash) {
       return client
         .getTransactionReceipt({ hash })
-        .then(decodeReceipt)
+        .then(recordReceipt)
         .catch((error: { name?: string }) => {
           if (error.name === "TransactionReceiptNotFoundError") return null;
           throw error;
