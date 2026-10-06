@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { type Address, type Hex, parseEther, parseTransaction, toHex } from "viem";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { createApp } from "./app.ts";
 import { parseConfig } from "./config.ts";
 import {
   type DripChain,
@@ -117,6 +118,41 @@ it("awards once across case variants and service restart, exposing no private jo
     httpStatus: 409,
   });
   expect(JSON.stringify(service.status(a))).not.toMatch(/raw|ip_hash|192\.0\.2/);
+});
+it("preserves verified client identity for streamed grants and their IP rate limit", async () => {
+  const identities = new WeakMap<Request, string>();
+  const app = createApp({
+    db,
+    now: () => now,
+    chain: {
+      async snapshot() {
+        return { headNumber: "1", headTimestampMs: now, balances: [] };
+      },
+    },
+    drip: service,
+    ip: (request) => identities.get(request) ?? "unknown",
+  });
+  for (const [address, expected] of [
+    [a, 201],
+    [b, 429],
+  ] as const) {
+    const bytes = new TextEncoder().encode(JSON.stringify({ address }));
+    const request = new Request("http://localhost/v1/drips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Transfer-Encoding": "chunked" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes.slice(0, 10));
+          controller.enqueue(bytes.slice(10));
+          controller.close();
+        },
+      }),
+    });
+    identities.set(request, "192.0.2.1");
+    expect((await app.fetch(request)).status).toBe(expected);
+  }
+  expect(chain.balances.get(a)).toEqual({ mon: 500_000_000_000_000_000n, ausd: 10_000_000n });
+  expect(chain.balances.get(b)).toBeUndefined();
 });
 it("reserves one new address per IP hour, including concurrent claim attempts", async () => {
   const results = await Promise.allSettled([

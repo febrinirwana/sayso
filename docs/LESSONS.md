@@ -4,6 +4,12 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/07 — Capture verified request identity before body buffering
+
+- **Cause:** Hono bodyLimit replaces the raw Request for streamed bodies; identity keyed by the original object disappeared, causing valid drip claims to return invalid_ip.
+- **Rule:** Store the already-verified IP in request context before buffering. Exercise streamed HTTP grants and same-IP rate limits through the real middleware, not only the identity helper.
+
+
 ### 2026/10/06 — Public RPC log scans need 100-block windows
 
 - **Cause:** The integrated fork inherited Monad's public RPC limit: an `eth_getLogs` request spanning 1,000 blocks failed with HTTP 413. The maker and CRE adapters also used windows larger than the observed 100-block limit.

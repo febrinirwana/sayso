@@ -45,26 +45,35 @@ type RevealRow = {
 };
 
 export function createApp({ db, now, chain, runner, drip, ip }: AppDeps) {
-  const app = new Hono();
-  app.post("/v1/drips", bodyLimit({ maxSize: 256 }), async (context) => {
-    if (!drip) return context.json({ error: "unavailable", network: "TESTNET" }, 503);
-    const body: unknown = await context.req.json().catch(() => null);
-    if (
-      !body ||
-      typeof body !== "object" ||
-      !("address" in body) ||
-      typeof body.address !== "string"
-    )
-      return context.json({ error: "invalid_address", network: "TESTNET" }, 400);
-    try {
-      return context.json(await drip.claim(body.address, ip?.(context.req.raw) ?? "unknown"), 201);
-    } catch (error) {
-      return context.json(
-        { error: error instanceof DripError ? error.code : "unavailable", network: "TESTNET" },
-        error instanceof DripError ? error.httpStatus : 503,
-      );
-    }
-  });
+  const app = new Hono<{ Variables: { clientIp: string } }>();
+  app.post(
+    "/v1/drips",
+    (context, next) => {
+      // bodyLimit can replace req.raw when buffering a streamed body.
+      context.set("clientIp", ip?.(context.req.raw) ?? "unknown");
+      return next();
+    },
+    bodyLimit({ maxSize: 256 }),
+    async (context) => {
+      if (!drip) return context.json({ error: "unavailable", network: "TESTNET" }, 503);
+      const body: unknown = await context.req.json().catch(() => null);
+      if (
+        !body ||
+        typeof body !== "object" ||
+        !("address" in body) ||
+        typeof body.address !== "string"
+      )
+        return context.json({ error: "invalid_address", network: "TESTNET" }, 400);
+      try {
+        return context.json(await drip.claim(body.address, context.get("clientIp")), 201);
+      } catch (error) {
+        return context.json(
+          { error: error instanceof DripError ? error.code : "unavailable", network: "TESTNET" },
+          error instanceof DripError ? error.httpStatus : 503,
+        );
+      }
+    },
+  );
   app.get("/v1/drips/:address", (context) => {
     if (!drip) return context.json({ error: "unavailable", network: "TESTNET" }, 503);
     try {
