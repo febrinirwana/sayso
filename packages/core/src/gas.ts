@@ -75,6 +75,12 @@ export function gasLimit(kind: GasKind, count?: number): bigint {
   } else {
     measured = SINGLE[kind];
   }
+  return gasWithMargin(measured);
+}
+
+/** Use the same margin for actual-call RPC estimates where no measured table entry exists. */
+export function gasWithMargin(measured: bigint): bigint {
+  if (measured <= 0n) throw new RangeError("Gas estimate must be positive");
   return (measured * 120n + 99n) / 100n;
 }
 

@@ -2,7 +2,7 @@ export { marginAccountAbi, orderBookAbi, routerAbi } from "../abi/kuru.ts";
 export { outcomeTokenAbi, saysoMarketsAbi } from "../abi/sayso.ts";
 export { type AddressName, addresses, CHAIN_ID } from "./addresses.ts";
 export { explorerAddressUrl, explorerTxUrl } from "./explorer.ts";
-export { type GasKind, gasLimit } from "./gas.ts";
+export { type GasKind, gasLimit, gasWithMargin } from "./gas.ts";
 export {
   AGREEMENT_WINDOW_MS,
   agreedSpokenTime,

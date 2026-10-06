@@ -129,6 +129,7 @@ The contract trades with `isMargin = false` and approves each book (never `Margi
 ## 8. Gas
 
 Monad bills the gas limit. `packages/core/src/gas.ts` exports `gasLimit(kind, count?)`, returning `ceil(measured × 1.20)`. Episode word counts are 2–8 (default six); evidence/report batches are 1–8 (default one). Counts outside the measured range are refused.
+Runtime-only Kuru/ERC-20 invocations use actual-call RPC estimation and `gasWithMargin(measured)`, the same integer `ceil(measured × 1.20)` policy; zero/negative estimates are refused. Native starter transfers use 21,000 gas only for empty-code recipients; contract or EIP-7702 recipients use exact-call estimation with the same margin. An RPC estimate is not a new measured-table fact and must still be exercised on the intended book/recipient path.
 
 [V: Monad-mode fork at block 68,394,814, real AUSD and Kuru; `forge test --isolate` with per-call gas snapshots]. Eight-word create and list were also sent as actual transactions on a local Monad-mode Anvil fork with the limits below; receipts used exactly 3,395,766 and 9,559,637 gas, both status 1. Eight books fit the **30M transaction** limit; no word-cap change is needed.
 
