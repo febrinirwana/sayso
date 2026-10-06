@@ -50,7 +50,7 @@ export type Report = {
   outcomes: (2 | 3)[];
   evidenceHash: Hex;
 };
-export type Decision = { report: Report | null; reason: string | null };
+export type Decision = { report: Report | null; reason: string | null; retryable: boolean };
 
 // These same requests drive fetching and verification. No API-provided count is trusted.
 export function requiredChunks(mode: Mode, episode: Episode, words: readonly Word[]) {
@@ -91,7 +91,8 @@ export function decide(
     const remaining = words.filter((w) =>
       mode === "evidence" ? w.state === 1 : w.state === 0 || w.state === 1,
     );
-    if (remaining.length === 0) return { report: null, reason: "No unresolved eligible words" };
+    if (remaining.length === 0)
+      return { report: null, reason: "No unresolved eligible words", retryable: false };
     const requests = requiredChunks(mode, episode, remaining);
     if (payloads.length !== requests.length) throw new Error("Incomplete chunk set");
     const chunks = payloads.map((payload) => chunkSchema.parse(payload));
@@ -168,12 +169,17 @@ export function decide(
       }
     }
     return report.wordIds.length === 0
-      ? { report: null, reason: "Flagged words lack two-engine agreement; defer until close" }
-      : { report, reason: null };
+      ? {
+          report: null,
+          reason: "Flagged words lack two-engine agreement; defer until close",
+          retryable: false,
+        }
+      : { report, reason: null, retryable: false };
   } catch (error) {
     // Never include parsed payloads (which can contain transcripts) in diagnostics.
     return {
       report: null,
+      retryable: true,
       reason:
         error instanceof z.ZodError
           ? "Malformed chunk payload"

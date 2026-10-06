@@ -88,3 +88,52 @@ it("cannot settle a subset when onchain word enumeration is incomplete", () => {
   resolve("closed", 1, [], f.io);
   expect(f.delivered).toEqual([]);
 });
+
+it("identifies a terminal false-flag no-write result so close remains runnable", () => {
+  const f = environment();
+  const logs: string[] = [];
+  const read = f.io.readWord;
+  f.io.readWord = (id) => ({ ...read(id), text: "box", state: 1 });
+  f.io.log = (message) => logs.push(message);
+  expect(resolve("evidence", 1, [1n], f.io)).toBe("no-report");
+  expect(f.delivered).toEqual([]);
+  const marker = logs.find((message) => message.startsWith("SAYSO_CRE_STATUS:"));
+  expect(marker).toBeDefined();
+  expect(JSON.parse(marker?.slice("SAYSO_CRE_STATUS:".length) ?? "{}")).toEqual({
+    episodeId: 1,
+    phase: "prewrite",
+    result: "no-report",
+    retryable: false,
+  });
+});
+
+it.each(["fetch", "proof"] as const)("allows safe retry of a pre-write %s failure", (failure) => {
+  const f = environment();
+  const logs: string[] = [];
+  f.io.log = (message) => logs.push(message);
+  f.io.fetchChunk = () => {
+    if (failure === "fetch") throw new Error("private-upstream-response");
+    return {};
+  };
+  expect(resolve("closed", 1, [], f.io)).toBe("no-report");
+  expect(f.delivered).toEqual([]);
+  const marker = logs.find((message) => message.startsWith("SAYSO_CRE_STATUS:"));
+  expect(JSON.parse(marker?.slice("SAYSO_CRE_STATUS:".length) ?? "{}")).toEqual({
+    episodeId: 1,
+    phase: "prewrite",
+    result: "no-report",
+    retryable: true,
+  });
+  expect(logs.join("")).not.toContain("private-upstream-response");
+});
+
+it("never certifies no-write after report submission was entered", () => {
+  const f = environment();
+  const logs: string[] = [];
+  f.io.log = (message) => logs.push(message);
+  f.io.submitReport = () => {
+    throw new Error("ambiguous-broadcast");
+  };
+  expect(resolve("closed", 1, [], f.io)).toBe("no-report");
+  expect(logs.some((message) => message.startsWith("SAYSO_CRE_STATUS:"))).toBe(false);
+});
