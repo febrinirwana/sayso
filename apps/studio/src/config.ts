@@ -15,6 +15,13 @@ const envSchema = z.object({
   BOT_PK: optionalValue(key),
   DRIP_PK: optionalValue(key),
   REPORTER_PK: optionalValue(key),
+  DRIP_IP_SALT: optionalValue(z.string().min(32)),
+  INDEXER_URL: optionalValue(z.url()),
+  STUDIO_REVEAL_URL: optionalValue(z.url()),
+  SAYSO_START_BLOCK: optionalValue(z.string().regex(/^(0|[1-9]\d*)$/)),
+  CRE_MODE: z.enum(["simulation", "don"]).default("simulation"),
+  CRE_RESOLVER_DIR: optionalValue(z.string().min(1)),
+  CRE_CLI_PATH: z.string().min(1).default("cre"),
 });
 export type KeyRole = "operator" | "bot" | "drip" | "reporter";
 
@@ -24,6 +31,13 @@ export class StudioConfig {
   readonly saysoMarkets: Address | undefined;
   readonly dataDir: string;
   readonly port: number;
+  readonly indexerUrl: string | undefined;
+  readonly revealApiBaseUrl: string | undefined;
+  readonly startBlock: bigint | undefined;
+  readonly creMode: "simulation" | "don";
+  readonly creResolverDir: string | undefined;
+  readonly creCliPath: string;
+  #dripSalt: string | undefined;
   readonly keyAddresses: { role: KeyRole; address: Address }[];
   #keys: Partial<Record<KeyRole, Hex>> = {};
 
@@ -32,6 +46,14 @@ export class StudioConfig {
     this.saysoMarkets = env.SAYSO_MARKETS as Address | undefined;
     this.dataDir = env.STUDIO_DATA_DIR;
     this.port = env.PORT;
+    this.indexerUrl = env.INDEXER_URL as string | undefined;
+    this.revealApiBaseUrl = env.STUDIO_REVEAL_URL as string | undefined;
+    this.startBlock =
+      env.SAYSO_START_BLOCK === undefined ? undefined : BigInt(env.SAYSO_START_BLOCK as string);
+    this.creMode = env.CRE_MODE;
+    this.creResolverDir = env.CRE_RESOLVER_DIR as string | undefined;
+    this.creCliPath = env.CRE_CLI_PATH;
+    this.#dripSalt = env.DRIP_IP_SALT as string | undefined;
     this.keyAddresses = [];
     for (const [role, value] of [
       ["operator", env.OPERATOR_PK],
@@ -46,10 +68,17 @@ export class StudioConfig {
         this.keyAddresses.push({ role, address });
       }
     }
+    const senders = new Set(this.keyAddresses.map(({ address }) => address.toLowerCase()));
+    if (senders.size !== this.keyAddresses.length)
+      throw new Error("Studio roles must use distinct sender addresses");
   }
 
   privateKey(role: KeyRole): Hex | undefined {
     return this.#keys[role];
+  }
+
+  dripIpSalt(): string | undefined {
+    return this.#dripSalt;
   }
 }
 

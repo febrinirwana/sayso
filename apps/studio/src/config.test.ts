@@ -13,9 +13,9 @@ it("keeps loaded role keys out of JSON and inspection, including hidden properti
   const config = parseConfig({
     ...base,
     OPERATOR_PK: key,
-    BOT_PK: key,
-    DRIP_PK: key,
-    REPORTER_PK: key,
+    BOT_PK: `0x${"13".repeat(32)}`,
+    DRIP_PK: `0x${"14".repeat(32)}`,
+    REPORTER_PK: `0x${"15".repeat(32)}`,
   });
   expect(config.privateKey("operator")).toBe(key);
   for (const text of [
@@ -36,4 +36,27 @@ it("refuses malformed key material without exposing it in errors", () => {
   } catch (error) {
     expect(String(error)).not.toContain(key);
   }
+});
+
+it("rejects a weak drip IP salt without exposing its value", () => {
+  try {
+    parseConfig({ ...base, DRIP_IP_SALT: "too-short-secret" });
+    expect.fail("weak salt accepted");
+  } catch (error) {
+    expect(String(error)).toContain("DRIP_IP_SALT");
+    expect(String(error)).not.toContain("too-short-secret");
+  }
+});
+
+it("keeps the drip salt out of JSON and hidden-property inspection", () => {
+  const salt = "private-ip-salt".repeat(4);
+  const config = parseConfig({ ...base, DRIP_IP_SALT: salt });
+  expect(config.dripIpSalt()).toBe(salt);
+  expect(JSON.stringify(config)).not.toContain(salt);
+  expect(inspect(config, { showHidden: true })).not.toContain(salt);
+});
+
+it("refuses two role writers sharing a sender nonce stream", () => {
+  const key = `0x${"12".repeat(32)}`;
+  expect(() => parseConfig({ ...base, OPERATOR_PK: key, DRIP_PK: key })).toThrow();
 });

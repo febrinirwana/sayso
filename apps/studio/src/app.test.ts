@@ -94,10 +94,10 @@ it("reports the latest CRE mode and degraded status without exposing stored CRE 
       "INSERT INTO episodes VALUES (1, 'clip', 'on_demand', 0, 32090, 'Closed', NULL, NULL, NULL)",
     ).run();
     db.query(
-      "INSERT INTO cre_runs VALUES (1, 1, 'closed', 'trigger1', 'simulation', 'succeeded', 'report1', 80000, 90000, NULL)",
+      "INSERT INTO cre_runs(id,episode_id,trigger,trigger_tx,mode,status,report_tx,started_ms,finished_ms,error) VALUES (1, 1, 'closed', 'trigger1', 'simulation', 'succeeded', 'report1', 80000, 90000, NULL)",
     ).run();
     db.query(
-      "INSERT INTO cre_runs VALUES (2, 1, 'closed', 'trigger2', 'don', 'failed', NULL, 99000, 99500, 'private-subprocess-input')",
+      "INSERT INTO cre_runs(id,episode_id,trigger,trigger_tx,mode,status,report_tx,started_ms,finished_ms,error) VALUES (2, 1, 'closed', 'trigger2', 'don', 'failed', NULL, 99000, 99500, 'private-subprocess-input')",
     ).run();
     const response = await createApp({ db, now: () => 100000, chain: healthyChain }).request(
       "/v1/health",
@@ -117,6 +117,11 @@ it("reports the latest CRE mode and degraded status without exposing stored CRE 
       finished_ms: 99500,
     });
     expect(body).not.toContain("private-subprocess-input");
+    db.query("UPDATE cre_runs SET status='ambiguous' WHERE id=2").run();
+    const ambiguous = await createApp({ db, now: () => 100000, chain: healthyChain }).request(
+      "/v1/health",
+    );
+    expect(await ambiguous.json()).toMatchObject({ status: "degraded" });
   } finally {
     db.close();
   }

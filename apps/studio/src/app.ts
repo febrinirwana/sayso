@@ -1,7 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import type { Address } from "viem";
+import { DripError, type DripService } from "./drip.ts";
 import { EpisodeError, type EpisodeRunner } from "./runner.ts";
 
 export type ChainSnapshot = {
@@ -15,6 +17,7 @@ export type AppDeps = {
   now(): number;
   chain: ChainReader;
   runner?: EpisodeRunner | undefined;
+  drip?: DripService | undefined;
   ip?(request: Request): string;
 };
 type CreRun = {
@@ -41,8 +44,39 @@ type RevealRow = {
   proof_json: string;
 };
 
-export function createApp({ db, now, chain, runner, ip }: AppDeps) {
+export function createApp({ db, now, chain, runner, drip, ip }: AppDeps) {
   const app = new Hono();
+  app.post("/v1/drips", bodyLimit({ maxSize: 256 }), async (context) => {
+    if (!drip) return context.json({ error: "unavailable", network: "TESTNET" }, 503);
+    const body: unknown = await context.req.json().catch(() => null);
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("address" in body) ||
+      typeof body.address !== "string"
+    )
+      return context.json({ error: "invalid_address", network: "TESTNET" }, 400);
+    try {
+      return context.json(await drip.claim(body.address, ip?.(context.req.raw) ?? "unknown"), 201);
+    } catch (error) {
+      return context.json(
+        { error: error instanceof DripError ? error.code : "unavailable", network: "TESTNET" },
+        error instanceof DripError ? error.httpStatus : 503,
+      );
+    }
+  });
+  app.get("/v1/drips/:address", (context) => {
+    if (!drip) return context.json({ error: "unavailable", network: "TESTNET" }, 503);
+    try {
+      const status = drip.status(context.req.param("address"));
+      return status ? context.json(status) : context.body(null, 404);
+    } catch (error) {
+      return context.json(
+        { error: error instanceof DripError ? error.code : "unavailable", network: "TESTNET" },
+        error instanceof DripError ? error.httpStatus : 503,
+      );
+    }
+  });
   app.post("/v1/episodes", async (context) => {
     if (!runner) return context.body(null, 503);
     try {
@@ -88,7 +122,7 @@ export function createApp({ db, now, chain, runner, ip }: AppDeps) {
       const degraded =
         lagMs > 10_000 ||
         snapshot.balances.some((balance) => BigInt(balance.monWei) === 0n) ||
-        lastCreRun?.status === "failed";
+        (lastCreRun !== null && ["failed", "ambiguous"].includes(lastCreRun.status));
       return context.json({
         status: degraded ? "degraded" : "ok",
         chain: {

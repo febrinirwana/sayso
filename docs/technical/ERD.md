@@ -147,6 +147,8 @@ CREATE TABLE house_orders (
   price      INTEGER NOT NULL,
   size       TEXT NOT NULL,
   status     TEXT NOT NULL,
+  is_flip    INTEGER NOT NULL DEFAULT 0,
+  observed_block INTEGER,
   PRIMARY KEY (market, order_id)
 );
 
@@ -156,7 +158,12 @@ CREATE TABLE drips (
   ausd     TEXT NOT NULL,
   tx_mon   TEXT, tx_ausd TEXT,
   ip_hash  TEXT NOT NULL,
-  at       INTEGER NOT NULL
+  at       INTEGER NOT NULL,
+  status   TEXT NOT NULL DEFAULT 'completed', -- legacy awards remain ineligible
+  raw_mon  TEXT, raw_ausd TEXT,               -- signed bytes; never public
+  status_mon TEXT NOT NULL DEFAULT 'confirmed',
+  status_ausd TEXT NOT NULL DEFAULT 'confirmed',
+  block_mon INTEGER, block_ausd INTEGER
 );
 
 CREATE TABLE cre_runs (
@@ -169,11 +176,30 @@ CREATE TABLE cre_runs (
   report_tx   TEXT,
   started_ms  INTEGER NOT NULL,
   finished_ms INTEGER,
-  error       TEXT
+  error       TEXT,
+  trigger_log_index INTEGER,                 -- receipt-array position, not block-global logIndex
+  trigger_block TEXT,
+  word_ids_json TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  next_attempt_ms INTEGER NOT NULL DEFAULT 0,
+  reporter_nonce INTEGER,
+  execution_block TEXT
+);
+CREATE UNIQUE INDEX cre_trigger_log ON cre_runs(trigger_tx, trigger_log_index);
+CREATE TABLE cre_runner_state (
+  receiver TEXT PRIMARY KEY,
+  next_block TEXT NOT NULL
 );
 ```
 
 Clip manifests and transcripts are studio data, not tracked files: a public word list with its transcript would reveal outcomes before trading. The repo tracks one fixture clip under `clips/fixtures/` for tests.
+
+BOT substeps in `actions.payload_json` carry the exact command, signed hash/raw bytes, receipt block and confirmation status. `house_orders` is reconstructed from actual original/replacement Kuru events and live storage, never treated as chain authority.
+
+Drip admission uses lowercase addresses with case-insensitive legacy lookup, a deployment-stable private HMAC salt over canonical direct-peer IPs, and an atomic SQLite reservation. Both transfer legs must confirm before `completed`; partial awards resume only the missing leg. Public responses omit signed bytes and IP hashes. Legacy rows and their transaction evidence are preserved unchanged.
+
+CRE trigger identity is `(trigger_tx, trigger_log_index)`; the durable cursor advances only after every discovered trigger is enqueued. Statuses: `pending`, `running`, `observing` (DON), `ambiguous`, `success`, `reconciled`, `superseded`, `no-report`, `failed`. Only corroborated onchain receiver/forwarder receipts populate `report_tx`; attempted simulation reports must match the recorded REPORTER nonce. `no-report` proves no submission was entered, not successful settlement. CLI write ambiguity gates REPORTER until receipt reconciliation; neither a timeout nor a void authorizes replacement signing.
 
 ## 4. Files and payloads
 

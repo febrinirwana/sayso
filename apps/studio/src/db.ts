@@ -99,13 +99,59 @@ CREATE TABLE IF NOT EXISTS cre_runs (
   finished_ms INTEGER,
   error       TEXT
 );
+CREATE TABLE IF NOT EXISTS cre_runner_state (
+  receiver TEXT PRIMARY KEY,
+  next_block TEXT NOT NULL
+);
 `;
+
+const additions = {
+  house_orders: {
+    is_flip: "INTEGER NOT NULL DEFAULT 0",
+    observed_block: "INTEGER",
+  },
+  drips: {
+    status: "TEXT NOT NULL DEFAULT 'completed'",
+    raw_mon: "TEXT",
+    raw_ausd: "TEXT",
+    status_mon: "TEXT NOT NULL DEFAULT 'confirmed'",
+    status_ausd: "TEXT NOT NULL DEFAULT 'confirmed'",
+    block_mon: "INTEGER",
+    block_ausd: "INTEGER",
+  },
+  cre_runs: {
+    trigger_log_index: "INTEGER",
+    trigger_block: "TEXT",
+    word_ids_json: "TEXT",
+    attempts: "INTEGER NOT NULL DEFAULT 0",
+    retry_count: "INTEGER NOT NULL DEFAULT 0",
+    next_attempt_ms: "INTEGER NOT NULL DEFAULT 0",
+    reporter_nonce: "INTEGER",
+    execution_block: "TEXT",
+  },
+} as const;
 
 export function openDatabase(path: string): Database {
   const db = new Database(path, { create: true, strict: true });
   try {
     db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
     db.transaction(() => db.exec(schema))();
+    db.transaction(() => {
+      for (const [table, definitions] of Object.entries(additions)) {
+        const columns = new Set(
+          db
+            .query<{ name: string }, []>(`PRAGMA table_info(${table})`)
+            .all()
+            .map((column) => column.name),
+        );
+        for (const [name, type] of Object.entries(definitions)) {
+          if (!columns.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+        }
+      }
+      db.exec(
+        "CREATE UNIQUE INDEX IF NOT EXISTS cre_trigger_log ON cre_runs(trigger_tx,trigger_log_index)",
+      );
+    })();
     const actionColumns = db.query<{ name: string }, []>("PRAGMA table_info(actions)").all();
     if (!actionColumns.some((column) => column.name === "payload_json")) {
       db.transaction(() => {
