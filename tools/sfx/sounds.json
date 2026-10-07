@@ -1,0 +1,115 @@
+{
+  "family": "Warm toy game show: wood blocks, soft marimba, glockenspiel bells, mellow brass and small coins on a wooden tray. Dry and close, every sound ends cleanly, nothing metallic-harsh, never a casino.",
+  "sounds": [
+    {
+      "id": "tap",
+      "prompt": "One single soft wooden click: a small toy wooden block tapped once with a felt-tipped mallet. Close-miked, dry, warm, mid-pitched, instant attack and very fast decay. Exactly one hit. No reverb, no echo, no metallic ring, no music, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.7,
+      "max_seconds": 0.15,
+      "target_rms_db": -22
+    },
+    {
+      "id": "sheet",
+      "prompt": "One quick soft paper swish: a sheet of thick card sliding smoothly out of a sleeve. Warm, airy, gentle rise then a fast fade, a single movement. Close and dry. No crackle, no tearing, no crumpling, no reverb, no music, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.6,
+      "max_seconds": 0.3,
+      "target_rms_db": -24,
+      "lowpass_hz": 9000
+    },
+    {
+      "id": "confirm",
+      "prompt": "Two quick separate soft marimba notes played one after the other, low note then a higher note a perfect fifth above, rising and cheerful, like a toy game-show button saying yes. Rounded wooden tone, each note short with a clean decay, the whole thing under half a second. Not a chord, no synth buzz, no reverb tail, no music bed, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.7,
+      "max_seconds": 0.4,
+      "target_rms_db": -22,
+      "layers": [
+        {
+          "semitones": 0,
+          "delay_ms": 0,
+          "gain_db": -2
+        },
+        {
+          "semitones": 7,
+          "delay_ms": 85,
+          "gain_db": 0
+        }
+      ],
+      "pick": 1
+    },
+    {
+      "id": "fill",
+      "prompt": "One chunky toy coin dropping into a felt-lined wooden tray: a single mellow, low-pitched clink with one small bounce, rounded and warm, like a board-game token. No bright jingle, no sizzle, no spinning rattle, no other coins, no reverb, no music, no voice.",
+      "duration_seconds": 0.6,
+      "prompt_influence": 0.6,
+      "max_seconds": 0.5,
+      "target_lufs": -22,
+      "lowpass_hz": 7500
+    },
+    {
+      "id": "said",
+      "prompt": "A crisp split-flap display clack immediately followed by one bright warm game-show bell ding on a glockenspiel, like a quiz show correct-answer chime. Mechanical flap then a single clear bell note ringing briefly and fading. Tight and dry. No reverb tail, no music, no crowd, no voice.",
+      "duration_seconds": 0.8,
+      "prompt_influence": 0.6,
+      "max_seconds": 0.8,
+      "target_lufs": -22,
+      "lowpass_hz": 9000
+    },
+    {
+      "id": "cashout",
+      "prompt": "A short cheerful cascade of five chunky toy coins clattering one after another into a felt-lined wooden tray: mellow, low-pitched, rounded clinks with a soft brassy ring, quick and playful, a toy game-show payout. No bright jingle, no sizzle, no hiss, no slot machine, no casino jackpot bells, no music, no reverb, no voice.",
+      "duration_seconds": 0.8,
+      "prompt_influence": 0.6,
+      "max_seconds": 0.8,
+      "target_lufs": -22,
+      "lowpass_hz": 7500
+    },
+    {
+      "id": "tick",
+      "prompt": "One single muted clock tick: a soft wooden tock from a small desk clock. Dry, low-mid pitch, very short, rounded. Exactly one tick. No ticking sequence, no metallic click, no reverb, no music, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.7,
+      "max_seconds": 0.12,
+      "target_rms_db": -25,
+      "lowpass_hz": 7000,
+      "pick": 2
+    },
+    {
+      "id": "start",
+      "prompt": "A short brass sting opening a TV game show: warm trumpets and trombone play two quick rising notes landing on a bright major chord stab, playful and confident, ending cleanly. Tight studio sound. No drums, no long reverb, no crowd, no voice.",
+      "duration_seconds": 1.5,
+      "prompt_influence": 0.6,
+      "max_seconds": 1.5,
+      "target_lufs": -18
+    },
+    {
+      "id": "win",
+      "prompt": "A cheerful short fanfare hit for a game-show winner: warm brass plays a quick rising triplet into a bright major chord with a glockenspiel sparkle on top, playful and toy-like, ending cleanly. Tight studio sound. No slot machine, no coins, no crowd, no voice, no long reverb.",
+      "duration_seconds": 2,
+      "prompt_influence": 0.6,
+      "max_seconds": 2,
+      "target_lufs": -18,
+      "pick": 2
+    },
+    {
+      "id": "lose",
+      "prompt": "A gentle descending 'aww' tone: a soft muted trombone sliding down two notes, sympathetic and playful rather than sad, a cartoon game-show near miss. Warm and quiet, ends cleanly. No harsh buzzer, no crowd, no voice, no reverb tail.",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.6,
+      "max_seconds": 1.2,
+      "target_lufs": -22,
+      "pick": 2
+    },
+    {
+      "id": "redeem",
+      "prompt": "A vintage toy cash register: a soft drawer click and one bright warm bell ding, cheerful and short. Close and dry. No coins jingling, no slot machine, no reverb tail, no music, no voice.",
+      "duration_seconds": 0.6,
+      "prompt_influence": 0.6,
+      "max_seconds": 0.6,
+      "target_lufs": -22,
+      "lowpass_hz": 8000
+    }
+  ]
+}

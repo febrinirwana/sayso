@@ -36,6 +36,9 @@ apps/studio/data/
 clips/media/
 models/
 
+# raw ElevenLabs generations (tools/sfx); only mastered apps/web/public/sfx ships
+tools/sfx/.cache/
+
 # secrets and machine settings
 .env
 .env.*

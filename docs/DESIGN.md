@@ -102,7 +102,7 @@ Sources (29 voxel PNGs, about 400 px each, and the logo) live in `apps/web/asset
 | `redeem` | Redeem filled | cash register ding | 0.6 s |
 
 - Generated once with ElevenLabs `POST /v1/sound-generation` (`eleven_text_to_sound_v2`) by `tools/sfx`; prompts live in `tools/sfx/sounds.json`. The key is read from `.env` and never reaches the browser.
-- Mastered with ffmpeg: trim leading silence, 5 ms fade-in, 30 ms fade-out, mono 44.1 kHz, peak ≤ −3 dBTP, loudness −22 LUFS for UI sounds and −18 LUFS for `start`/`win`. Shipped as MP3 128 kbps in `apps/web/public/sfx/`.
+- Mastered with ffmpeg: trim leading silence, 5 ms fade-in, 30 ms fade-out, mono 44.1 kHz, peak ≤ −3 dBTP, loudness −22 LUFS for UI sounds (`sheet` −24, `tick` −25 because they repeat) and −18 LUFS for `start`/`win`; clips under 0.4 s are gated on RMS. Shipped as MP3 128 kbps in `apps/web/public/sfx/`; `bun run --cwd tools/sfx measure` fails if any file misses its target.
 - Playback: Web Audio, unlocked on first gesture; master volume 0.5; persistent mute; ducked to 0.3 while clip audio plays. No music: the clip's own speech is what players are judging.
 - Licence: free ElevenLabs plan, non-commercial with attribution ("elevenlabs.io") in the footer, S8 and README ([terms](https://elevenlabs.io/docs/help-center/legal/can-i-publish-the-content-i-generate-on-the-platform.md)) [V]. See BLOCKERS B11.
 

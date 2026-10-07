@@ -62,7 +62,7 @@ apps/studio/         built     Bun + Hono: SQLite, reveal, scheduler/flags/SSE, 
 indexer/             built     Envio config, schema and cashflow/position handlers; live sync and hosting gated by deploy
 apps/web/            built     Vite + TanStack Router PWA with DESIGN tokens; S0 landing, screens S1–S8 (phase 7), Mera, signing;
                                assets-src/ voxel and logo sources, public/sfx/ mastered sound effects
-tools/sfx/           phase 7   Offline ElevenLabs sound-effect generation + ffmpeg mastering (DESIGN section 10)
+tools/sfx/           built     Offline ElevenLabs sound-effect generation + ffmpeg mastering and measurement (DESIGN section 10)
 deploy/              phase 5   systemd unit and Caddy config
 docs/                built     PRD, DESIGN, BLOCKERS, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN,
                                SMART-CONTRACTS, ERD, INTEGRATIONS
