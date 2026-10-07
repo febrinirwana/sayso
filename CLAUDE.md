@@ -28,22 +28,24 @@ The full list and the pre-commit checklist are in `.claude/skills/sayso-rules/SK
 7. Explicit gas on every transaction (Monad bills the limit); sequence each sender by block.
 8. `cast code` every address before it enters code or docs.
 9. External facts carry [V] with source, [I], or [U] with the spike that settles them (`docs/technical/INTEGRATIONS.md` section 9).
-10. No generic AI interface: PRD section 8 governs every screen.
+10. No generic AI interface: PRD section 8 and `docs/DESIGN.md` govern every screen.
 
 ## 5. Repo map
 
 | Path | Owns |
 |---|---|
-| `apps/web` | PWA screens, Mera session, signing, block-sequenced transactions |
+| `apps/web` | PWA landing and screens, Mera session, signing, block-sequenced transactions, voxel and sound assets |
 | `apps/studio` | Scheduler, episode clock, flags, house market maker, drip, reveal API, CRE runner, health |
 | `packages/core` | Matcher, chunking, Merkle, units, nickname, gas table, vendored ABIs; pure, no I/O |
 | `contracts` | `SaysoMarkets`, `OutcomeToken`, `KuruTrade`; Foundry tests and scripts |
 | `cre/resolver` | CRE workflow: two log-trigger handlers, proof checks, report |
 | `indexer` | Envio HyperIndex config, schema, handlers |
 | `tools/transcribe` | Offline two-engine transcription, chunks, roots |
+| `tools/sfx` | Offline ElevenLabs sound effects and ffmpeg mastering |
 | `clips/fixtures` | The one tracked test clip |
 | `docs` | Product, technical, lessons |
 | `.claude/skills` | Vendored and project skills |
+| `.omp/agents` | Persona subagents: `visual-designer`, `sound-engineer` |
 
 ## 6. Commands
 
@@ -74,6 +76,7 @@ Each document owns one subject. Cross-reference; never duplicate a competing fac
 | Document | Owns |
 |---|---|
 | `docs/PRD.md` | Product, episode rules, screens, design principles, bounties, scope |
+| `docs/DESIGN.md` | Colour, type, shape, layout, motion, 3D, illustration assets, sound, copy |
 | `docs/technical/BUILD-PLAN.md` | Phases, task checklist with proof, spike status, schedule; tick boxes in the same commit as the work |
 | `docs/BLOCKERS.md` | External delivery gates, owner actions, observed blocker evidence and closure proof |
 | `docs/technical/ARCHITECTURE.md` | Components, repo layout (built vs planned), flows, transcript commitment, trust model, pinned stack, hosting, MON budget |
@@ -82,8 +85,6 @@ Each document owns one subject. Cross-reference; never duplicate a competing fac
 | `docs/technical/ERD.md` | Chain, Envio, SQLite and payload schemas |
 | `docs/LESSONS.md` | Durable causes and rules |
 | `README.md` | Judge-first demo, requirement proof, addresses, setup, AI disclosure |
-
-A design system document comes later; until then PRD section 8 plus `emil-design-eng` decide.
 
 ## 8. Skills
 
@@ -103,7 +104,8 @@ Load the matching skill before acting.
 | Sign-in, keys, restore | `mera-passkeys` |
 | Chain calls and addresses | monskills `gas`, `addresses`, `concepts` |
 | Indexer | monskills `indexer` |
-| UI and motion | `emil-design-eng`, `improve-animations`, `review-animations`, `animation-vocabulary` |
+| UI and motion | `visual-designer` agent, `emil-design-eng`, `improve-animations`, `review-animations`, `animation-vocabulary` |
+| Sound | `sound-engineer` agent |
 | New or edited skill | `writing-skills` |
 
 ## 9. How to work here

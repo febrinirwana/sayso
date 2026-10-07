@@ -27,7 +27,7 @@ description: Use before starting or committing any SAYSO change - the project's 
 12. `cast code` every address before it enters code or docs.
 13. Label external facts [V] with source, [I], or [U] with the settling spike.
 14. One matcher (`packages/core`), one set of ABIs (`packages/core/abi`), one gas table (`packages/core/src/gas.ts`).
-15. UI follows PRD section 8; check it rendered at a 412 px viewport and say whether you saw it.
+15. UI follows PRD section 8 and `docs/DESIGN.md`; check it rendered at a 412 px viewport and say whether you saw it.
 
 ## Pre-commit checklist
 

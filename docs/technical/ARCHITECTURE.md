@@ -60,11 +60,14 @@ clips/fixtures/      built     One tracked fixture clip (manifest + chunks, no m
 cre/resolver/        built     CRE TypeScript workflow: log triggers, HTTP fetch, proof checks, report
 apps/studio/         built     Bun + Hono: SQLite, reveal, scheduler/flags/SSE, permanent house maker, starter drip and receipt-backed CRE runner; funded live acceptance pending
 indexer/             built     Envio config, schema and cashflow/position handlers; live sync and hosting gated by deploy
-apps/web/            phase 7   PWA: screens, Mera session, signing, tx sequencing
+apps/web/            phase 7   PWA: S0 landing, screens S1–S8, Mera session, signing, tx sequencing;
+                               assets-src/ voxel and logo sources, public/sfx/ mastered sound effects
+tools/sfx/           phase 7   Offline ElevenLabs sound-effect generation + ffmpeg mastering (DESIGN section 10)
 deploy/              phase 5   systemd unit and Caddy config
-docs/                built     PRD, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN, SMART-CONTRACTS,
-                               ERD, INTEGRATIONS
+docs/                built     PRD, DESIGN, BLOCKERS, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN,
+                               SMART-CONTRACTS, ERD, INTEGRATIONS
 .claude/skills/      built     Vendored + project skills (skills-lock.json pins sources)
+.omp/agents/         phase 7   Persona subagents: visual-designer, sound-engineer
 ```
 
 Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`, `indexer`. Envio 3.12.1's CLI native addon requires Linux or macOS; Windows development runs indexer codegen and full `bun run verify` under WSL, not a skipped indexer script.
@@ -195,12 +198,17 @@ Versions are the latest stable releases checked on 2026-10-05 (`npm view`, GitHu
 | Vite and Vitest runtime | Node (the studio's Vitest runs inside Bun for `bun:sqlite`) | 24.21.0 |
 | Language | TypeScript | 7.0.2 |
 | UI | React | 19.3.0 |
-| Build | Vite, `@vitejs/plugin-react` | 8.3.2, 6.1.1 |
+| Build | Vite, `@vitejs/plugin-react` | 8.3.3, 6.1.2 |
 | Routing | `@tanstack/react-router`, `@tanstack/router-plugin` | 1.170.41, 1.168.42 |
 | Server state | `@tanstack/react-query` | 5.104.1 |
 | Client state | zustand | 5.0.15 |
 | Styling | Tailwind CSS | 4.3.3 |
 | Motion | motion | 14.0.0 |
+| 3D (S0 hero, S5 win only) | three, `@react-three/fiber`, three-stdlib | 0.186.1, 9.8.1, 2.36.1 |
+| Fonts | `@fontsource-variable/bricolage-grotesque`, `@fontsource-variable/inter` | 5.3.0, 5.3.0 |
+| UI icons | lucide-react | 1.52.0 |
+| Image build | sharp (voxel WebP) | 0.35.5 |
+| Sound build | ElevenLabs `POST /v1/sound-generation` (`eleven_text_to_sound_v2`), ffmpeg | API, 8.1.2 |
 | PWA | vite-plugin-pwa | 2.0.0 |
 | Validation | zod | 4.6.5 |
 | Chain I/O | viem | 2.57.2 |

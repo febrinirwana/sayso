@@ -23,7 +23,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
 | 5 Studio | DOING | 4/8 | Funded live house/runner and authenticated CRE proof | B01–B04; hosting B05 |
 | 6 Indexer | DOING | 1/3 | 6.1 live sync, then 6.3 hosting | deployed receiver; Linux/macOS tooling (WSL on Windows) |
-| 7 Web | TODO | 0/7 | 7.2 design pass, one screen shown to the user | S5 needs the real domain |
+| 7 Web | TODO | 0/8 | 7.1 scaffold, then 7.2 design pass (S0 + S3 shown to the user) | S5 needs the real domain |
 | 8 Ship | TODO | 0/5 | after Phase 7 | VPS, domain, team registration |
 
 **Never cut** (PRD section 10): a word is said → its card flips SAID → a player cashes out or holds → CRE settles → the player redeems AUSD, on camera, every transaction on the testnet explorer.
@@ -165,10 +165,11 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 **Goal:** a phone completes the PRD section 10 path, and it looks like SAYSO, not a template.
 
-- [ ] **7.1** Vite + TanStack Router SPA, PWA manifest (standalone, portrait), Tailwind, routes S1–S8, query client, studio and indexer clients — proof: `bun run --cwd apps/web build`; routes render at 412 px
-- [ ] **7.2** Design pass first: display, body and tabular fonts; colour tokens (studio dark, tally red, gain); split-flap card and haptic tick; recorded in PRD section 8 — proof: one rendered screen shown to the user and approved before 7.3
+- [ ] **7.1** Vite + TanStack Router SPA, PWA manifest (standalone, portrait), Tailwind with [DESIGN](../DESIGN.md) tokens and fonts, routes S0–S8, query client — proof: `bun run --cwd apps/web build`; routes render at 412 px
+- [ ] **7.2** Design pass per [DESIGN](../DESIGN.md): voxel WebP pipeline, sticker primitives, S0 landing with the 3D hero, S3 board with the SAID flip on a dev-only specimen route — proof: screenshots at 412 px and 1440 px shown to the user and approved before 7.3
+- [ ] **7.8** Sound: `tools/sfx` generates and masters the DESIGN section 10 set; web sound module (unlock, mute, duck) wired to tap, flip and countdown — proof: ffprobe peak/loudness per file within DESIGN limits; flip plays in the rendered specimen
 - [ ] **7.3** S1 Join + Mera session + restore (`mera-passkeys` skill), PRF-unavailable screen
-- [ ] **7.4** S2 Arena: schedule, start episode, starter balance status
+- [ ] **7.4** S2 Arena with the studio and indexer clients: schedule, start episode, starter balance status
 - [ ] **7.5** S3 Episode (synced video, word board, flip at presentation time) and S4 Ticket (block-sequenced transactions, cash out on SAID)
 - [ ] **7.6** S5 Results with evidence links, S6 Portfolio with redeem all, S7 Leaderboard, S8 Account
 - [ ] **7.7** Playwright at 412 px with a PRF-capable virtual authenticator: join, trade, flip, cash out, redeem, clear storage, restore — proof: green run; every screen screenshotted into `handoff\sayso\screens\`

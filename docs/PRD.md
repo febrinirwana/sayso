@@ -74,10 +74,11 @@ A word counts when both transcription engines contain it within the same 1.5 s w
 
 ## 6. Screens
 
-Portrait, designed at 390 to 430 px wide.
+Portrait, designed at 390 to 430 px wide. S0 is the one responsive page; on wider viewports S1–S8 render as a centred phone column.
 
 | # | Screen | Must show |
 |---|---|---|
+| S0 | Landing | What SAYSO is in one line, how a round plays, a tappable demo board, why outcomes are fair, Play CTA, TESTNET |
 | S1 | Join | "Join with passkey" and "I already have one"; one sentence on what a passkey is; TESTNET label |
 | S2 | Arena | Running or next episode with countdown, "Start an episode" when idle, last results, starter balance status |
 | S3 | Episode | Video (16:9) above a 2×3 word board; each card shows word, price, state (open / SAID / YES / NO), own position |
@@ -97,15 +98,16 @@ Portrait, designed at 390 to 430 px wide.
 
 ## 8. Design principles
 
-No generic AI interface. The direction is a late-night game-show board run from a broadcast control room.
+No generic AI interface. The direction is a sticker-book game show built from the SaySo mark: warm paper, white sticker cards with ink outlines, chunky voxel illustrations, one red that means "said".
 
-- One signal colour (tally red) means SAID or LIVE and nothing else; one gain colour; everything else neutral on a dark studio background, never pure black.
-- Words set in a condensed display face, prices in tabular figures. Fonts are chosen in the design pass.
-- The signature moment is the card flip: a split-flap turn plus a haptic tick when a word is said.
-- Motion only reports a state change. No ambient animation, gradients, glassmorphism, glow, emoji icons or drop-shadow card grids.
+- One signal colour (the logo red) means SAID or LIVE and nothing else; one gain colour; losses stay neutral.
+- Words set in a condensed display face, prices in tabular figures.
+- The signature moment is the card flip: a split-flap turn, a sound and a haptic tick when a word is said.
+- Motion reports a state change or explains the product. No looping decoration inside the app, gradients, glassmorphism, glow or blurred shadows.
+- Sound is short, quiet and mutable; no music competes with the clip's speech.
 - Every number on screen opens its source: book, transaction, transcript chunk.
 
-The design system document is written in a later pass; until then these rules and the `emil-design-eng` skill govern UI work.
+Tokens, type, motion, 3D, assets and sound are specified in [DESIGN](DESIGN.md); the `emil-design-eng` skill governs craft.
 
 ## 9. Bounties and tracks
 
