@@ -1,27 +1,46 @@
 /* Values mirror docs/DESIGN.md sections 2–4; change both in one commit. */
 @import "tailwindcss";
 @import "@fontsource-variable/inter/wght.css";
-@import "@fontsource-variable/bricolage-grotesque/standard.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
 
 @theme {
+  /* Surfaces */
   --color-paper: #fdfbf4;
   --color-card: #ffffff;
   --color-ink: #0a0a0a;
   --color-ink-soft: #55524a;
   --color-line: #e8e3d6;
+
+  /* Brand red: the logo, primary landing CTAs, SAID and LIVE. */
   --color-said: #fd2224;
+  --color-said-deep: #d4101a;
+  --color-said-tint: #ffe3e1;
+
+  /* Outcomes */
   --color-gain: #0b7a3b;
+  --color-gain-bright: #22c55e;
+  --color-gain-tint: #dcf7e5;
   --color-no: #8f8a7e;
-  --color-voxel-blue: #4f52e8;
+
+  /* Playful accents, taken from the voxel set */
+  --color-sun: #facc15;
+  --color-sun-tint: #fff4c2;
+  --color-sky: #4f52e8;
+  --color-sky-tint: #e2e4ff;
+  --color-bubble: #ff7eb3;
+  --color-bubble-tint: #ffe2ee;
+  --color-mint-tint: #d9f6e8;
 
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Bricolage Grotesque Variable", "Inter Variable", ui-sans-serif, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", "Inter Variable", ui-sans-serif, sans-serif;
 
-  --radius-card: 20px;
-  --radius-sheet: 28px;
+  --radius-card: 24px;
+  --radius-sheet: 32px;
 
-  --shadow-sticker: 0 3px 0 var(--color-ink);
+  --shadow-sticker: 0 4px 0 var(--color-ink);
+  --shadow-sticker-lg: 0 8px 0 var(--color-ink);
   --shadow-sticker-pressed: 0 1px 0 var(--color-ink);
+  --shadow-soft: 0 18px 40px -18px rgb(10 10 10 / 0.28);
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -43,9 +62,16 @@
   }
 
   :focus-visible {
-    outline: 3px solid var(--color-voxel-blue);
+    outline: 3px solid var(--color-sky);
     outline-offset: 2px;
   }
+}
+
+/* Display type: Plus Jakarta Sans at 800, tight tracking. */
+@utility font-headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
 }
 
 @utility sticker {
@@ -57,26 +83,17 @@
 
 @utility pressable {
   transition:
-    transform 120ms var(--ease-out),
-    box-shadow 120ms var(--ease-out);
+    transform 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out);
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
   &:active {
-    transform: translateY(2px) scale(0.97);
+    transform: translateY(3px) scale(0.97);
     box-shadow: var(--shadow-sticker-pressed);
   }
-}
-
-@utility font-display-condensed {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-stretch: 75%;
-  letter-spacing: -0.02em;
-}
-
-@utility font-display-wide {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-stretch: 100%;
-  letter-spacing: -0.02em;
 }
 
 @utility tabular {

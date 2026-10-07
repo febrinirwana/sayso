@@ -74,7 +74,7 @@ A word counts when both transcription engines contain it within the same 1.5 s w
 
 ## 6. Screens
 
-Portrait, designed at 390 to 430 px wide. S0 is the one responsive page; on wider viewports S1–S8 render as a centred phone column.
+Phone-first and fully responsive: every screen has a real phone layout (390 to 430 px) and a real desktop layout; no screen is a phone column floating on a desktop.
 
 | # | Screen | Must show |
 |---|---|---|
@@ -98,13 +98,14 @@ Portrait, designed at 390 to 430 px wide. S0 is the one responsive page; on wide
 
 ## 8. Design principles
 
-No generic AI interface. The direction is a sticker-book game show built from the SaySo mark: warm paper, white sticker cards with ink outlines, chunky voxel illustrations, one red that means "said".
+No generic AI interface. The direction is a toy-box game show starring the SaySo mascot: warm paper, white sticker cards with ink outlines, big 3D voxel objects that react to the cursor, a sticker book of voxel illustrations, and one red that belongs to the mascot and to the SAID moment.
 
-- One signal colour (the logo red) means SAID or LIVE and nothing else; one gain colour; losses stay neutral.
-- Words set in a condensed display face, prices in tabular figures.
-- The signature moment is the card flip: a split-flap turn, a sound and a haptic tick when a word is said.
-- Motion reports a state change or explains the product. No looping decoration inside the app, gradients, glassmorphism, glow or blurred shadows.
-- Sound is short, quiet and mutable; no music competes with the clip's speech.
+- Wow in the first second: the landing opens on a living 3D scene, not a template hero.
+- In the game, the logo red means SAID or LIVE; one gain colour; losses stay neutral.
+- Words and key numbers in Plus Jakarta Sans ExtraBold, prices in tabular figures.
+- The signature moment is the card flip: a split-flap turn, reaction stickers, a sound and a haptic tick when a word is said.
+- Motion explains the product or rewards an action; landing ambience pauses off-screen and respects reduced motion. No neon, dark-purple gradients or glassmorphism.
+- Sound is short, bright and mutable; no music competes with the clip's speech.
 - Every number on screen opens its source: book, transaction, transcript chunk.
 
 Tokens, type, motion, 3D, assets and sound are specified in [DESIGN](DESIGN.md); the `emil-design-eng` skill governs craft.

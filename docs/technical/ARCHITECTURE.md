@@ -204,8 +204,8 @@ Versions are the latest stable releases checked on 2026-10-05 (`npm view`, GitHu
 | Client state | zustand | 5.0.15 |
 | Styling | Tailwind CSS | 4.3.3 |
 | Motion | motion | 14.0.0 |
-| 3D (S0 hero, S5 win only) | three, `@react-three/fiber`, three-stdlib | 0.186.1, 9.8.1, 2.36.1 |
-| Fonts | `@fontsource-variable/bricolage-grotesque`, `@fontsource-variable/inter` | 5.3.0, 5.3.0 |
+| 3D (S0 landing, S5 win only) | three, `@react-three/fiber`, `@react-three/drei`, three-stdlib | 0.186.1, 9.8.1, 10.7.9, 2.36.1 |
+| Fonts | `@fontsource-variable/plus-jakarta-sans`, `@fontsource-variable/inter` | 5.3.0, 5.3.0 |
 | UI icons | lucide-react | 1.52.0 |
 | Image build | sharp (voxel WebP) | 0.35.5 |
 | Sound build | ElevenLabs `POST /v1/sound-generation` (`eleven_text_to_sound_v2`), ffmpeg | API, 8.1.2 |

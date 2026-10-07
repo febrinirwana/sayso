@@ -8,7 +8,7 @@ export const Route = createRootRoute({
 function NotFound() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-[430px] flex-col items-center justify-center gap-6 px-4 text-center">
-      <p className="font-display-wide text-5xl">Nobody said that.</p>
+      <p className="font-headline text-5xl">Nobody said that.</p>
       <p className="text-ink-soft">This page doesn't exist.</p>
       <Link
         to="/"
