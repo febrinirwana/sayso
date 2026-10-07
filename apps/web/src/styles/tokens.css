@@ -1,0 +1,84 @@
+/* Values mirror docs/DESIGN.md sections 2–4; change both in one commit. */
+@import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/bricolage-grotesque/standard.css";
+
+@theme {
+  --color-paper: #fdfbf4;
+  --color-card: #ffffff;
+  --color-ink: #0a0a0a;
+  --color-ink-soft: #55524a;
+  --color-line: #e8e3d6;
+  --color-said: #fd2224;
+  --color-gain: #0b7a3b;
+  --color-no: #8f8a7e;
+  --color-voxel-blue: #4f52e8;
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Inter Variable", ui-sans-serif, sans-serif;
+
+  --radius-card: 20px;
+  --radius-sheet: 28px;
+
+  --shadow-sticker: 0 3px 0 var(--color-ink);
+  --shadow-sticker-pressed: 0 1px 0 var(--color-ink);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-voxel-blue);
+    outline-offset: 2px;
+  }
+}
+
+@utility sticker {
+  background: var(--color-card);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sticker);
+}
+
+@utility pressable {
+  transition:
+    transform 120ms var(--ease-out),
+    box-shadow 120ms var(--ease-out);
+  &:active {
+    transform: translateY(2px) scale(0.97);
+    box-shadow: var(--shadow-sticker-pressed);
+  }
+}
+
+@utility font-display-condensed {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 75%;
+  letter-spacing: -0.02em;
+}
+
+@utility font-display-wide {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 100%;
+  letter-spacing: -0.02em;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
