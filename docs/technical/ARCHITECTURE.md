@@ -67,7 +67,7 @@ deploy/              phase 5   systemd unit and Caddy config
 docs/                built     PRD, DESIGN, BLOCKERS, LESSONS; technical/ ARCHITECTURE, BUILD-PLAN,
                                SMART-CONTRACTS, ERD, INTEGRATIONS
 .claude/skills/      built     Vendored + project skills (skills-lock.json pins sources)
-.omp/agents/         phase 7   Persona subagents: visual-designer, sound-engineer
+.omp/agents/         built     Persona subagents: visual-designer, sound-engineer
 ```
 
 Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`, `indexer`. Envio 3.12.1's CLI native addon requires Linux or macOS; Windows development runs indexer codegen and full `bun run verify` under WSL, not a skipped indexer script.
