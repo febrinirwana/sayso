@@ -16,6 +16,8 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icons/apple-touch-icon.png", "sfx/*.mp3"],
+      // three.js only serves S0/S5; keep it out of the install-time precache (DESIGN section 7).
+      workbox: { globIgnores: ["**/voxels-*.js", "**/HeroScene-*.js", "**/WinBurst-*.js"] },
       manifest: {
         name: "SAYSO",
         short_name: "SAYSO",
