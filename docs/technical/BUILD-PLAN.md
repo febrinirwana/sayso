@@ -23,7 +23,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
 | 5 Studio | DOING | 4/8 | Funded live house/runner and authenticated CRE proof | B01–B04; hosting B05 |
 | 6 Indexer | DOING | 1/3 | 6.1 live sync, then 6.3 hosting | deployed receiver; Linux/macOS tooling (WSL on Windows) |
-| 7 Web | DOING | 1/8 | 7.2 design pass (S0 + S3 shown to the user), 7.8 sound | S5 needs the real domain |
+| 7 Web | DOING | 2/8 | 7.2 screenshots approved by the user, then 7.3 S1 Join | S5 needs the real domain |
 | 8 Ship | TODO | 0/5 | after Phase 7 | VPS, domain, team registration |
 
 **Never cut** (PRD section 10): a word is said → its card flips SAID → a player cashes out or holds → CRE settles → the player redeems AUSD, on camera, every transaction on the testnet explorer.
@@ -167,7 +167,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 - [x] **7.1** Vite + TanStack Router SPA, PWA manifest (standalone, portrait), Tailwind with [DESIGN](../DESIGN.md) tokens and fonts, query client, S0 route and not-found; each S1–S8 route lands with its own task (no placeholder screens) — proof: `bun run --cwd apps/web build` → built in 3.0 s, PWA precache 6 entries; `typecheck` and `biome check apps/web` clean
 - [ ] **7.2** Design pass per [DESIGN](../DESIGN.md): voxel WebP pipeline, sticker primitives, S0 landing with the 3D hero, S3 board with the SAID flip on a dev-only specimen route — proof: screenshots at 412 px and 1440 px shown to the user and approved before 7.3
-- [ ] **7.8** Sound: `tools/sfx` generates and masters the DESIGN section 10 set; web sound module (unlock, mute, duck) wired to tap, flip and countdown — proof: ffprobe peak/loudness per file within DESIGN limits; flip plays in the rendered specimen
+- [x] **7.8** Sound: `tools/sfx` generates and masters the DESIGN section 10 set; web sound module (unlock, mute, duck) wired to tap, flip and countdown — proof: `bun run --cwd tools/sfx measure` → 11/11 within target, 115,417 bytes; in Chromium on `/design` a card flip starts exactly one 0.79 s `said` buffer, Go live starts the 1.23 s `start` sting, buttons the 0.14 s `tap`; countdown ticks covered by `episode/cues.test.ts`
 - [ ] **7.3** S1 Join + Mera session + restore (`mera-passkeys` skill), PRF-unavailable screen
 - [ ] **7.4** S2 Arena with the studio and indexer clients: schedule, start episode, starter balance status
 - [ ] **7.5** S3 Episode (synced video, word board, flip at presentation time) and S4 Ticket (block-sequenced transactions, cash out on SAID)

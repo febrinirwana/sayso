@@ -1,7 +1,8 @@
 import { Clock3 } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
-import { duck } from "@/sound";
+import { duck, play } from "@/sound";
 import { Voxel } from "@/ui/Voxel";
+import { type StageMoment, stageCue } from "./cues";
 import { formatClock } from "./format";
 
 type VideoStageProps = {
@@ -29,6 +30,14 @@ export function VideoStage({ src, poster, live, secondsLeft, children }: VideoSt
       el.pause();
     }
   }, [live]);
+
+  const moment = useRef<StageMoment | null>(null);
+  useEffect(() => {
+    const next = { live, secondsLeft };
+    const cue = stageCue(moment.current, next);
+    moment.current = next;
+    if (cue) play(cue);
+  }, [live, secondsLeft]);
 
   // Unmounting mid-clip must not leave UI sounds ducked.
   useEffect(() => () => duck(false), []);
