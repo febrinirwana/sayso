@@ -167,9 +167,23 @@ describe("sound engine", () => {
     expect(rest.every((source) => source.stoppedAt === null)).toBe(true);
 
     rest[0]?.onended?.();
-    engine.play("tap");
+    engine.play("tick");
     await flush();
     expect(rest.slice(1).every((source) => source.stoppedAt === null)).toBe(true);
+  });
+
+  it("plays one sound when two cards flip in the same instant", async () => {
+    const { engine, context } = setup();
+    engine.unlock();
+    engine.play("said");
+    engine.play("said");
+    await flush();
+    expect(context.played).toHaveLength(1);
+
+    context.currentTime = 0.2;
+    engine.play("said");
+    await flush();
+    expect(context.played).toHaveLength(2);
   });
 
   it("drops a sound that loaded too late to match its moment", async () => {

@@ -23,6 +23,8 @@ export const MUTED_STORAGE_KEY = "sayso.muted";
 export const MAX_START_LATENCY_SECONDS = 0.25;
 /** Fade applied to a voice stolen by the voice cap, so the cut never clicks. */
 const STEAL_FADE_SECONDS = 0.015;
+/** The same sound requested again within this window plays once: simultaneous flips would just sound louder. */
+const SAME_SOUND_WINDOW_SECONDS = 0.06;
 
 export interface AudioParamLike {
   value: number;
@@ -89,6 +91,7 @@ export function createSoundEngine(deps: EngineDeps): SoundEngine {
   let contextFailed = false;
   const buffers = new Map<SoundId, Promise<unknown>>();
   const voices: Voice[] = [];
+  const lastRequested = new Map<SoundId, number>();
   const listeners = new Set<() => void>();
 
   function targetGain(): number {
@@ -196,6 +199,9 @@ export function createSoundEngine(deps: EngineDeps): SoundEngine {
         const ctx = context;
         if (!ctx || muted) return;
         const requestedAt = ctx.currentTime;
+        const last = lastRequested.get(id);
+        if (last !== undefined && requestedAt - last < SAME_SOUND_WINDOW_SECONDS) return;
+        lastRequested.set(id, requestedAt);
         void load(id).then((buffer) => {
           try {
             if (buffer === null) return;
