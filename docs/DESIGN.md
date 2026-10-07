@@ -83,7 +83,7 @@ Scroll reveals use `motion` `whileInView` once (y 24 px, 400 ms ease-out, 60 ms 
 
 ## 9. Illustration assets
 
-Sources (29 voxel PNGs, about 400 px each, and the logo) live in `apps/web/assets-src/`. `bun run --cwd apps/web assets` writes WebP at 128 and 256 px into `apps/web/src/assets/voxels/`; screens import only the generated files. Voxels are illustrations and empty-state art; UI controls use lucide icons at 2 px stroke.
+Sources (29 voxel PNGs, about 400 px each, and the logo) live in `apps/web/assets-src/`. `bun run --cwd apps/web assets` writes WebP at 128 and 256 px into `apps/web/src/assets/voxels/`; screens import only the generated files. Voxels are illustrations and empty-state art; UI controls use lucide icons at 2 px stroke. Red voxels belong to the brand mascot family and appear on S0 and S5 only; on S1–S4 and S6–S8 keep red voxels away so red still means "said".
 
 ## 10. Sound
 
