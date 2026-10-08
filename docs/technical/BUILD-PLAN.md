@@ -178,12 +178,12 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 ## Phase 8 — Ship · TODO
 
-**Goal:** judges can use it unaided from 14 to 27 Oct, and the README proves every bounty claim.
+**Goal:** judges can use it unaided throughout the confirmed judging period, and the README proves every eligible bounty claim. Packaging, organizer contacts and the unresolved judging-date conflict are tracked in [SUBMISSIONS](../SUBMISSIONS.md).
 
 - [ ] **8.1** Deploy web, studio and indexer to the VPS and domain; set `VITE_RP_ID` before any real passkey · needs VPS + domain — proof: HTTPS URL, `/v1/health` green
 - [ ] **8.2** CRE deploy if access arrived (`setForwarderAddress`, `setExpectedWorkflowId`, `CRE_MODE=don`); else keep simulation and say so — proof: workflow id or the stated mode in README
 - [ ] **8.3** Rehearsal with 10+ real players — proof: episodes, players, trades, flag and settlement latency recorded
-- [ ] **8.4** `README.md`: one-liner, TESTNET, video, how it works (mermaid), why Monad, bounty table (requirement → feature → code path → video timestamp), addresses and tx hashes, settlement mode, run locally, AI-tool disclosure, licence
-- [ ] **8.5** Demo video under 3 minutes showing the never-cut path (script in `handoff\sayso\VIDEO.md`)
+- [ ] **8.4** `README.md`: one-liner, TESTNET, technical-demo and pitch links, how it works (mermaid), why Monad, eligible bounty table (requirement → feature → code path → video timestamp), addresses and tx hashes, settlement mode, run locally, AI-tool disclosure, licence; exclude Agora and do not claim Kuru Track 03 eligibility without a written ruling ([SUBMISSIONS](../SUBMISSIONS.md))
+- [ ] **8.5** Submission media per [SUBMISSIONS](../SUBMISSIONS.md): technical demo ≤3 minutes showing the never-cut path, separate team/problem pitch ≤2 minutes, logo ≤3 MB, and selected sponsor clips within their caps (CRE ≤2 minutes); scripts/media remain outside the repo
 
 **Acceptance:** a tester completes the PRD section 10 path alone on a phone from the public URL; README links resolve.

@@ -115,11 +115,11 @@ Tokens, type, motion, 3D, assets and sound are specified in [DESIGN](DESIGN.md);
 | Priority | Target | Load-bearing proof |
 |---|---|---|
 | P0 | Track 03 Social, Attention & Culture | "Markets on cultural outcomes" is an official example ([track brief](https://monad.xyz/developers/hackathons/metropolis)) [V] |
-| P0 | Kuru: Bring New Assets & Markets | Each spoken-word YES token is a new asset with its own Kuru YES/AUSD book |
+| Eligibility pending | Kuru: Bring New Assets & Markets | Spoken-word YES/AUSD books fit the asset-class examples, but the bounty is Track 01; Track 03 entry needs written organizer confirmation ([SUBMISSIONS](SUBMISSIONS.md)) |
 | P0 | Chainlink CRE | Only the CRE forwarder can finalize a word; remove CRE and nothing settles |
 | P0 | Mera-powered UX | Passkey-only accounts and the stateless restore |
 | P1 | Envio | Trade feed, positions and leaderboard come from HyperIndex |
-| Out | Agora mobile trading | Requirement text unverified; not targeted in this release |
+| Out | Agora mobile trading | Verified requirement is Mera + AUSD + Perpl trades; current Kuru-only Replay Arena does not qualify ([SUBMISSIONS](SUBMISSIONS.md)) |
 
 ## 10. Success criteria
 
