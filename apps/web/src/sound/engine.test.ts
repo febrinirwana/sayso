@@ -7,6 +7,7 @@ import {
   DUCKED_GAIN,
   MASTER_GAIN,
   MUTED_STORAGE_KEY,
+  PITCH_VARIATION,
   type SoundId,
   type StorageLike,
 } from "./engine";
@@ -25,6 +26,7 @@ class FakeParam implements AudioParamLike {
 
 class FakeSource {
   buffer: unknown = null;
+  playbackRate = { value: 1 };
   onended: (() => void) | null = null;
   started = false;
   stoppedAt: number | null = null;
@@ -85,11 +87,17 @@ class MemoryStorage implements StorageLike {
   }
 }
 
-function setup(storage = new MemoryStorage()) {
+function setup(storage = new MemoryStorage(), random = () => 0.5) {
   const context = new FakeContext();
   const fetchSound = vi.fn((_id: SoundId) => Promise.resolve(new ArrayBuffer(8)));
   const log = vi.fn();
-  const engine = createSoundEngine({ createContext: () => context, fetchSound, storage, log });
+  const engine = createSoundEngine({
+    createContext: () => context,
+    fetchSound,
+    storage,
+    log,
+    random,
+  });
   return { engine, context, fetchSound, log, storage };
 }
 
@@ -216,5 +224,23 @@ describe("sound engine", () => {
     await flush();
     expect(log).toHaveBeenCalledTimes(1);
     expect(context.played).toHaveLength(1);
+  });
+
+  it("varies tap and pop pitch within ±3 % and leaves every other sound at its mastered pitch", async () => {
+    const draws = [0, 0.999_999, 0.25];
+    const { engine, context } = setup(new MemoryStorage(), () => draws.shift() ?? 0.5);
+    engine.unlock();
+    for (const [index, id] of (["tap", "pop", "said", "tap"] as const).entries()) {
+      context.currentTime = index;
+      engine.play(id);
+      await flush();
+    }
+    const rates = context.played.map((source) => source.playbackRate.value);
+    expect(PITCH_VARIATION).toBe(0.03);
+    expect(rates[0]).toBeCloseTo(0.97, 6);
+    expect(rates[1]).toBeCloseTo(1.03, 5);
+    expect(rates[1]).toBeLessThan(1.03);
+    expect(rates[2]).toBe(1);
+    expect(rates[3]).toBeCloseTo(0.985, 6);
   });
 });

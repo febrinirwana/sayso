@@ -24,6 +24,7 @@ const engine = createSoundEngine({
     loggedOnce.add(message);
     console.warn(`[sound] ${message}`, error);
   },
+  random: Math.random,
 });
 
 if (typeof window !== "undefined") {

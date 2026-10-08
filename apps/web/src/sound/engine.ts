@@ -10,12 +10,15 @@ export const SOUND_IDS = [
   "win",
   "lose",
   "redeem",
+  "pop",
 ] as const;
 
 export type SoundId = (typeof SOUND_IDS)[number];
 
-export const MASTER_GAIN = 0.5;
-export const DUCKED_GAIN = 0.3;
+/** Sounds are mastered at -18 LUFS (UI) and -16 LUFS (moments); 0.7 keeps them clear on a phone speaker. */
+export const MASTER_GAIN = 0.7;
+/** Under clip audio the speech wins: about 6 dB down from the master. */
+export const DUCKED_GAIN = 0.35;
 export const DUCK_RAMP_SECONDS = 0.12;
 export const MAX_VOICES = 3;
 export const MUTED_STORAGE_KEY = "sayso.muted";
@@ -25,6 +28,9 @@ export const MAX_START_LATENCY_SECONDS = 0.25;
 const STEAL_FADE_SECONDS = 0.015;
 /** The same sound requested again within this window plays once: simultaneous flips would just sound louder. */
 const SAME_SOUND_WINDOW_SECONDS = 0.06;
+/** The most repeated sounds vary their playback rate by up to ±3 % (about ±half a semitone) so repeats never sound robotic. */
+export const PITCH_VARIATION = 0.03;
+const PITCH_VARIED: Partial<Record<SoundId, true>> = { tap: true, pop: true };
 
 export interface AudioParamLike {
   value: number;
@@ -40,6 +46,7 @@ export interface GainNodeLike {
 
 export interface SourceNodeLike {
   buffer: unknown;
+  readonly playbackRate: { value: number };
   onended: ((event: never) => unknown) | null;
   connect(destination: never): unknown;
   start(when?: number): void;
@@ -68,6 +75,8 @@ export type EngineDeps = {
   fetchSound: (id: SoundId) => Promise<ArrayBuffer>;
   storage: StorageLike | null;
   log: (message: string, error?: unknown) => void;
+  /** Uniform in [0, 1); drives the pitch variation. */
+  random: () => number;
 };
 
 type Voice = { source: SourceNodeLike; gain: GainNodeLike };
@@ -123,7 +132,7 @@ export function createSoundEngine(deps: EngineDeps): SoundEngine {
     return pending;
   }
 
-  function startVoice(buffer: unknown): void {
+  function startVoice(id: SoundId, buffer: unknown): void {
     if (!context || !master || muted) return;
     while (voices.length >= MAX_VOICES) {
       const oldest = voices.shift();
@@ -132,6 +141,7 @@ export function createSoundEngine(deps: EngineDeps): SoundEngine {
     const source = context.createBufferSource();
     const gain = context.createGain();
     source.buffer = buffer;
+    if (PITCH_VARIED[id]) source.playbackRate.value = 1 + (deps.random() * 2 - 1) * PITCH_VARIATION;
     source.connect(gain as never);
     gain.connect(master as never);
     const voice: Voice = { source, gain };
@@ -206,7 +216,7 @@ export function createSoundEngine(deps: EngineDeps): SoundEngine {
           try {
             if (buffer === null) return;
             if (ctx.currentTime - requestedAt > MAX_START_LATENCY_SECONDS) return;
-            startVoice(buffer);
+            startVoice(id, buffer);
           } catch (error) {
             deps.log(`sound "${id}" failed to play`, error);
           }
