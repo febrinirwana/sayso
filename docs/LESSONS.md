@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/08 — Fit the house seed inside the pre-roll
+
+- **Cause:** Episode 5 seeded only 13 of 27 steps in its 60 s pre-roll: every BOT step ran 12-16 serial RPC round trips (forced chain id, a bytecode read per address, head, estimate, fees, nonce, balance, two receipt pre-checks, viem's block-watching receipt wait) plus between-step word, clock, allowance and log reads, about 3 s per receipt-gated step on a ~130 ms public RPC. Making receipts faster then exposed a stale 400 ms head cache: the post-cancel book snapshot read state from before the cancel's own block.
+- **Rule:** Count serial rounds, not just requests, on a receipt-gated sender: put every pre-sign read (chain id, successor head, fees, nonce, balance, estimate, timing guard) in one parallel round, verify bytecode once per process, skip receipt pre-checks for bytes never sent, read allowances once up front and record books after the last ladder. Anchor any snapshot that follows a receipt at that receipt's block. Keep the fake-RPC test asserting ≤ 4 rounds per step; live, a 27-step seed took 27 s from list receipt.
+
 ### 2026/10/08 — Budget studio RPC calls per block
 
 - **Cause:** The studio clock polled every 50 ms and each runner, maker and CRE call opened its own uncached transport, re-reading immutable episode/word/market data and bytecode: about 1,540 requests/s while Live in a fake-transport replay, against a public RPC that rate-limits, with failures swallowed as fixed text. Seeding also approved AUSD twice per word and deposited quote per word, 42 transactions per episode.

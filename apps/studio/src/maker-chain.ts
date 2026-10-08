@@ -14,19 +14,25 @@ import {
 import {
   type Address,
   createPublicClient,
-  createWalletClient,
   encodeFunctionData,
   erc20Abi,
   type Hex,
   keccak256,
   parseEventLogs,
   type TransactionReceipt,
+  WaitForTransactionReceiptTimeoutError,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import type { StudioConfig } from "./config.ts";
 import type { HouseOrder, MakerChain, MakerCommand, MakerReceipt } from "./maker.ts";
-import { expireStudioChainId, studioRpc } from "./rpc.ts";
+import { expireStudioChainId, expireStudioHead, studioRpc } from "./rpc.ts";
+
+function pause(ms: number): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
+}
 
 export function createMakerChain(
   config: StudioConfig,
@@ -37,48 +43,92 @@ export function createMakerChain(
   if (!key || !markets) throw new Error("BOT configuration missing");
   const account = privateKeyToAccount(key);
   const client = createPublicClient({ chain: monadTestnet, transport: studioRpc(config.rpcUrl) });
-  const wallet = createWalletClient({
-    account,
-    chain: monadTestnet,
-    transport: studioRpc(config.rpcUrl),
-  });
   const ausd = addresses.ausd,
     margin = addresses.kuruMarginAccount;
   let pending: Hex | undefined,
-    lastBlock = 0n;
+    lastBlock = 0n,
+    // Signed here and never sent: the bytes cannot be mined, so no receipt pre-check is due.
+    unsent: Hex | undefined,
+    signed: { hash: Hex; nonce: number } | undefined,
+    // A lagging node behind the public load balancer must not hand back a used nonce.
+    nextNonce = 0,
+    dependenciesChecked = false;
+  const verified = new Set<string>();
   const scans = new Map<Address, { ids: Set<number>; next: bigint }>();
-  // Reads accept the cached chain id; signing and broadcasting re-read it from the endpoint.
+  // Every call re-reads the chain id (expired first when it gates signing or broadcasting).
+  // Bytecode and the immutable dependency identity are recorded once per process, and only
+  // after the same parallel round confirmed the chain.
   async function verify(extra: Address[] = [], writing = false) {
     if (writing) expireStudioChainId(config.rpcUrl);
-    if ((await client.getChainId()) !== 10143) throw new Error("BOT RPC must be Monad testnet");
-    for (const address of new Set([markets!, ausd, margin, addresses.kuruRouter, ...extra])) {
-      const code = await client.getCode({ address });
-      if (!code || code === "0x") throw new Error("BOT dependency bytecode missing");
-    }
-    const [quote, router, routerMargin] = await Promise.all([
-      client.readContract({ address: markets!, abi: saysoMarketsAbi, functionName: "AUSD" }),
-      client.readContract({ address: markets!, abi: saysoMarketsAbi, functionName: "KURU_ROUTER" }),
-      client.readContract({
-        address: addresses.kuruRouter,
-        abi: routerAbi,
-        functionName: "marginAccountAddress",
-      }),
+    const unverified = new Map<string, Address>();
+    for (const address of [markets!, ausd, margin, addresses.kuruRouter, ...extra])
+      if (!verified.has(address.toLowerCase())) unverified.set(address.toLowerCase(), address);
+    const [chainId, codes, identity] = await Promise.all([
+      client.getChainId(),
+      Promise.all([...unverified.values()].map((address) => client.getCode({ address }))),
+      dependenciesChecked
+        ? undefined
+        : Promise.all([
+            client.readContract({ address: markets!, abi: saysoMarketsAbi, functionName: "AUSD" }),
+            client.readContract({
+              address: markets!,
+              abi: saysoMarketsAbi,
+              functionName: "KURU_ROUTER",
+            }),
+            client.readContract({
+              address: addresses.kuruRouter,
+              abi: routerAbi,
+              functionName: "marginAccountAddress",
+            }),
+          ]),
     ]);
-    if (
-      quote.toLowerCase() !== ausd.toLowerCase() ||
-      router.toLowerCase() !== addresses.kuruRouter.toLowerCase() ||
-      routerMargin.toLowerCase() !== margin.toLowerCase()
-    )
-      throw new Error("Unsupported BOT dependencies");
+    if (chainId !== 10143) throw new Error("BOT RPC must be Monad testnet");
+    if (codes.some((code) => !code || code === "0x"))
+      throw new Error("BOT dependency bytecode missing");
+    for (const address of unverified.keys()) verified.add(address);
+    if (identity) {
+      const [quote, router, routerMargin] = identity;
+      if (
+        quote.toLowerCase() !== ausd.toLowerCase() ||
+        router.toLowerCase() !== addresses.kuruRouter.toLowerCase() ||
+        routerMargin.toLowerCase() !== margin.toLowerCase()
+      )
+        throw new Error("Unsupported BOT dependencies");
+      dependenciesChecked = true;
+    }
   }
   function decode(receipt: TransactionReceipt): MakerReceipt {
     if (receipt.blockNumber > lastBlock) lastBlock = receipt.blockNumber;
+    if (signed?.hash === receipt.transactionHash) nextNonce = signed.nonce + 1;
     if (pending === receipt.transactionHash) pending = undefined;
     return {
       hash: receipt.transactionHash,
       block: Number(receipt.blockNumber),
       success: receipt.status === "success",
     };
+  }
+  // The cached head is tried first, then polled fresh: a 400 ms cache can predate a receipt
+  // this adapter has already observed.
+  async function headAtLeast(block: bigint): Promise<bigint> {
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      const head = await client.getBlockNumber({ cacheTime: 0 });
+      if (head >= block) return head;
+      if (Date.now() >= deadline) throw new Error("BOT head block unavailable");
+      await pause(100);
+      expireStudioHead(config.rpcUrl);
+    }
+  }
+  async function settled(hash: Hex): Promise<MakerReceipt> {
+    const deadline = Date.now() + 30_000;
+    // Inclusion needs a later 400 ms block; polling sooner only spends request budget.
+    await pause(300);
+    for (;;) {
+      const mined = await receipt(hash);
+      if (mined) return mined;
+      if (Date.now() >= deadline) throw new WaitForTransactionReceiptTimeoutError({ hash });
+      await pause(100);
+    }
   }
   async function receipt(hash: Hex): Promise<MakerReceipt | null> {
     try {
@@ -140,12 +190,14 @@ export function createMakerChain(
         functionName: "word",
         args: [BigInt(id)],
       });
-      await verify([w.yes, w.no, w.market]);
-      const p = await client.readContract({
-        address: w.market,
-        abi: orderBookAbi,
-        functionName: "getMarketParams",
-      });
+      const [, p] = await Promise.all([
+        verify([w.yes, w.no, w.market]),
+        client.readContract({
+          address: w.market,
+          abi: orderBookAbi,
+          functionName: "getMarketParams",
+        }),
+      ]);
       if (
         p[0] !== 10000 ||
         p[1] !== ONE ||
@@ -203,8 +255,8 @@ export function createMakerChain(
           });
     },
     async orders(market, fromBlock) {
-      await verify([market]);
-      const end = await client.getBlockNumber();
+      // Snapshot no earlier than this sender's last receipt, e.g. the cancel it just confirmed.
+      const [, end] = await Promise.all([verify([market]), headAtLeast(lastBlock)]);
       const scan = scans.get(market) ?? { ids: new Set<number>(), next: BigInt(fromBlock) };
       const ids = scan.ids;
       // Replacement IDs are emitted by FlippedOrderCreated, not the original seed receipt.
@@ -229,31 +281,50 @@ export function createMakerChain(
       scans.set(market, scan);
       const orders: HouseOrder[] = [];
       // Include paired IDs from storage as well; zero-size dormant pairs are not cancelable.
-      for (const id of ids) {
-        const o = await client.readContract({
-          address: market,
-          abi: orderBookAbi,
-          functionName: "s_orders",
-          args: [id],
-          blockNumber: end,
-        });
-        if (o[0].toLowerCase() !== account.address.toLowerCase()) continue;
-        if (o[4] > 0n) ids.add(Number(o[4]));
-        if (o[1] === 0n) continue;
-        if (!Number.isSafeInteger(id) || o[5] === 0) throw new Error("Ambiguous house order state");
-        orders.push({
-          market,
-          id,
-          size: o[1],
-          price: o[5],
-          buy: o[7],
-          flip: o[6] !== 0,
-          ...(o[4] > 0n ? { pairedId: Number(o[4]) } : {}),
-        });
+      // Each round reads every known ID at once; newly found partners form the next round.
+      const seen = new Set(ids);
+      for (let round = [...ids]; round.length; ) {
+        const rows = await Promise.all(
+          round.map(async (id) => ({
+            id,
+            o: await client.readContract({
+              address: market,
+              abi: orderBookAbi,
+              functionName: "s_orders",
+              args: [id],
+              blockNumber: end,
+            }),
+          })),
+        );
+        const next: number[] = [];
+        for (const { id, o } of rows) {
+          if (o[0].toLowerCase() !== account.address.toLowerCase()) continue;
+          if (o[4] > 0n) {
+            const paired = Number(o[4]);
+            ids.add(paired);
+            if (!seen.has(paired)) {
+              seen.add(paired);
+              next.push(paired);
+            }
+          }
+          if (o[1] === 0n) continue;
+          if (!Number.isSafeInteger(id) || o[5] === 0)
+            throw new Error("Ambiguous house order state");
+          orders.push({
+            market,
+            id,
+            size: o[1],
+            price: o[5],
+            buy: o[7],
+            flip: o[6] !== 0,
+            ...(o[4] > 0n ? { pairedId: Number(o[4]) } : {}),
+          });
+        }
+        round = next;
       }
       return { block: Number(end), orders };
     },
-    async prepare(command: MakerCommand) {
+    async prepare(command: MakerCommand, guard) {
       if (pending) throw new Error("BOT pending transaction requires recovery");
       const extra = [
         command.token,
@@ -261,32 +332,6 @@ export function createMakerChain(
         command.spender,
         ...(command.tokens ?? []),
       ].filter((v): v is Address => v !== undefined);
-      await verify(extra, true);
-      // Receipt/block gating, never a sleep-based nonce policy. Unknown outcomes retain pending.
-      if (lastBlock > 0n && (await client.getBlockNumber({ cacheTime: 0 })) <= lastBlock) {
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            unwatch();
-            reject(new Error("BOT successor block unavailable"));
-          }, 30_000);
-          const unwatch = client.watchBlockNumber({
-            poll: true,
-            pollingInterval: 400,
-            emitOnBegin: true,
-            onBlockNumber(block) {
-              if (block <= lastBlock) return;
-              clearTimeout(timeout);
-              unwatch();
-              resolve();
-            },
-            onError(error) {
-              clearTimeout(timeout);
-              unwatch();
-              reject(error);
-            },
-          });
-        });
-      }
       let to: Address = markets,
         data: Hex,
         gas: bigint | undefined;
@@ -364,54 +409,77 @@ export function createMakerChain(
           gas = gasLimit("redeem");
           break;
       }
-      gas ??= gasWithMargin(await client.estimateGas({ account, to, data, prepare: false }));
-      if (gas <= 0n || gas > 30000000n) throw new Error("BOT gas exceeds Monad transaction limit");
-      const request = await wallet.prepareTransactionRequest({
-        account,
-        to,
-        data,
-        gas,
-        chainId: 10143,
-        ...(await client.estimateFeesPerGas()),
-        nonce: await client.getTransactionCount({ address: account.address, blockTag: "pending" }),
-      });
-      if (
-        (await client.getBalance({ address: account.address })) <
-        gas * (request.maxFeePerGas ?? request.gasPrice ?? 0n)
-      )
-        throw new Error("Insufficient BOT MON");
+      // One parallel round: chain id, successor block, fees, nonce, balance, gas and the
+      // caller's window guard. A failed guard wins over read errors; nothing is signed.
+      const stopped = (guard?.() ?? Promise.resolve()).then(
+        () => undefined,
+        (error: unknown) => ({ error }),
+      );
+      const reads = Promise.all([
+        verify(extra, true),
+        // Receipt/block gating, never a sleep-based nonce policy: sign only once the head is
+        // past the previous BOT receipt's block.
+        lastBlock > 0n ? headAtLeast(lastBlock + 1n) : undefined,
+        client.getBlock({ blockTag: "latest" }),
+        client.estimateMaxPriorityFeePerGas(),
+        client.getTransactionCount({ address: account.address, blockTag: "pending" }),
+        client.getBalance({ address: account.address }),
+        gas ?? client.estimateGas({ account, to, data, prepare: false }).then(gasWithMargin),
+      ]);
+      const stop = await stopped;
+      if (stop) {
+        reads.catch(() => {});
+        throw stop.error;
+      }
+      const [, , block, maxPriorityFeePerGas, count, mon, limit] = await reads;
+      if (limit <= 0n || limit > 30000000n)
+        throw new Error("BOT gas exceeds Monad transaction limit");
+      if (block.baseFeePerGas === null) throw new Error("BOT fee market unavailable");
+      // viem's estimateFeesPerGas default: base fee x 1.2 plus the RPC's priority fee.
+      const maxFeePerGas = (block.baseFeePerGas * 12n) / 10n + maxPriorityFeePerGas;
+      if (mon < limit * maxFeePerGas) throw new Error("Insufficient BOT MON");
       // Estimation/config reads may have outlived playback; never sign an obsolete timed step.
       if (command.notAfterMs !== undefined && Date.now() >= command.notAfterMs)
         throw new Error("BOT clip window elapsed before signing");
-      const raw = await wallet.signTransaction(request);
+      const nonce = Math.max(count, nextNonce);
+      const raw = await account.signTransaction({
+        chainId: 10143,
+        type: "eip1559",
+        to,
+        data,
+        gas: limit,
+        nonce,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+      });
       const hash = keccak256(raw);
       pending = hash;
+      unsent = hash;
+      signed = { hash, nonce };
       return { raw, hash };
     },
     receipt,
     async broadcast(transaction) {
       if (keccak256(transaction.raw) !== transaction.hash)
         throw new Error("BOT journal hash mismatch");
-      const mined = await receipt(transaction.hash);
-      if (mined) return mined;
-      if (pending && pending !== transaction.hash)
-        throw new Error("BOT sender has another unresolved hash");
-      pending = transaction.hash;
-      await verify([], true);
+      // prepare() just re-checked the chain id for bytes that never left this process.
+      const fresh = unsent === transaction.hash;
+      unsent = undefined;
+      if (!fresh) {
+        const mined = await receipt(transaction.hash);
+        if (mined) return mined;
+        if (pending && pending !== transaction.hash)
+          throw new Error("BOT sender has another unresolved hash");
+        pending = transaction.hash;
+        await verify([], true);
+      }
       try {
         await client.sendRawTransaction({ serializedTransaction: transaction.raw });
       } catch (error) {
         if (!(await client.getTransaction({ hash: transaction.hash }).catch(() => null)))
           throw error;
       }
-      return decode(
-        await client.waitForTransactionReceipt({
-          hash: transaction.hash,
-          pollingInterval: 400,
-          checkReplacement: false,
-          timeout: 30_000,
-        }),
-      );
+      return settled(transaction.hash);
     },
   };
   return adapter;

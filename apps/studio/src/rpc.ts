@@ -4,7 +4,8 @@ import { failureCode } from "./operator-log.ts";
 
 // Immutable contract readers are process-cached; chain id and bytecode live five minutes
 // and pre-sign/broadcast checks expire chain id first. Mutable state expires in two
-// seconds and is invalidated by confirmed writes; balances/allowances never cache.
+// seconds and is invalidated by confirmed writes; balances/allowances never cache. The head
+// lives one 400 ms block; a sender gating on a strictly later block may expire it.
 const immutable = new Set(
   ["episodeWords", "AUSD", "KURU_ROUTER", "marginAccountAddress", "getMarketParams"].flatMap(
     (name) =>
@@ -23,7 +24,13 @@ const mutable = new Set(
 type Entry = { until: number; immutable: boolean; work: Promise<unknown> };
 const shared = new Map<
   string,
-  { transport: Transport; counter: { requests: number }; invalidate(): void; expireChainId(): void }
+  {
+    transport: Transport;
+    counter: { requests: number };
+    invalidate(): void;
+    expireChainId(): void;
+    expireHead(): void;
+  }
 >();
 export function studioRpc(url: string): Transport {
   const existing = shared.get(url);
@@ -104,6 +111,15 @@ export function studioRpc(url: string): Transport {
     expireChainId() {
       for (const key of cache.keys()) if (key.startsWith('["eth_chainId",')) cache.delete(key);
     },
+    expireHead() {
+      latestHead = undefined;
+      for (const key of cache.keys())
+        if (
+          key.startsWith('["eth_blockNumber",') ||
+          key.startsWith('["eth_getBlockByNumber",["latest"')
+        )
+          cache.delete(key);
+    },
   });
   return transport;
 }
@@ -113,6 +129,10 @@ export function invalidateStudioReads(url: string) {
 // Call before a chain-id check that gates signing or broadcasting: the endpoint may have moved.
 export function expireStudioChainId(url: string) {
   shared.get(url)?.expireChainId();
+}
+// Call while polling for a sender's successor block: a cached head would add up to 400 ms.
+export function expireStudioHead(url: string) {
+  shared.get(url)?.expireHead();
 }
 // Debug counter counts actual upstream JSON-RPC requests, not cache hits.
 export function studioRpcRequestCount(url: string) {

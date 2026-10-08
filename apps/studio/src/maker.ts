@@ -50,7 +50,8 @@ export type MakerChain = {
   balance(token: Address, margin?: boolean): Promise<bigint>;
   allowance(token: Address, spender: Address): Promise<bigint>;
   orders(market: Address, fromBlock: number): Promise<{ block: number; orders: HouseOrder[] }>;
-  prepare(command: MakerCommand): Promise<Prepared>;
+  // guard runs alongside the pre-sign reads and must resolve before anything is signed.
+  prepare(command: MakerCommand, guard?: () => Promise<void>): Promise<Prepared>;
   broadcast(transaction: Prepared): Promise<MakerReceipt>;
   receipt(hash: Hex): Promise<MakerReceipt | null>;
 };
@@ -95,6 +96,7 @@ const positionsResponse = z.object({
     .optional(),
 });
 class ClipWindowElapsed extends Error {}
+class StepSkipped extends Error {}
 
 // BOT has its own writer. Each substep is persisted before signing/broadcasting; a restart
 // resolves the existing hash or resends identical bytes, never a freshly signed mint/redeem.
@@ -142,81 +144,101 @@ export class HouseMaker implements SeedHook {
     });
   }
   private async seedAction(action: Action) {
-    const { chain } = this.deps;
+    const { chain, db } = this.deps;
+    // Books exist only after the OPERATOR list receipt; until then the seed stays pending.
+    const list = db
+      .query<{ status: string }, [number]>(
+        "SELECT status FROM actions WHERE episode_id=? AND kind='list' ORDER BY id LIMIT 1",
+      )
+      .get(action.episode_id);
+    if (list && list.status !== "confirmed") return;
     const journal: Journal = JSON.parse(action.payload_json);
     await this.recoverSteps(action, journal);
-    const clock = await chain.clock(action.episode_id);
+    const [clock, ids] = await Promise.all([
+      chain.clock(action.episode_id),
+      chain.words(action.episode_id),
+    ]);
     if (clock.closed || clock.timestamp >= clock.endsAt) {
       this.finish(action, "observed");
       return;
     }
-    const words = await Promise.all(
-      (await chain.words(action.episode_id)).map((id) => chain.word(id)),
-    );
+    const words = await Promise.all(ids.map((id) => chain.word(id)));
     const sets = 20n * ONE;
     const quote =
       quoteCost(10n * ONE, priceToKuru("0.49")) + quoteCost(10n * ONE, priceToKuru("0.48"));
     const open = words.filter((word) => word.state === 0);
     // Fixed exposure: 16 eight-word episodes, never unlimited approvals.
     const allowanceEpisodes = 16n * 8n;
-    if (
-      open.length &&
-      (await chain.allowance(chain.ausd, chain.markets)) < sets * BigInt(open.length)
-    )
-      await this.step(action, journal, "ausd:markets", {
-        kind: "approve",
-        token: chain.ausd,
-        spender: chain.markets,
-        amount: (sets * allowanceEpisodes).toString(),
-      });
     // Account for any already-confirmed per-word deposits from an older journal.
     const quoteWords = open.filter(
       (word) =>
         !journal.steps?.some((step) => step.key === `${word.id}:5` && step.status === "confirmed"),
     );
     const totalQuote = quote * BigInt(quoteWords.length);
-    if (totalQuote > 0n) {
-      if ((await chain.allowance(chain.ausd, chain.margin)) < totalQuote)
-        await this.step(action, journal, "ausd:margin", {
+    // Only this sender's own approve/deposit of the same token moves these allowances, and
+    // each is checked before that token's first step, so one parallel read stays exact.
+    const [toMarkets, toMargin, yesToMargin] = await Promise.all([
+      open.length ? chain.allowance(chain.ausd, chain.markets) : 0n,
+      totalQuote > 0n ? chain.allowance(chain.ausd, chain.margin) : 0n,
+      Promise.all(open.map((word) => chain.allowance(word.yes, chain.margin))),
+    ]);
+    try {
+      if (open.length && toMarkets < sets * BigInt(open.length))
+        await this.step(action, journal, "ausd:markets", {
           kind: "approve",
           token: chain.ausd,
-          spender: chain.margin,
-          amount: (quote * allowanceEpisodes).toString(),
+          spender: chain.markets,
+          amount: (sets * allowanceEpisodes).toString(),
         });
-      await this.step(action, journal, "quote:deposit", {
-        kind: "deposit",
-        token: chain.ausd,
-        amount: totalQuote.toString(),
-      });
-    }
-    for (const word of open) {
-      const id = word.id;
-      await this.step(action, journal, `${id}:1`, {
-        kind: "mint",
-        wordId: id,
-        amount: sets.toString(),
-      });
-      if ((await chain.allowance(word.yes, chain.margin)) < sets)
-        await this.step(action, journal, `${id}:2`, {
-          kind: "approve",
-          token: word.yes,
-          spender: chain.margin,
+      if (totalQuote > 0n) {
+        if (toMargin < totalQuote)
+          await this.step(action, journal, "ausd:margin", {
+            kind: "approve",
+            token: chain.ausd,
+            spender: chain.margin,
+            amount: (quote * allowanceEpisodes).toString(),
+          });
+        await this.step(action, journal, "quote:deposit", {
+          kind: "deposit",
+          token: chain.ausd,
+          amount: totalQuote.toString(),
+        });
+      }
+      for (const [i, word] of open.entries()) {
+        const id = word.id;
+        await this.step(action, journal, `${id}:1`, {
+          kind: "mint",
+          wordId: id,
           amount: sets.toString(),
         });
-      await this.step(action, journal, `${id}:3`, {
-        kind: "deposit",
-        token: word.yes,
-        amount: sets.toString(),
-      });
-      const current = await chain.clock(action.episode_id);
-      if (current.closed || current.timestamp >= current.endsAt) {
-        this.finish(action, "observed");
-        return;
+        if ((yesToMargin[i] ?? 0n) < sets)
+          await this.step(action, journal, `${id}:2`, {
+            kind: "approve",
+            token: word.yes,
+            spender: chain.margin,
+            amount: sets.toString(),
+          });
+        await this.step(action, journal, `${id}:3`, {
+          kind: "deposit",
+          token: word.yes,
+          amount: sets.toString(),
+        });
+        // The OPERATOR may flag the word meanwhile; re-read its state inside the signing round.
+        await this.step(
+          action,
+          journal,
+          `${id}:6`,
+          { kind: "ladder", market: word.market },
+          async () => (await chain.word(id)).state === 0,
+        );
       }
-      if ((await chain.word(id)).state === 0)
-        await this.step(action, journal, `${id}:6`, { kind: "ladder", market: word.market });
-      await this.syncOrders(action.episode_id, word.market);
+    } catch (error) {
+      if (!(error instanceof ClipWindowElapsed)) throw error;
+      this.finish(action, "observed");
+      return;
     }
+    // Books are recorded after the last ladder so no read sits between seed transactions.
+    for (const word of open) await this.syncOrders(action.episode_id, word.market);
     this.finish(action);
   }
   tick(): Promise<void> {
@@ -235,28 +257,36 @@ export class HouseMaker implements SeedHook {
         )
         .all();
       for (const episode of episodes) {
+        // Unlisted books have no market bytecode yet; the episode joins after its list receipt.
+        const list = db
+          .query<{ status: string }, [number]>(
+            "SELECT status FROM actions WHERE episode_id=? AND kind='list' ORDER BY id LIMIT 1",
+          )
+          .get(episode.id);
+        if (list && list.status !== "confirmed") continue;
         const clock = await chain.clock(episode.id);
         const ended =
           clock.closed || clock.timestamp >= clock.endsAt || now() >= episode.ends_at_ms;
+        const words = await Promise.all(
+          (await chain.words(episode.id)).map((id) => chain.word(id)),
+        );
         if (ended) {
           db.query(
             "UPDATE actions SET status='observed', error='clip window elapsed' WHERE episode_id=? AND kind IN ('pull','bid','seed') AND status IN ('pending','sent')",
           ).run(episode.id);
-          for (const id of await chain.words(episode.id)) {
-            const word = await chain.word(id);
+          for (const word of words) {
             await this.cancelWord(episode.id, word);
             if (word.state >= 2 && word.state <= 4) await this.recycleWord(episode.id, word);
           }
           continue;
         }
-        for (const id of await chain.words(episode.id)) {
-          const word = await chain.word(id);
+        for (const word of words) {
           if (word.state >= 2 && word.state <= 4) {
             await this.cancelWord(episode.id, word);
             await this.recycleWord(episode.id, word);
             db.query(
               "UPDATE actions SET status='observed' WHERE episode_id=? AND word_id=? AND kind IN ('pull','bid') AND status IN ('pending','sent')",
-            ).run(episode.id, id);
+            ).run(episode.id, word.id);
           }
         }
         for (const action of db
@@ -507,7 +537,14 @@ export class HouseMaker implements SeedHook {
     }
     this.#senderRestored = true;
   }
-  private async step(action: Action, journal: Journal, key: string, command: MakerCommand) {
+  // `still` is re-checked inside the signing round; false drops the unsigned step.
+  private async step(
+    action: Action,
+    journal: Journal,
+    key: string,
+    command: MakerCommand,
+    still?: () => Promise<boolean>,
+  ) {
     journal.steps ??= [];
     let step = journal.steps.find((s) => s.key === key);
     if (step?.status === "confirmed") return;
@@ -517,36 +554,52 @@ export class HouseMaker implements SeedHook {
       journal.steps.push(step);
       this.persist(action, journal);
     }
+    const fresh = !step.hash;
     if (!step.hash) {
       await this.restoreSender();
-      if (action.kind === "seed" || action.kind === "pull" || action.kind === "bid") {
-        const window = await this.deps.chain.clock(action.episode_id);
-        const episode = this.deps.db
+      const { chain, db, now } = this.deps;
+      const timed = action.kind === "seed" || action.kind === "pull" || action.kind === "bid";
+      if (timed) {
+        const episode = db
           .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
           .get(action.episode_id)!;
-        if (
-          window.closed ||
-          window.timestamp >= window.endsAt ||
-          this.deps.now() >= episode.ends_at_ms
-        )
-          throw new ClipWindowElapsed();
+        if (now() >= episode.ends_at_ms) throw new ClipWindowElapsed();
         step.command.notAfterMs = episode.ends_at_ms;
       }
-      const tx = await this.deps.chain.prepare(step.command);
+      let tx: Prepared;
+      try {
+        tx = await chain.prepare(step.command, async () => {
+          const [window, keep] = await Promise.all([
+            timed ? chain.clock(action.episode_id) : undefined,
+            still ? still() : true,
+          ]);
+          if (window && (window.closed || window.timestamp >= window.endsAt))
+            throw new ClipWindowElapsed();
+          if (!keep) throw new StepSkipped();
+        });
+      } catch (error) {
+        if (!(error instanceof StepSkipped)) throw error;
+        journal.steps.splice(journal.steps.indexOf(step), 1);
+        this.persist(action, journal);
+        return;
+      }
       step.hash = tx.hash;
       step.raw = tx.raw;
       step.status = "sent";
       this.persist(action, journal);
-      this.deps.db
-        .query("UPDATE actions SET tx_hash=?,sent_ms=?,status='sent' WHERE id=?")
-        .run(tx.hash, this.deps.now(), action.id);
+      db.query("UPDATE actions SET tx_hash=?,sent_ms=?,status='sent' WHERE id=?").run(
+        tx.hash,
+        now(),
+        action.id,
+      );
     }
-    await this.confirm(action, journal, step);
+    await this.confirm(action, journal, step, fresh);
   }
-  private async confirm(action: Action, journal: Journal, step: Step) {
+  // A step signed in this call has never left the process: skip the receipt pre-check.
+  private async confirm(action: Action, journal: Journal, step: Step, fresh = false) {
     if (!step.hash || !step.raw) throw new Error("Incomplete BOT transaction journal");
     const receipt =
-      (await this.deps.chain.receipt(step.hash)) ??
+      (fresh ? null : await this.deps.chain.receipt(step.hash)) ??
       (await this.deps.chain.broadcast({ hash: step.hash, raw: step.raw }));
     step.status = receipt.success ? "confirmed" : "failed";
     step.block = receipt.block;

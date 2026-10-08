@@ -73,7 +73,8 @@ function fixture() {
     async orders() {
       return { block, orders: orders.map((o) => ({ ...o, market })) };
     },
-    async prepare(command) {
+    async prepare(command, guard) {
+      await guard?.();
       const hash = `0x${(++nonce).toString(16).padStart(64, "0")}` as Hex;
       prepared.set(hash, command);
       return { hash, raw: hash };
@@ -211,6 +212,26 @@ describe("house economic lifecycle", () => {
     expect(commands).toHaveLength(27);
     expect(commands.filter((c) => c.kind === "deposit" && c.token === ausd)).toHaveLength(1);
     expect(commands.filter((c) => c.kind === "mint")).toHaveLength(6);
+  });
+  it("re-reads the word inside the ladder signing round and drops the ladder once flagged", async () => {
+    const f = fixture();
+    const broadcast = f.chain.broadcast;
+    f.chain.broadcast = async (tx) => {
+      const receipt = await broadcast(tx);
+      if (f.prepared.get(tx.hash)?.kind === "deposit" && f.prepared.get(tx.hash)?.token === yes)
+        f.setState(1);
+      return receipt;
+    };
+    await f.maker().seed(1);
+    expect([...f.prepared.values()].map((c) => c.kind)).not.toContain("ladder");
+    expect(f.orders).toHaveLength(0);
+    const row = f.db
+      .query<{ status: string; payload_json: string }, []>(
+        "SELECT status,payload_json FROM actions WHERE kind='seed'",
+      )
+      .get();
+    expect(row?.status).toBe("confirmed");
+    expect(row?.payload_json).not.toContain('"1:6"');
   });
   it("seeds once across restart and recovers mined mint before any new economic action", async () => {
     const f = fixture();
