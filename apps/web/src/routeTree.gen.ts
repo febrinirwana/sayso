@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DesignRouteImport } from './routes/design'
 import { Route as Design3dRouteImport } from './routes/design_.3d'
+import { Route as DesignPlayerRouteImport } from './routes/design_.player'
+import { Route as DesignRecordsRouteImport } from './routes/design_.records'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +30,60 @@ const Design3dRoute = Design3dRouteImport.update({
   path: '/design/3d',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DesignPlayerRoute = DesignPlayerRouteImport.update({
+  id: '/design_/player',
+  path: '/design/player',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesignRecordsRoute = DesignRecordsRouteImport.update({
+  id: '/design_/records',
+  path: '/design/records',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
   '/design/3d': typeof Design3dRoute
+  '/design/player': typeof DesignPlayerRoute
+  '/design/records': typeof DesignRecordsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
   '/design/3d': typeof Design3dRoute
+  '/design/player': typeof DesignPlayerRoute
+  '/design/records': typeof DesignRecordsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
   '/design_/3d': typeof Design3dRoute
+  '/design_/player': typeof DesignPlayerRoute
+  '/design_/records': typeof DesignRecordsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/design' | '/design/3d'
+  fullPaths:
+    '/' | '/design' | '/design/3d' | '/design/player' | '/design/records'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/design' | '/design/3d'
-  id: '__root__' | '/' | '/design' | '/design_/3d'
+  to: '/' | '/design' | '/design/3d' | '/design/player' | '/design/records'
+  id:
+    | '__root__'
+    | '/'
+    | '/design'
+    | '/design_/3d'
+    | '/design_/player'
+    | '/design_/records'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DesignRoute: typeof DesignRoute
   Design3dRoute: typeof Design3dRoute
+  DesignPlayerRoute: typeof DesignPlayerRoute
+  DesignRecordsRoute: typeof DesignRecordsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +109,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Design3dRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/design_/player': {
+      id: '/design_/player'
+      path: '/design/player'
+      fullPath: '/design/player'
+      preLoaderRoute: typeof DesignPlayerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/design_/records': {
+      id: '/design_/records'
+      path: '/design/records'
+      fullPath: '/design/records'
+      preLoaderRoute: typeof DesignRecordsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +130,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DesignRoute: DesignRoute,
   Design3dRoute: Design3dRoute,
+  DesignPlayerRoute: DesignPlayerRoute,
+  DesignRecordsRoute: DesignRecordsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
