@@ -150,6 +150,7 @@ Runtime-only Kuru/ERC-20 invocations use actual-call RPC estimation and `gasWith
 | `sellYes` | 422,343 | 506,812 |
 | `buyNo` | 480,513 | 576,616 |
 | `sellNo` | 598,681 | 718,418 |
+| `approveAusd` (player AUSD → SaysoMarkets, live estimate 2026-10-08; 60,000 ran out of gas) | 71,099 | 85,319 |
 | `onReport (1)` | 61,186 | 73,424 |
 | `onReport (8)` | 170,921 | 205,106 |
 | `redeem (Void NO)` | 186,557 | 223,869 |

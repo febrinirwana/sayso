@@ -51,6 +51,8 @@ const SINGLE = {
   sellYes: 422_343n,
   buyNo: 480_513n,
   sellNo: 598_681n,
+  // Live eth_estimateGas, player AUSD approve to SaysoMarkets, 2026-10-08; a 60,000 limit ran out of gas.
+  approveAusd: 71_099n,
 } as const;
 
 export type GasKind =
