@@ -1,13 +1,21 @@
 import {
+  AIR_HZ,
+  bandShareDb,
   correction,
+  dominantHz,
   encodeArgs,
   endSeconds,
   LIMITER_HEADROOM_DB,
+  longTermSpectrum,
   type Measurement,
   masterFilter,
   parseEbur128,
+  type ScaleNote,
+  type ShapePart,
   shapeFilter,
   signalStats,
+  snapToScale,
+  spectralCentroid,
 } from "./audio";
 import { MAX_TRUE_PEAK_DBTP, SHORT_SOUND_SECONDS, type SoundSpec } from "./config";
 
@@ -40,7 +48,7 @@ async function decode(path: string, filter?: string): Promise<Float32Array> {
  * still get an integrated value; padding is silence, which the absolute gate ignores.
  */
 export async function measureFile(path: string): Promise<Measurement> {
-  const [ebur, samples, high, probe] = await Promise.all([
+  const [ebur, samples, probe] = await Promise.all([
     run([
       "-hide_banner",
       "-nostats",
@@ -53,24 +61,27 @@ export async function measureFile(path: string): Promise<Measurement> {
       "-",
     ]),
     decode(path),
-    decode(path, "highpass=f=8000:poles=2,highpass=f=8000:poles=2"),
     run(
       ["-v", "error", "-show_entries", "stream=sample_rate,channels,bit_rate", "-of", "json", path],
       "ffprobe",
     ),
   ]);
-  const loudness = parseEbur128(ebur.stderr);
-  const stats = signalStats(samples, SAMPLE_RATE);
-  const highStats = signalStats(high, SAMPLE_RATE);
-  const stream = parseProbe(new TextDecoder().decode(probe.stdout));
+  const spectrum = longTermSpectrum(samples, SAMPLE_RATE);
   return {
-    ...loudness,
-    ...stats,
+    ...parseEbur128(ebur.stderr),
+    ...signalStats(samples, SAMPLE_RATE),
     durationSeconds: samples.length / SAMPLE_RATE,
-    highShareDb: highStats.rmsDb - stats.rmsDb,
+    centroidHz: spectralCentroid(spectrum),
+    airShareDb: bandShareDb(spectrum, AIR_HZ),
     bytes: Bun.file(path).size,
-    ...stream,
+    ...parseProbe(new TextDecoder().decode(probe.stdout)),
   };
+}
+
+/** Pitch of a raw generation and the shift onto C major pentatonic near the `home` MIDI note. */
+export async function pitchOf(path: string, home: number): Promise<{ hz: number } & ScaleNote> {
+  const hz = dominantHz(longTermSpectrum(await decode(path), SAMPLE_RATE));
+  return { hz, ...snapToScale(hz, home) };
 }
 
 function parseProbe(json: string): Pick<Measurement, "sampleRate" | "channels" | "bitRate"> {
@@ -85,21 +96,25 @@ function parseProbe(json: string): Pick<Measurement, "sampleRate" | "channels" |
 }
 
 /**
- * Shapes the raw generation, cuts its tail where the decay goes inaudible, then iterates gain and
- * the limiter ceiling against the encoded MP3 until loudness and true peak both land, because
- * encoding moves both.
+ * Tunes, layers and shapes the parts, cuts the tail where the decay goes inaudible, then iterates
+ * gain and the limiter ceiling against the encoded MP3 until loudness and true peak both land,
+ * because encoding moves both. `inputs[n]` is the raw file behind ShapePart input n.
  */
-export async function master(spec: SoundSpec, raw: string, out: string): Promise<Measurement> {
+export async function master(
+  spec: SoundSpec,
+  inputs: readonly string[],
+  parts: readonly ShapePart[],
+  out: string,
+): Promise<Measurement> {
   const shaped = out.replace(/\.mp3$/, ".shaped.wav");
   await run([
     "-hide_banner",
     "-v",
     "error",
     "-y",
-    "-i",
-    raw,
+    ...inputs.flatMap((input) => ["-i", input]),
     "-filter_complex",
-    shapeFilter(spec),
+    shapeFilter(parts, spec.lowpass_hz),
     "-c:a",
     "pcm_f32le",
     shaped,
@@ -107,12 +122,13 @@ export async function master(spec: SoundSpec, raw: string, out: string): Promise
   const end = endSeconds(await decode(shaped), SAMPLE_RATE, spec.max_seconds);
   const before = await measureFile(shaped);
   const level = spec.loudness.kind === "lufs" ? before.lufs : before.rmsDb;
-  if (level === null || !Number.isFinite(level)) throw new Error(`${raw} is silent after shaping`);
+  if (level === null || !Number.isFinite(level)) throw new Error(`${out} is silent after shaping`);
   let gainDb = spec.loudness.target - level;
   let limitDb = MAX_TRUE_PEAK_DBTP - LIMITER_HEADROOM_DB;
   let measured = before;
+  const decaySeconds = (spec.decay_ms ?? 0) / 1000;
   for (let pass = 0; pass < MAX_PASSES; pass += 1) {
-    await run(encodeArgs(shaped, masterFilter(end, gainDb, limitDb), out));
+    await run(encodeArgs(shaped, masterFilter(end, gainDb, limitDb, decaySeconds), out));
     measured = await measureFile(out);
     const next = correction(spec.loudness, measured, gainDb, limitDb);
     if (next === null) break;

@@ -102,23 +102,28 @@ Sources (29 voxel PNGs, about 400 px each, the logo and the mascot icon) live in
 
 ## 10. Sound
 
-| Id | When | Character | Max length |
-|---|---|---|---|
-| `tap` | Primary press | soft wooden click | 0.15 s |
-| `sheet` | Ticket opens | paper swish | 0.3 s |
-| `confirm` | Order sent | two-note up blip | 0.4 s |
-| `fill` | Order filled | coin drop into tray | 0.5 s |
-| `said` | Word flips SAID (signature) | split-flap clack + bright game-show ding | 0.8 s |
-| `cashout` | Cash-out filled | short coin cascade | 0.8 s |
-| `tick` | Last 5 s of a countdown | muted clock tick | 0.12 s |
-| `start` | Playback starts | short brass sting | 1.5 s |
-| `win` | Episode settles in profit | cheerful fanfare hit | 2 s |
-| `lose` | Episode settles at a loss | gentle descending "aww" tone | 1.2 s |
-| `redeem` | Redeem filled | cash register ding | 0.6 s |
+Family: bubbly mobile game show in C major pentatonic (C, D, E, G, A). A soft celesta bell, bright glockenspiel, round toy pluck and juicy bubble pop play short rising figures; a split-flap flick, coin cascade, twinkle and airy swoosh add texture. The loss cue is a cute descending toy-synth "aww", not a sad trombone. Bright, round and rewarding; dry, short, never casino, never harsh. No music competes with the clip's speech.
 
-- Generated once with ElevenLabs `POST /v1/sound-generation` (`eleven_text_to_sound_v2`) by `tools/sfx`; prompts live in `tools/sfx/sounds.json`. The key is read from `.env` and never reaches the browser.
-- Mastered with ffmpeg: trim leading silence, 5 ms fade-in, 30 ms fade-out, mono 44.1 kHz, peak ≤ −3 dBTP, loudness −22 LUFS for UI sounds (`sheet` −24, `tick` −25 because they repeat) and −18 LUFS for `start`/`win`; clips under 0.4 s are gated on RMS. Shipped as MP3 128 kbps in `apps/web/public/sfx/`; `bun run --cwd tools/sfx measure` fails if any file misses its target.
-- Playback: Web Audio, unlocked on first gesture; master volume 0.5; persistent mute; ducked to 0.3 while clip audio plays. No music: the clip's own speech is what players are judging.
+| Id | When | Shipped character | Shipped / max length | Loudness target |
+|---|---|---|---|---|
+| `tap` | Primary press | round E6 pluck with a quick decay | 0.140 / 0.15 s | −19 dB RMS |
+| `pop` | Sticker grab/drop, mascot boop, playful micro-interactions | single rising C6 bubble bloop | 0.140 / 0.15 s | −19 dB RMS |
+| `sheet` | Ticket opens | soft airy upward swoosh | 0.290 / 0.30 s | −21 dB RMS |
+| `confirm` | Order sent | pluck C6 → E6, quiet C7 celesta on the second note | 0.390 / 0.40 s | −18 dB RMS |
+| `fill` | Order filled | glockenspiel G6 → C7 "ba-ding" | 0.490 / 0.50 s | −18 LUFS |
+| `said` | Word flips SAID (signature) | split-flap flick, then E6 → A6 → C7 glockenspiel "correct" chime at 55 / 110 / 165 ms | 0.811 / 0.90 s | −16 LUFS |
+| `cashout` | Cash-out filled | sparkly coin cascade over a rising C6 → C7 celesta run | 0.890 / 0.90 s | −18 LUFS |
+| `tick` | Last 5 s of a countdown | short soft flap tick | 0.110 / 0.12 s | −21 dB RMS |
+| `start` | Playback starts | swoosh, C5 → C6 pluck run, C7 + E7 celesta chord and twinkle | 1.130 / 1.20 s | −16 LUFS |
+| `win` | Episode settles in profit | joyful C5 → C6 pluck run, G6 + C7 + E7 celesta chord and sparkle | 1.140 / 1.80 s | −16 LUFS |
+| `lose` | Episode settles at a loss | soft cute descending toy-synth "aww", dominant partial tuned to C6 | 0.954 / 1.00 s | −19 LUFS |
+| `redeem` | Redeem filled | C6 bubble pop into a G6 + C7 glockenspiel ding | 0.590 / 0.60 s | −18 LUFS |
+
+- Offline generation: ElevenLabs `POST /v1/sound-generation` (`eleven_text_to_sound_v2`) through `tools/sfx`. Exact prompts and layer timing/gains live in `tools/sfx/sounds.json`: one dry, isolated celesta/glockenspiel/pluck note, one juicy cartoon pop, one plastic split-flap flip, five or six light coin pings, one upward swoosh, a short glassy twinkle and a descending toy-synth "aww"; no voice, music bed or reverb tail. Four candidates per source are shared across cues to keep one timbre. Selected candidates: `bell#2`, `glock#3`, `pluck#2`, `bubble#2`, `flap#4`, `coins#2`, `swish#4`, `sparkle#4`, `aww#2`. The redesign used 304 API-reported credits over 48 requests, including replaced prompt candidates; final mastering reuses the cache. The key is read at runtime from the environment or repo `.env`, never shipped to the browser.
+- Tuning/layering: ffmpeg snaps each tonal source's dominant partial to the nearest C major pentatonic note within six semitones of its configured home register; this is partial tuning, not a guarantee that every generated overtone is in key. Selected base notes are C7 for celesta/glockenspiel, C5 for pluck/bubble and C6 for "aww". Layer figures move in pentatonic steps. Optional exponential decay (`decay_ms`) finishes sustained notes like struck notes.
+- Mastering: 80 Hz high-pass, per-cue low-pass where needed, leading silence below −50 dBFS trimmed, tails cut once they fall 45 dB below the loudest 10 ms, 5 ms fade-in, 30 ms fade-out and a 4× oversampled limiter. Mono 44.1 kHz MP3 at 128 kbps, true peak ≤ −1.5 dBTP. Targets above are measured on the encoded files: ≤ 0.4 s cues use RMS (±1.5 dB); longer cues use integrated LUFS (±1 LU). This louder family replaces the old −22 LUFS set; the tick and swoosh remain quieter than reward cues.
+- Selection gates: encoded duration within the table's maximum, leading silence ≤ 10 ms, spectral centroid 1.2–5 kHz, energy above 10 kHz ≤ −18 dB relative to total energy, correct mono/sample-rate/bitrate and no true-peak clipping. Candidate scoring also penalises long tails, spiky transients, fizz, centroid drift and excessive repitching. All 12 shipped files total **126,747 bytes (123.8 KiB)** in `apps/web/public/sfx/`; `bun run --cwd tools/sfx measure` enforces the gates.
+- Playback: Web Audio unlocked on first gesture; master gain **0.7**, ducked gain **0.35** under clip audio, 120 ms gain ramps, persistent mute. Only `tap` and `pop` vary playback rate uniformly from **0.97 inclusive to 1.03 exclusive** per play (about −53 to +51 cents, also varying duration); all other cues stay at rate 1. At most three voices, with a 15 ms fade on the oldest when stolen; duplicate requests for the same cue within 60 ms play once; starts more than 250 ms late are dropped.
 - Licence: free ElevenLabs plan, non-commercial with attribution ("elevenlabs.io") in the footer, S8 and README ([terms](https://elevenlabs.io/docs/help-center/legal/can-i-publish-the-content-i-generate-on-the-platform.md)) [V]. See BLOCKERS B11.
 
 ## 11. Copy

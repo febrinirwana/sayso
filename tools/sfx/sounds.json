@@ -1,115 +1,453 @@
 {
-  "family": "Warm toy game show: wood blocks, soft marimba, glockenspiel bells, mellow brass and small coins on a wooden tray. Dry and close, every sound ends cleanly, nothing metallic-harsh, never a casino.",
-  "sounds": [
+  "family": "Bubbly mobile game show in C major pentatonic: a soft celesta bell, a bright glockenspiel, a round synth pluck and a juicy bubble pop, each tuned onto C major pentatonic in a fixed register and layered into rising figures, plus a split-flap flick, a coin cascade, a twinkle and an airy swoosh for texture. Bright, round and rewarding; dry, short, never casino, never harsh.",
+  "sources": [
     {
-      "id": "tap",
-      "prompt": "One single soft wooden click: a small toy wooden block tapped once with a felt-tipped mallet. Close-miked, dry, warm, mid-pitched, instant attack and very fast decay. Exactly one hit. No reverb, no echo, no metallic ring, no music, no voice.",
-      "duration_seconds": 0.5,
-      "prompt_influence": 0.7,
-      "max_seconds": 0.15,
-      "target_rms_db": -22
+      "id": "bell",
+      "prompt": "A single glassy celesta bell note, like a cheerful mobile game reward chime: a pure bright bell tone with a soft round attack, sparkling but never piercing, a short natural ring that fades out quickly. Mid-high register. Completely dry, close, studio clean. Exactly one note. No melody, no chord, no reverb, no echo, no music, no voice.",
+      "duration_seconds": 0.6,
+      "prompt_influence": 0.75,
+      "tune": "G6",
+      "pick": 2
     },
     {
-      "id": "sheet",
-      "prompt": "One quick soft paper swish: a sheet of thick card sliding smoothly out of a sleeve. Warm, airy, gentle rise then a fast fade, a single movement. Close and dry. No crackle, no tearing, no crumpling, no reverb, no music, no voice.",
+      "id": "glock",
+      "prompt": "A single glockenspiel note struck with a small hard mallet, like a cheerful mobile game reward ding: a bright glassy bell tone with a sparkling attack and a clean ring that fades within half a second. Dry and close. Exactly one note, then silence. No melody, no chord, no reverb, no echo, no music, no voice.",
+      "duration_seconds": 0.6,
+      "prompt_influence": 0.75,
+      "tune": "G6",
+      "pick": 3
+    },
+    {
+      "id": "pluck",
+      "prompt": "A single plucked kalimba note with a round, bubbly, toy-like tone, like a cute mobile game button press: a crisp pluck attack, bright but warm, decaying quickly to silence within a quarter of a second. Dry and close. Exactly one note, then silence. No melody, no chord, no reverb, no echo, no music, no voice.",
       "duration_seconds": 0.5,
+      "prompt_influence": 0.75,
+      "tune": "C5",
+      "pick": 2
+    },
+    {
+      "id": "bubble",
+      "prompt": "One single juicy cartoon bubble pop: a quick rising bloop like a soap bubble bursting in a cute mobile game, round, wet and bright, instant attack and gone in a tenth of a second. Exactly one pop, then silence. No second pop, no splash, no water stream, no reverb, no music, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.75,
+      "tune": "C5",
+      "pick": 2
+    },
+    {
+      "id": "flap",
+      "prompt": "A single crisp split-flap display card flip: one light plastic flap snapping over with a quick tight flick-clack, clean and satisfying, mid-high pitched. Dry, close-miked. Exactly one flip. No rattle, no sequence of flaps, no mechanical whirr, no reverb, no music, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.7,
+      "pick": 4
+    },
+    {
+      "id": "coins",
+      "prompt": "A quick bright cascade of small shiny game coins: five or six light coin pings tumbling one after another in a rising sparkle, like a cheerful mobile game reward. Clean, glassy and playful. Dry and close. No slot machine, no casino jackpot, no heavy clatter, no hiss, no reverb tail, no music, no voice.",
+      "duration_seconds": 1,
+      "prompt_influence": 0.65,
+      "pick": 2
+    },
+    {
+      "id": "swish",
+      "prompt": "A soft quick airy swoosh rising upward, like a card sliding up on a phone screen in a cute mobile game: smooth, light and bubbly, a gentle rise then a fast fade, one single movement. Close and dry. No harsh hiss, no wind noise, no crackle, no reverb, no music, no voice.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.65,
+      "pick": 4
+    },
+    {
+      "id": "sparkle",
+      "prompt": "A short magical twinkle: a quick shimmer of tiny glassy chime sparkles, like a star collected in a cute mobile game, bright and soft, fading quickly. Dry. No harsh hiss, no long reverb, no melody, no music, no voice.",
+      "duration_seconds": 0.8,
       "prompt_influence": 0.6,
-      "max_seconds": 0.3,
-      "target_rms_db": -24,
-      "lowpass_hz": 9000
+      "pick": 4
+    },
+    {
+      "id": "aww",
+      "prompt": "A cute soft descending aww from a toy synth: two gentle bubbly notes sliding downward, sympathetic and playful like a cartoon near miss in a mobile game, warm and soft, ending cleanly. No sad trombone, no buzzer, no voice, no reverb tail, no music bed.",
+      "duration_seconds": 1,
+      "prompt_influence": 0.6,
+      "tune": "A5",
+      "pick": 2
+    }
+  ],
+  "sounds": [
+    {
+      "id": "said",
+      "max_seconds": 0.9,
+      "target_lufs": -16,
+      "parts": [
+        {
+          "source": "flap"
+        },
+        {
+          "source": "glock",
+          "layers": [
+            {
+              "steps": -3,
+              "delay_ms": 55,
+              "gain_db": -4
+            },
+            {
+              "steps": -1,
+              "delay_ms": 110,
+              "gain_db": -2
+            },
+            {
+              "steps": 0,
+              "delay_ms": 165,
+              "gain_db": 0
+            }
+          ]
+        }
+      ],
+      "lowpass_hz": 12000,
+      "decay_ms": 450
     },
     {
       "id": "confirm",
-      "prompt": "Two quick separate soft marimba notes played one after the other, low note then a higher note a perfect fifth above, rising and cheerful, like a toy game-show button saying yes. Rounded wooden tone, each note short with a clean decay, the whole thing under half a second. Not a chord, no synth buzz, no reverb tail, no music bed, no voice.",
-      "duration_seconds": 0.5,
-      "prompt_influence": 0.7,
       "max_seconds": 0.4,
-      "target_rms_db": -22,
-      "layers": [
+      "target_rms_db": -18,
+      "parts": [
         {
-          "semitones": 0,
-          "delay_ms": 0,
-          "gain_db": -2
+          "source": "pluck",
+          "layers": [
+            {
+              "steps": 5,
+              "delay_ms": 0,
+              "gain_db": -1
+            },
+            {
+              "steps": 7,
+              "delay_ms": 85,
+              "gain_db": 0
+            }
+          ]
         },
         {
-          "semitones": 7,
-          "delay_ms": 85,
-          "gain_db": 0
+          "source": "bell",
+          "layers": [
+            {
+              "steps": 0,
+              "delay_ms": 85,
+              "gain_db": -9
+            }
+          ]
         }
       ],
-      "pick": 1
+      "decay_ms": 250
+    },
+    {
+      "id": "pop",
+      "max_seconds": 0.15,
+      "target_rms_db": -19,
+      "parts": [
+        {
+          "source": "bubble",
+          "layers": [
+            {
+              "steps": 5,
+              "delay_ms": 0,
+              "gain_db": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tap",
+      "max_seconds": 0.15,
+      "target_rms_db": -19,
+      "parts": [
+        {
+          "source": "pluck",
+          "layers": [
+            {
+              "steps": 7,
+              "delay_ms": 0,
+              "gain_db": 0
+            }
+          ]
+        }
+      ],
+      "decay_ms": 110
+    },
+    {
+      "id": "sheet",
+      "max_seconds": 0.3,
+      "target_rms_db": -21,
+      "lowpass_hz": 10000,
+      "parts": [
+        {
+          "source": "swish"
+        }
+      ]
     },
     {
       "id": "fill",
-      "prompt": "One chunky toy coin dropping into a felt-lined wooden tray: a single mellow, low-pitched clink with one small bounce, rounded and warm, like a board-game token. No bright jingle, no sizzle, no spinning rattle, no other coins, no reverb, no music, no voice.",
-      "duration_seconds": 0.6,
-      "prompt_influence": 0.6,
       "max_seconds": 0.5,
-      "target_lufs": -22,
-      "lowpass_hz": 7500
-    },
-    {
-      "id": "said",
-      "prompt": "A crisp split-flap display clack immediately followed by one bright warm game-show bell ding on a glockenspiel, like a quiz show correct-answer chime. Mechanical flap then a single clear bell note ringing briefly and fading. Tight and dry. No reverb tail, no music, no crowd, no voice.",
-      "duration_seconds": 0.8,
-      "prompt_influence": 0.6,
-      "max_seconds": 0.8,
-      "target_lufs": -22,
-      "lowpass_hz": 9000
+      "target_lufs": -18,
+      "parts": [
+        {
+          "source": "glock",
+          "layers": [
+            {
+              "steps": -2,
+              "delay_ms": 0,
+              "gain_db": -2
+            },
+            {
+              "steps": 0,
+              "delay_ms": 75,
+              "gain_db": 0
+            }
+          ]
+        }
+      ],
+      "decay_ms": 300
     },
     {
       "id": "cashout",
-      "prompt": "A short cheerful cascade of five chunky toy coins clattering one after another into a felt-lined wooden tray: mellow, low-pitched, rounded clinks with a soft brassy ring, quick and playful, a toy game-show payout. No bright jingle, no sizzle, no hiss, no slot machine, no casino jackpot bells, no music, no reverb, no voice.",
-      "duration_seconds": 0.8,
-      "prompt_influence": 0.6,
-      "max_seconds": 0.8,
-      "target_lufs": -22,
-      "lowpass_hz": 7500
+      "max_seconds": 0.9,
+      "target_lufs": -18,
+      "lowpass_hz": 8000,
+      "parts": [
+        {
+          "source": "coins"
+        },
+        {
+          "source": "bell",
+          "layers": [
+            {
+              "steps": -5,
+              "delay_ms": 0,
+              "gain_db": -10
+            },
+            {
+              "steps": -4,
+              "delay_ms": 55,
+              "gain_db": -9
+            },
+            {
+              "steps": -3,
+              "delay_ms": 110,
+              "gain_db": -8
+            },
+            {
+              "steps": -2,
+              "delay_ms": 165,
+              "gain_db": -7
+            },
+            {
+              "steps": -1,
+              "delay_ms": 220,
+              "gain_db": -6
+            },
+            {
+              "steps": 0,
+              "delay_ms": 275,
+              "gain_db": -5
+            }
+          ]
+        }
+      ],
+      "decay_ms": 450
     },
     {
       "id": "tick",
-      "prompt": "One single muted clock tick: a soft wooden tock from a small desk clock. Dry, low-mid pitch, very short, rounded. Exactly one tick. No ticking sequence, no metallic click, no reverb, no music, no voice.",
-      "duration_seconds": 0.5,
-      "prompt_influence": 0.7,
       "max_seconds": 0.12,
-      "target_rms_db": -25,
-      "lowpass_hz": 7000,
-      "pick": 2
+      "target_rms_db": -21,
+      "parts": [
+        {
+          "source": "flap"
+        }
+      ],
+      "lowpass_hz": 5000
     },
     {
       "id": "start",
-      "prompt": "A short brass sting opening a TV game show: warm trumpets and trombone play two quick rising notes landing on a bright major chord stab, playful and confident, ending cleanly. Tight studio sound. No drums, no long reverb, no crowd, no voice.",
-      "duration_seconds": 1.5,
-      "prompt_influence": 0.6,
-      "max_seconds": 1.5,
-      "target_lufs": -18
+      "max_seconds": 1.2,
+      "target_lufs": -16,
+      "parts": [
+        {
+          "source": "swish",
+          "layers": [
+            {
+              "semitones": 0,
+              "delay_ms": 0,
+              "gain_db": -6
+            }
+          ]
+        },
+        {
+          "source": "pluck",
+          "layers": [
+            {
+              "steps": 0,
+              "delay_ms": 60,
+              "gain_db": 6
+            },
+            {
+              "steps": 2,
+              "delay_ms": 150,
+              "gain_db": 6
+            },
+            {
+              "steps": 3,
+              "delay_ms": 240,
+              "gain_db": 6
+            },
+            {
+              "steps": 5,
+              "delay_ms": 330,
+              "gain_db": 4
+            }
+          ]
+        },
+        {
+          "source": "bell",
+          "layers": [
+            {
+              "steps": 0,
+              "delay_ms": 330,
+              "gain_db": 0
+            },
+            {
+              "steps": 2,
+              "delay_ms": 330,
+              "gain_db": -4
+            }
+          ]
+        },
+        {
+          "source": "sparkle",
+          "layers": [
+            {
+              "semitones": 0,
+              "delay_ms": 330,
+              "gain_db": -12
+            }
+          ]
+        }
+      ],
+      "lowpass_hz": 11000,
+      "decay_ms": 550
     },
     {
       "id": "win",
-      "prompt": "A cheerful short fanfare hit for a game-show winner: warm brass plays a quick rising triplet into a bright major chord with a glockenspiel sparkle on top, playful and toy-like, ending cleanly. Tight studio sound. No slot machine, no coins, no crowd, no voice, no long reverb.",
-      "duration_seconds": 2,
-      "prompt_influence": 0.6,
-      "max_seconds": 2,
-      "target_lufs": -18,
-      "pick": 2
+      "max_seconds": 1.8,
+      "target_lufs": -16,
+      "parts": [
+        {
+          "source": "pluck",
+          "layers": [
+            {
+              "steps": 0,
+              "delay_ms": 0,
+              "gain_db": 4
+            },
+            {
+              "steps": 1,
+              "delay_ms": 70,
+              "gain_db": 4
+            },
+            {
+              "steps": 2,
+              "delay_ms": 140,
+              "gain_db": 5
+            },
+            {
+              "steps": 3,
+              "delay_ms": 210,
+              "gain_db": 5
+            },
+            {
+              "steps": 4,
+              "delay_ms": 280,
+              "gain_db": 6
+            },
+            {
+              "steps": 5,
+              "delay_ms": 350,
+              "gain_db": 6
+            }
+          ]
+        },
+        {
+          "source": "bell",
+          "layers": [
+            {
+              "steps": 0,
+              "delay_ms": 420,
+              "gain_db": 0
+            },
+            {
+              "steps": -2,
+              "delay_ms": 420,
+              "gain_db": -3
+            },
+            {
+              "steps": 2,
+              "delay_ms": 420,
+              "gain_db": -5
+            }
+          ]
+        },
+        {
+          "source": "sparkle",
+          "layers": [
+            {
+              "semitones": 0,
+              "delay_ms": 420,
+              "gain_db": -12
+            }
+          ]
+        }
+      ],
+      "lowpass_hz": 9000,
+      "decay_ms": 650
     },
     {
       "id": "lose",
-      "prompt": "A gentle descending 'aww' tone: a soft muted trombone sliding down two notes, sympathetic and playful rather than sad, a cartoon game-show near miss. Warm and quiet, ends cleanly. No harsh buzzer, no crowd, no voice, no reverb tail.",
-      "duration_seconds": 1.2,
-      "prompt_influence": 0.6,
-      "max_seconds": 1.2,
-      "target_lufs": -22,
-      "pick": 2
+      "max_seconds": 1,
+      "target_lufs": -19,
+      "parts": [
+        {
+          "source": "aww"
+        }
+      ]
     },
     {
       "id": "redeem",
-      "prompt": "A vintage toy cash register: a soft drawer click and one bright warm bell ding, cheerful and short. Close and dry. No coins jingling, no slot machine, no reverb tail, no music, no voice.",
-      "duration_seconds": 0.6,
-      "prompt_influence": 0.6,
       "max_seconds": 0.6,
-      "target_lufs": -22,
-      "lowpass_hz": 8000
+      "target_lufs": -18,
+      "parts": [
+        {
+          "source": "bubble",
+          "layers": [
+            {
+              "steps": 5,
+              "delay_ms": 0,
+              "gain_db": -3
+            }
+          ]
+        },
+        {
+          "source": "glock",
+          "layers": [
+            {
+              "steps": -2,
+              "delay_ms": 60,
+              "gain_db": -2
+            },
+            {
+              "steps": 0,
+              "delay_ms": 60,
+              "gain_db": 0
+            }
+          ]
+        }
+      ],
+      "decay_ms": 350
     }
   ]
 }
