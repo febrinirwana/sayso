@@ -104,7 +104,7 @@ Open: PRF on the target phones (iOS Safari, Android Chrome) at the production do
 | Testnet token | `0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC`, 6 decimals, exposes `DOMAIN_SEPARATOR` (permit) | [V: `cast call`] |
 | Mainnet token | `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` (reference only) | [V: [Agora deployments](https://docs.agora.finance/developer/contract-deployments.md)] |
 | Testnet faucet | `0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C`, `requestFunds(address)` | [V: `cast code`, `token()` returns AUSD] |
-| Faucet behaviour | On 2026-10-04 every fresh address reverted `MaxFrequencyExceeded()`; on 2026-10-05 `eth_call` succeeds for fresh addresses. On a fork, one `requestFunds` paid 10,000 AUSD (10,000,000,000 base units); a second request in the same block reverted `MaxFrequencyExceeded()` even from other fresh addresses, so the limit looks global [I]; the faucet held about 998M AUSD. Live cadence unknown | [V: fork simulation 2026-10-05]; cadence [U: S1] |
+| Faucet behaviour | One `requestFunds` pays **10,000 AUSD** (10,000,000,000 base units) to the named recipient. The limit is global: right after a grant every caller reverts `MaxFrequencyExceeded()` (`0x20e5bc67`), and the faucet reopened within 66 s; two live grants landed 73 s apart. A request costs the 160,000 gas limit (≈ 0.017 MON). Earlier, on 2026-10-04, every fresh address reverted; treat cadence as an observation with a date | [V: live testnet 2026-10-08, S1 receipts in BUILD-PLAN] |
 
 Fallback quote token if S1 fails: Kuru testnet USDC `0x3bA3d39AFcf8bb994f7964B3e0171Ea2Ba361570` (6 decimals, code verified). The quote token is one config value (`AUSD`) so the switch touches no code.
 

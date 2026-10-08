@@ -17,11 +17,11 @@ The live tracker for the build: every phase, every task, what proves it and wher
 |---|---|---|---|---|
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DONE | 10/10 | none | none |
-| Spikes | DOING | 1/6 | Live S2+S3 from BOT (fork run green) | S1–S4 need MON; S4 needs the CRE CLI and account |
-| 2 Contracts | DOING | 9/11 | 2.9 deploy, then 2.10 addresses | DEPLOYER MON |
+| Spikes | DOING | 2/6 | Live S2+S3 from BOT after 2.9 | S4 needs the CRE CLI and account |
+| 2 Contracts | DOING | 9/11 | 2.9 deploy, then 2.10 addresses | none: DEPLOYER funded |
 | 3 Transcription | DOING | 2/3 | 3.3 original rights-cleared English clip library | B07; Indonesian/bilingual clips additionally B10 |
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
-| 5 Studio | DOING | 4/8 | Funded live house/runner and authenticated CRE proof | B01–B04; hosting B05 |
+| 5 Studio | DOING | 4/8 | Funded live house/runner and authenticated CRE proof | 2.9 deploy, B02, B03; hosting B05 |
 | 6 Indexer | DOING | 1/3 | 6.1 live sync, then 6.3 hosting | deployed receiver; Linux/macOS tooling (WSL on Windows) |
 | 7 Web | DOING | 2/8 | 7.2 screenshots approved by the user, then 7.3 S1 Join | S5 needs the real domain |
 | 8 Ship | TODO | 0/5 | after Phase 7 | VPS, domain, team registration |
@@ -74,9 +74,9 @@ The live tracker for the build: every phase, every task, what proves it and wher
 
 Each spike answers one question with on-chain or on-device evidence, then writes its result into INTEGRATIONS section 9 in its own commit. Scratch code stays in `handoff\sayso\spikes\<id>\`.
 
-- [ ] **S1** AUSD faucet supply · BLOCKED (DRIP has 0 MON)
-  - [ ] two timed `requestFunds(DRIP)` broadcasts; amount and cadence recorded — proof: tx hashes + `balanceOf` before/after
-  - [ ] if unusable: switch `AUSD` config to Kuru testnet USDC and say so in INTEGRATIONS and PRD
+- [x] **S1** AUSD faucet supply
+  - [x] two timed `requestFunds` broadcasts; amount and cadence recorded — proof: 2026-10-08 DRIP `0xe09ff14aee40c8879957f31ff59f47eb5153bf281c47a57524e07e28c98e4cd1` (block 69,201,554) and BOT `0x043a4ac3b89824c67aba7322ab9ea1ba870c7470af8ccf7c042682cf3eb53827` (block 69,201,793), each status 1 and `balanceOf` 0 → 10,000,000,000 (10,000 AUSD); block times 73 s apart. Right after the first, `eth_call` reverted `MaxFrequencyExceeded` for DRIP and BOT alike (global limit) and succeeded again within 66 s
+  - [x] fallback not needed: AUSD stays the quote token
 - [ ] **S2 + S3** Kuru book from a contract · DOING
   - [x] fork probe drafted: `spikes\s3\test\KuruProbe.t.sol` (149 lines) deploys a token and its book via `Router.deployProxy(0, …)`
   - [x] probe compiles and the fork run is green, including `test_ausdQuote` — proof: `forge test --via-ir --fork-url https://testnet-rpc.monad.xyz -vv` → 2 passed (2026-10-05); findings in INTEGRATIONS section 2 · `Stack too deep` only without `--via-ir`
