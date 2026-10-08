@@ -18,6 +18,8 @@ export default defineConfig({
       includeAssets: ["icons/apple-touch-icon.png", "sfx/*.mp3"],
       // three.js only serves S0/S5; keep it out of the install-time precache (DESIGN section 7).
       workbox: {
+        // Studio API, SSE and clip media are same-origin in production; never answer them with the app shell.
+        navigateFallbackDenylist: [/^\/v1\//, /^\/media\//],
         globIgnores: [
           "**/voxels-*.js",
           "**/Lights-*.js",
@@ -48,5 +50,12 @@ export default defineConfig({
       },
     }),
   ],
-  server: { port: 5173 },
+  // Same-origin studio and media in dev, mirroring the production Caddy routes (deploy/Caddyfile).
+  server: {
+    port: 5173,
+    proxy: {
+      "/v1": { target: process.env.STUDIO_PROXY_TARGET ?? "http://127.0.0.1:3001" },
+      "/media": { target: process.env.MEDIA_PROXY_TARGET ?? "http://127.0.0.1:3002" },
+    },
+  },
 });
