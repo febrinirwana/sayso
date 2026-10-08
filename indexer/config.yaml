@@ -34,10 +34,11 @@ chains:
     # Monad testnet is a supported HyperSync network; no RPC needed.
     hypersync_config:
       url: https://monad-testnet.hypersync.xyz
-    # Set to the deployment block before starting dev. Never start after creation.
-    start_block: 0
+    # SaysoMarkets creation block (2026-10-08). Never start after creation.
+    start_block: 69202243
     contracts:
       - name: SaysoMarkets
-        # Unset until a cast-code-verified deployment exists. No invented address.
-        address: []
+        # cast-code verified, SMART-CONTRACTS section 9.
+        address:
+          - "0xc8492B2906d57c184be372899d18EDF195D11CF8"
       - name: OutcomeToken

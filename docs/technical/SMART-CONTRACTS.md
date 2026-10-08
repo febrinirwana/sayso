@@ -165,3 +165,7 @@ Deployment log (one row per deploy, added in the deploying commit with `cast cod
 
 | Date | Contract | Address | Transaction | Mode |
 |---|---|---|---|---|
+| 2026-10-08 | `OutcomeToken` (implementation) | `0xC0688e3810d79407cc65EbE1910AC57f6dcCcC6b` | `0x0eafac459f74c264d635bc63162b57a0d3f9d2732003a2b4ec5e28bb4835c77e` (block 69,202,240, 990,837 gas) | — |
+| 2026-10-08 | `SaysoMarkets` | `0xc8492B2906d57c184be372899d18EDF195D11CF8` | `0x1d130dcf42dddb0b31b6fc8dadede961f077e02fcbdfaefb18b03feb6c2595a1` (block 69,202,243, 5,355,548 gas); `setReportOrigin(REPORTER)` `0x2efc2cf3…9309`, `setOperator(OPERATOR)` `0xb9f2c6a5…af83` | simulation: forwarder `0xB9F79d86…D192`, reportOrigin REPORTER |
+
+Proof: `cast code` returns 39,674 / 6,780 hex characters; `owner()` DEPLOYER, `operator()` OPERATOR, `reportOrigin()` REPORTER, `getForwarderAddress()` simulation forwarder. Sourcify (MonadVision) `exact_match` for both ([SaysoMarkets](https://testnet.monadvision.com/address/0xc8492B2906d57c184be372899d18EDF195D11CF8), [OutcomeToken](https://testnet.monadvision.com/address/0xC0688e3810d79407cc65EbE1910AC57f6dcCcC6b)). Monadscan verification needs an Etherscan API key, not yet supplied.

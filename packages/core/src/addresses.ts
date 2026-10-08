@@ -16,6 +16,10 @@ export const addresses = {
   creSimulationForwarder: "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
   /** KeystoneForwarder used by deployed CRE workflows. */
   creForwarder: "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
+  /** SAYSO markets, simulation mode (reportOrigin = REPORTER), deployed 2026-10-08 at block 69,202,243. */
+  saysoMarkets: "0xc8492B2906d57c184be372899d18EDF195D11CF8",
+  /** OutcomeToken clone implementation used by `saysoMarkets`, block 69,202,240. */
+  outcomeTokenImplementation: "0xC0688e3810d79407cc65EbE1910AC57f6dcCcC6b",
 } as const satisfies Record<string, Address>;
 
 export type AddressName = keyof typeof addresses;
