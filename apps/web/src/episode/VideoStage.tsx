@@ -1,7 +1,10 @@
 import { Clock3 } from "lucide-react";
+import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useRef } from "react";
+import type { VoxelName } from "@/assets/voxels/names";
 import { duck, play } from "@/sound";
 import { Voxel } from "@/ui/Voxel";
+import { ClipTimeline, type SaidMark } from "./ClipTimeline";
 import { type StageMoment, stageCue } from "./cues";
 import { formatClock } from "./format";
 
@@ -10,14 +13,35 @@ type VideoStageProps = {
   poster?: string;
   /** Playback stage: shows LIVE and plays the clip. */
   live: boolean;
+  /** The clip has finished (episode closed or settled): the LIVE pill and the clock step down. */
+  ended?: boolean;
   /** Pre-roll: seconds until the clip starts. Live: seconds left in the clip. */
   secondsLeft?: number;
+  /** Clip length; with `live` and `secondsLeft` it draws the progress bar. */
+  durationSeconds?: number;
+  /** Words already SAID and when, as red dots on the progress bar. */
+  marks?: readonly SaidMark[];
   /** Overlay content above the frame, below the pills. */
   children?: ReactNode;
+  className?: string;
 };
 
-/** The 16:9 clip frame at the top of S3, full-bleed with an ink bottom edge. */
-export function VideoStage({ src, poster, live, secondsLeft, children }: VideoStageProps) {
+/**
+ * The 16:9 clip frame: full-bleed with an ink bottom edge on phones, a raised sticker frame from
+ * tablet up. LIVE pill and clock ride on top; pre-roll shows a big countdown; playback shows the
+ * progress bar with SAID dots. Plays `tick` in the last five pre-roll seconds and `start` on go.
+ */
+export function VideoStage({
+  src,
+  poster,
+  live,
+  ended = false,
+  secondsLeft,
+  durationSeconds,
+  marks,
+  children,
+  className,
+}: VideoStageProps) {
   const video = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -45,7 +69,7 @@ export function VideoStage({ src, poster, live, secondsLeft, children }: VideoSt
   return (
     <section
       aria-label="Clip"
-      className={`relative aspect-video w-full overflow-hidden border-b-2 border-ink ${src || poster ? "bg-ink" : "bg-card"}`}
+      className={`relative aspect-video w-full overflow-hidden border-b-2 border-ink md:rounded-card md:border-2 md:shadow-sticker-lg ${src || poster ? "bg-ink" : "bg-sky-tint"} ${className ?? ""}`}
     >
       {src ? (
         // biome-ignore lint/a11y/useMediaCaption: a caption track is the transcript, served ahead of playback it leaks every outcome (CLAUDE.md rule 2).
@@ -66,18 +90,25 @@ export function VideoStage({ src, poster, live, secondsLeft, children }: VideoSt
         <PosterStand live={live} />
       )}
       {children}
-      <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-        {live ? (
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-full border-2 border-ink bg-said px-2.5 text-[12px] font-bold leading-none tracking-[0.08em] text-ink shadow-sticker">
-            <span aria-hidden className="size-2 rounded-full bg-ink" />
+      {!live && secondsLeft !== undefined ? <PreRollCountdown secondsLeft={secondsLeft} /> : null}
+      <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 md:inset-x-4 md:top-4">
+        {ended ? (
+          <span className="inline-flex h-8 items-center rounded-full border-2 border-ink bg-card px-3 text-[12px] font-extrabold leading-none tracking-[0.12em] text-ink shadow-sticker">
+            CLIP ENDED
+          </span>
+        ) : live ? (
+          <span className="inline-flex h-8 items-center gap-2 rounded-full border-2 border-ink bg-said px-3 text-[13px] font-extrabold leading-none tracking-[0.12em] text-ink shadow-sticker">
+            <LiveDot />
             LIVE
           </span>
         ) : (
-          <span />
+          <span className="inline-flex h-8 items-center rounded-full border-2 border-ink bg-card px-3 text-[12px] font-extrabold leading-none tracking-[0.12em] text-ink shadow-sticker">
+            PRE-ROLL
+          </span>
         )}
-        {secondsLeft !== undefined ? (
+        {secondsLeft !== undefined && !ended ? (
           <span
-            className="tabular inline-flex h-7 items-center gap-1.5 rounded-full border-2 border-ink bg-card px-2.5 text-[13px] font-semibold leading-none text-ink shadow-sticker"
+            className="tabular inline-flex h-8 items-center gap-1.5 rounded-full border-2 border-ink bg-card px-3 text-[14px] font-bold leading-none text-ink shadow-sticker"
             role="timer"
             aria-label={
               live
@@ -85,27 +116,116 @@ export function VideoStage({ src, poster, live, secondsLeft, children }: VideoSt
                 : `Clip starts in ${formatClock(secondsLeft)}`
             }
           >
-            <Clock3 aria-hidden size={14} strokeWidth={2.5} />
-            {live ? formatClock(secondsLeft) : `Starts in ${formatClock(secondsLeft)}`}
+            <Clock3 aria-hidden size={15} strokeWidth={2.5} />
+            {live ? `${formatClock(secondsLeft)} left` : formatClock(secondsLeft)}
           </span>
         ) : null}
       </div>
+      {live && secondsLeft !== undefined && durationSeconds !== undefined ? (
+        <div className="absolute inset-x-3 bottom-3 md:inset-x-4 md:bottom-4">
+          <ClipTimeline
+            durationSeconds={durationSeconds}
+            secondsLeft={secondsLeft}
+            {...(marks ? { marks } : {})}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }
 
-/** No clip yet: a paper stage with voxel props instead of a fake video frame. */
-function PosterStand({ live }: { live: boolean }) {
+function LiveDot() {
+  const reduce = useReducedMotion() ?? false;
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-      <div className="relative flex items-end">
-        <Voxel name="music-blue" size={44} className="-mr-2 mb-1 -rotate-12" />
-        <Voxel name="computer" size={96} />
-        <Voxel name="star" size={40} className="-ml-3 mb-10 rotate-12" />
+    <span aria-hidden className="relative flex size-2.5">
+      {reduce ? null : (
+        <motion.span
+          className="absolute inset-0 rounded-full bg-ink"
+          animate={{ scale: [1, 2.2], opacity: [0.5, 0] }}
+          transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: "easeOut" }}
+        />
+      )}
+      <span className="relative size-2.5 rounded-full bg-ink" />
+    </span>
+  );
+}
+
+/** Big sticker countdown over the poster; the last five seconds pop in step with `tick`. */
+function PreRollCountdown({ secondsLeft }: { secondsLeft: number }) {
+  const reduce = useReducedMotion() ?? false;
+  const shown = Math.ceil(secondsLeft);
+  const final = shown <= 5 && shown > 0;
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="sticker flex -rotate-2 flex-col items-center px-5 pt-2 pb-3 shadow-sticker-lg md:px-8 md:pt-3 md:pb-4">
+        <span className="text-[11px] font-extrabold tracking-[0.12em] text-ink-soft md:text-[13px]">
+          CLIP STARTS IN
+        </span>
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={final ? shown : "clock"}
+            className="font-headline tabular text-[44px] leading-none md:text-[72px] lg:text-[88px]"
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.1 } }}
+            transition={{ type: "spring", duration: 0.35, bounce: 0.4 }}
+          >
+            {final ? shown : formatClock(secondsLeft)}
+          </motion.span>
+        </AnimatePresence>
+        <span className="mt-1 text-[12px] font-semibold text-ink-soft md:text-[14px]">
+          Pick YES or NO before it rolls
+        </span>
       </div>
-      <p className="text-sm font-medium text-ink-soft">
-        {live ? "Loading the clip…" : "The clip rolls when the countdown ends."}
-      </p>
+    </div>
+  );
+}
+
+const PROPS: readonly { name: VoxelName; className: string; size: number; delay: number }[] = [
+  { name: "music-blue", className: "left-[9%] top-[22%] w-[13%]", size: 128, delay: 0 },
+  { name: "star", className: "right-[10%] top-[16%] w-[14%]", size: 128, delay: 0.6 },
+  { name: "cd-player", className: "right-[16%] bottom-[18%] w-[12%]", size: 128, delay: 1.1 },
+  { name: "globe", className: "left-[15%] bottom-[16%] w-[11%]", size: 128, delay: 1.7 },
+];
+
+/** No clip yet: a studio backdrop with bobbing voxel props instead of a fake video frame. */
+function PosterStand({ live }: { live: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const visible = useInView(ref);
+  const reduce = useReducedMotion() ?? false;
+  const bob = !reduce && visible;
+  return (
+    <div
+      ref={ref}
+      className="absolute inset-0 bg-[radial-gradient(circle,rgb(79_82_232/0.16)_1.5px,transparent_1.6px)] bg-size-[18px_18px]"
+    >
+      {PROPS.map((prop) => (
+        <motion.span
+          key={prop.name}
+          className={`absolute block aspect-square ${prop.className}`}
+          animate={bob ? { y: [0, -8, 0], rotate: [-4, 4, -4] } : { y: 0, rotate: 0 }}
+          transition={
+            bob
+              ? {
+                  duration: 3.2,
+                  delay: prop.delay,
+                  repeat: Number.POSITIVE_INFINITY,
+                  ease: "easeInOut",
+                }
+              : { duration: 0.2 }
+          }
+        >
+          <Voxel name={prop.name} size={prop.size} className="size-full" />
+        </motion.span>
+      ))}
+      {live ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <Voxel name="computer" size={128} className="h-auto w-[26%] max-w-[180px]" />
+          <p className="rounded-full bg-card px-3 py-1 text-[13px] font-semibold text-ink-soft">
+            Loading the clip…
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -2,13 +2,20 @@ import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Largest font size (px, between `min` and `max`, in 0.5 px steps) at which the probe's text fits
- * the box's content width on one line. Measures at the candidate size itself because Bricolage's
- * optical-size axis makes small text relatively wider; a single scaled measurement overflows.
- * Re-measures on resize and once web fonts load, so the fallback face never decides the size.
+ * the box's content width on one line, and, with `heightShare`, no taller than that share of the
+ * box height so big desktop cards get big words without crowding short phone cards. Measures at
+ * the candidate size itself because kerning and hinting do not scale linearly; a single scaled
+ * measurement can overflow. Re-measures on resize and once web fonts load, so the fallback face
+ * never decides the size.
  */
 export function useFitText(
   text: string,
-  { min, max, inset }: { min: number; max: number; inset: number },
+  {
+    min,
+    max,
+    inset,
+    heightShare,
+  }: { min: number; max: number; inset: number; heightShare?: number },
 ): {
   size: number;
   boxRef: RefObject<HTMLElement | null>;
@@ -27,7 +34,8 @@ export function useFitText(
       // 2 % headroom absorbs sub-pixel rounding between the probe and the rendered word.
       const available = (box.clientWidth - inset * 2) * 0.98;
       if (available <= 0) return;
-      let candidate = max;
+      const tallest = heightShare === undefined ? max : box.clientHeight * heightShare;
+      let candidate = Math.max(min, Math.min(max, Math.floor(tallest * 2) / 2));
       for (let attempt = 0; attempt < 6 && candidate > min; attempt++) {
         probe.style.fontSize = `${candidate}px`;
         const width = probe.getBoundingClientRect().width;
@@ -51,7 +59,7 @@ export function useFitText(
       observer.disconnect();
       fonts.removeEventListener("loadingdone", measure);
     };
-  }, [text, min, max, inset]);
+  }, [text, min, max, inset, heightShare]);
 
   return { size, boxRef, probeRef };
 }

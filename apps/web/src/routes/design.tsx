@@ -1,12 +1,23 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
-import type { VoxelName } from "@/assets/voxels/names";
+import { SlidersHorizontal, X } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import type { SaidMark } from "@/episode/ClipTimeline";
 import { EpisodeHeader } from "@/episode/EpisodeHeader";
-import { PositionStrip } from "@/episode/PositionStrip";
+import { EpisodeLayout } from "@/episode/EpisodeLayout";
+import { type Holding, PositionStrip } from "@/episode/PositionStrip";
+import {
+  SAID_BID_CENTS,
+  type Side,
+  saleValueMicro,
+  sharesFromMicro,
+  sideCents,
+} from "@/episode/quote";
+import { ResultCard } from "@/episode/ResultCard";
+import { Ticket, type TicketStatus } from "@/episode/Ticket";
 import { VideoStage } from "@/episode/VideoStage";
 import { WordBoard } from "@/episode/WordBoard";
-import { WordCard, type WordCardProps, type WordState } from "@/episode/WordCard";
-import { Button } from "@/ui/Button";
+import { WordCard, type WordState } from "@/episode/WordCard";
 import { Voxel } from "@/ui/Voxel";
 
 export const Route = createFileRoute("/design")({
@@ -17,209 +28,595 @@ export const Route = createFileRoute("/design")({
 });
 
 // Specimen data for this dev-only page. Not an episode, not a transcript, not a flag plan.
-type SpecimenCard = Omit<WordCardProps, "onPress"> & { entryCents: number };
+type SpecimenWord = {
+  word: string;
+  priceCents: number;
+  state: WordState;
+  position?: { side: Side; shares: number };
+  /** What the specimen player paid for `position`, 6-decimal AUSD. */
+  costMicro: bigint;
+};
 
-const SPECIMEN_WORDS: readonly SpecimenCard[] = [
-  { word: "Championship", priceCents: 50, state: "open", entryCents: 50 },
+const WORDS: readonly SpecimenWord[] = [
+  { word: "Championship", priceCents: 50, state: "open", costMicro: 0n },
   {
     word: "Pressure",
     priceCents: 62,
     state: "open",
-    entryCents: 48,
     position: { side: "yes", shares: 40 },
+    costMicro: 19_200_000n,
   },
-  { word: "Legacy", priceCents: 41, state: "open", entryCents: 41 },
-  { word: "Fans", priceCents: 73, state: "open", entryCents: 73 },
+  { word: "Legacy", priceCents: 41, state: "open", costMicro: 0n },
+  { word: "Fans", priceCents: 73, state: "open", costMicro: 0n },
   {
     word: "Extraordinary",
     priceCents: 28,
     state: "open",
-    entryCents: 64,
     position: { side: "no", shares: 25 },
+    costMicro: 9_000_000n,
   },
-  { word: "Trophy", priceCents: 55, state: "open", entryCents: 55 },
+  { word: "Trophy", priceCents: 55, state: "open", costMicro: 0n },
 ];
 
-const SAID_BID_CENTS = 98;
-const MICRO_PER_CENT = 10_000n;
+const START_BALANCE = 124_500_000n;
+const CLIP_SECONDS = 184;
+const PREROLL_SECONDS = 9;
+const RIBBON_PX = 30;
+const SEND_MS = 750;
+const CLOSE_MS = 900;
 
-const MARGIN_STICKERS: readonly { name: VoxelName; size: number; className: string }[] = [
-  { name: "star", size: 112, className: "left-[7%] top-[12%] -rotate-12" },
-  { name: "music-red", size: 96, className: "left-[14%] top-[46%] rotate-6" },
-  { name: "money-1", size: 104, className: "left-[6%] bottom-[10%] -rotate-6" },
-  { name: "game-console", size: 112, className: "right-[8%] top-[16%] rotate-12" },
-  { name: "zap", size: 88, className: "right-[15%] top-[52%] -rotate-12" },
-  { name: "red-alien", size: 104, className: "right-[6%] bottom-[12%] rotate-6" },
-];
+type Phase = "preroll" | "live" | "settled";
+type OpenTicket = { word: string; status: TicketStatus };
 
 function DesignSpecimen() {
-  const [cards, setCards] = useState<readonly SpecimenCard[]>(SPECIMEN_WORDS);
-  const [live, setLive] = useState(true);
+  const [words, setWords] = useState<readonly SpecimenWord[]>(WORDS);
+  const [balance, setBalance] = useState(START_BALANCE);
+  const [phase, setPhase] = useState<Phase>("live");
+  const [secondsLeft, setSecondsLeft] = useState(CLIP_SECONDS - 47);
+  const [marks, setMarks] = useState<readonly SaidMark[]>([]);
+  const [ticket, setTicket] = useState<OpenTicket | null>(null);
+  const [result, setResult] = useState<{
+    change: bigint;
+    redeem: bigint;
+    called: number;
+    traded: number;
+  } | null>(null);
+  const timers = useRef(new Set<number>());
 
-  const update = (word: string, next: (card: SpecimenCard) => SpecimenCard) =>
-    setCards((all) => all.map((card) => (card.word === word ? next(card) : card)));
+  const later = useCallback((ms: number, run: () => void) => {
+    const id = window.setTimeout(() => {
+      timers.current.delete(id);
+      run();
+    }, ms);
+    timers.current.add(id);
+  }, []);
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const id of pending) clearTimeout(id);
+    };
+  }, []);
 
-  const say = (word: string) =>
-    update(word, (card) =>
-      card.state === "open" ? { ...card, state: "said", priceCents: SAID_BID_CENTS } : card,
-    );
+  // The specimen clock: pre-roll counts down into playback; playback counts down to the end.
+  useEffect(() => {
+    if (phase === "settled") return;
+    const id = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s > 1) return s - 1;
+        if (phase === "preroll") {
+          setPhase("live");
+          return CLIP_SECONDS;
+        }
+        return 0;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase]);
 
-  const settle = () =>
-    setCards((all) =>
-      all.map((card) =>
-        card.state === "said"
-          ? { ...card, state: "yes", priceCents: 100 }
-          : card.state === "open"
-            ? { ...card, state: "no", priceCents: 0 }
-            : card,
-      ),
-    );
+  const update = (word: string, next: (w: SpecimenWord) => SpecimenWord) =>
+    setWords((all) => all.map((w) => (w.word === word ? next(w) : w)));
 
-  const nudgePrices = () =>
-    setCards((all) =>
-      all.map((card) => {
-        if (card.state !== "open") return card;
-        const step = Math.round(Math.random() * 16) - 8 || 3;
-        return { ...card, priceCents: Math.min(97, Math.max(3, card.priceCents + step)) };
+  const say = (word: string) => {
+    const target = words.find((w) => w.word === word);
+    if (target?.state !== "open") return;
+    update(word, (w) => ({ ...w, state: "said", priceCents: SAID_BID_CENTS }));
+    if (phase === "live") {
+      setMarks((all) => [...all, { word, atSeconds: CLIP_SECONDS - secondsLeft }]);
+    }
+  };
+
+  const movePrices = () =>
+    setWords((all) =>
+      all.map((w) => {
+        if (w.state !== "open") return w;
+        const step = Math.round(Math.random() * 14) - 7 || 4;
+        return { ...w, priceCents: Math.min(96, Math.max(4, w.priceCents + step)) };
       }),
     );
 
-  const held = cards.filter((card) => card.position);
-  const costMicro = sumMicro(held, (card) => sideCents(card, card.entryCents));
-  const valueMicro = sumMicro(held, (card) => sideCents(card, card.priceCents));
+  const settle = () => {
+    setTicket(null);
+    setPhase("settled");
+    const settled = words.map(
+      (w): SpecimenWord =>
+        w.state === "said"
+          ? { ...w, state: "yes", priceCents: 100 }
+          : w.state === "open"
+            ? { ...w, state: "no", priceCents: 0 }
+            : w,
+    );
+    setWords(settled);
+    const held = settled.filter((w) => w.position);
+    const redeem = held.reduce(
+      (sum, w) =>
+        sum +
+        saleValueMicro(w.position?.shares ?? 0, sideCents(w.position?.side ?? "yes", w.priceCents)),
+      0n,
+    );
+    const cost = held.reduce((sum, w) => sum + w.costMicro, 0n);
+    const called = held.filter((w) => (w.position?.side === "yes") === (w.state === "yes")).length;
+    later(1100, () => setResult({ change: redeem - cost, redeem, called, traded: held.length }));
+  };
+
+  const openTicket = (word: string) => setTicket({ word, status: "idle" });
+
+  const buy = (word: string, side: Side, amountMicro: bigint, sharesMicro: bigint) => {
+    setTicket({ word, status: "sending" });
+    later(SEND_MS, () => {
+      setTicket({ word, status: "filled" });
+      setBalance((b) => b - amountMicro);
+      update(word, (w) => {
+        const shares = sharesFromMicro(sharesMicro);
+        const same = w.position?.side === side;
+        return {
+          ...w,
+          position: { side, shares: (same ? (w.position?.shares ?? 0) : 0) + shares },
+          costMicro: (same ? w.costMicro : 0n) + amountMicro,
+        };
+      });
+      later(CLOSE_MS, () => setTicket((t) => (t?.word === word ? null : t)));
+    });
+  };
+
+  const cashOut = (word: string) => {
+    const target = words.find((w) => w.word === word);
+    if (!target?.position) return;
+    const value = saleValueMicro(target.position.shares, SAID_BID_CENTS);
+    setTicket({ word, status: "sending" });
+    later(SEND_MS, () => {
+      setTicket({ word, status: "filled" });
+      // The balance counts up as the coins land.
+      later(520, () => {
+        setBalance((b) => b + value);
+        update(word, ({ position: _held, ...rest }) => ({ ...rest, costMicro: 0n }));
+      });
+      later(CLOSE_MS, () => setTicket((t) => (t?.word === word ? null : t)));
+    });
+  };
+
+  /** Cash out from a cold start: flip a held word to SAID, then open its cash-out ticket. */
+  const demoCashOut = () => {
+    const held = words.find(
+      (w) => w.position?.side === "yes" && w.state !== "yes" && w.state !== "no",
+    );
+    if (!held) return;
+    if (held.state === "open") say(held.word);
+    later(held.state === "open" ? 900 : 0, () => openTicket(held.word));
+  };
+
+  const reset = () => {
+    for (const id of timers.current) clearTimeout(id);
+    timers.current.clear();
+    setWords(WORDS);
+    setBalance(START_BALANCE);
+    setPhase("live");
+    setSecondsLeft(CLIP_SECONDS - 47);
+    setMarks([]);
+    setTicket(null);
+    setResult(null);
+  };
+
+  const held = words.filter((w) => w.position);
+  const holdings: Holding[] = held.flatMap((w) =>
+    w.position ? [{ word: w.word, ...w.position }] : [],
+  );
+  const costMicro = held.reduce((sum, w) => sum + w.costMicro, 0n);
+  const valueMicro = held.reduce(
+    (sum, w) =>
+      sum +
+      saleValueMicro(w.position?.shares ?? 0, sideCents(w.position?.side ?? "yes", w.priceCents)),
+    0n,
+  );
+  const ticketWord = ticket ? (words.find((w) => w.word === ticket.word) ?? null) : null;
+  const live = phase !== "preroll";
 
   return (
-    <div className="relative min-h-dvh bg-paper">
-      <div aria-hidden className="pointer-events-none hidden lg:block">
-        {MARGIN_STICKERS.map((sticker) => (
-          <Voxel
-            key={sticker.name}
-            name={sticker.name}
-            size={sticker.size}
-            className={`fixed ${sticker.className}`}
+    <div className="bg-paper">
+      <p
+        className="flex items-center justify-center gap-2 bg-ink text-[11px] font-extrabold uppercase tracking-[0.14em] text-sun"
+        style={{ height: RIBBON_PX }}
+      >
+        Dev specimen · sample words, not an episode
+      </p>
+      <EpisodeLayout
+        desktopHeight={`calc(100dvh - ${RIBBON_PX}px)`}
+        header={
+          <EpisodeHeader
+            episode="Episode 14 · Replay"
+            title="Cup final presser"
+            balanceMicro={balance}
           />
-        ))}
-      </div>
-
-      <main className="relative mx-auto min-h-dvh w-full max-w-[430px] bg-paper pb-10 lg:border-x-2 lg:border-ink">
-        <p className="bg-ink px-4 py-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-paper">
-          Design specimen · sample words · dev only
-        </p>
-
-        <EpisodeHeader episode="Episode 14" title="Cup final presser" balanceMicro={124_500_000n} />
-        <VideoStage live={live} secondsLeft={live ? 133 : 42} />
-        <div className="flex flex-col gap-3 px-4 pt-4">
+        }
+        stage={
+          <VideoStage
+            live={live}
+            ended={phase === "settled"}
+            secondsLeft={phase === "settled" ? 0 : secondsLeft}
+            durationSeconds={CLIP_SECONDS}
+            marks={marks}
+          >
+            {live ? <SpecimenClip talking={phase === "live"} /> : null}
+          </VideoStage>
+        }
+        board={
           <WordBoard
-            words={cards.map(({ entryCents: _entry, ...card }) => ({
-              ...card,
-              ...(card.state === "open" ? { onPress: () => say(card.word) } : {}),
+            variant="episode"
+            words={words.map(({ costMicro: _cost, ...w }) => ({
+              ...w,
+              selected: ticket?.word === w.word,
+              ...(w.state === "open" || w.state === "said"
+                ? { onPress: () => openTicket(w.word) }
+                : {}),
             }))}
           />
-          <PositionStrip words={held.length} costMicro={costMicro} valueMicro={valueMicro} />
-        </div>
+        }
+        position={
+          <PositionStrip holdings={holdings} costMicro={costMicro} valueMicro={valueMicro} />
+        }
+        ticketWord={ticket?.word ?? null}
+        renderTicket={(layout) =>
+          ticketWord && ticket ? (
+            <Ticket
+              key={ticketWord.word}
+              layout={layout}
+              word={ticketWord.word}
+              state={ticketWord.state}
+              yesCents={ticketWord.priceCents}
+              balanceMicro={balance}
+              status={ticket.status}
+              {...(ticketWord.position ? { position: ticketWord.position } : {})}
+              onClose={() => setTicket(null)}
+              onConfirm={({ side, amountMicro }) => {
+                const price = BigInt(sideCents(side, ticketWord.priceCents));
+                buy(ticketWord.word, side, amountMicro, (amountMicro * 100n) / price);
+              }}
+              onCashOut={() => cashOut(ticketWord.word)}
+            />
+          ) : null
+        }
+        onTicketClose={() => setTicket(null)}
+      />
 
-        <Section title="Controls" note="Tap a card above or a word below to flip it to SAID.">
-          <div className="flex flex-wrap gap-2">
-            {cards.map((card) => (
-              <Button
-                key={card.word}
-                variant="secondary"
-                disabled={card.state !== "open"}
-                onClick={() => say(card.word)}
-              >
-                {card.word}
-              </Button>
+      <Gallery />
+
+      <Controls
+        words={words}
+        phase={phase}
+        onSay={say}
+        onMove={movePrices}
+        onPhase={() => {
+          if (phase === "preroll") {
+            setPhase("live");
+            setSecondsLeft(CLIP_SECONDS - 47);
+          } else {
+            setPhase("preroll");
+            setSecondsLeft(PREROLL_SECONDS);
+          }
+        }}
+        onSettle={settle}
+        onCashOut={demoCashOut}
+        onTicket={() => {
+          const open = words.find((w) => w.state === "open");
+          if (open) openTicket(open.word);
+        }}
+        onReset={reset}
+        onResult={(win) =>
+          setResult(
+            win
+              ? { change: 6_400_000n, redeem: 46_400_000n, called: 2, traded: 3 }
+              : { change: -2_100_000n, redeem: 0n, called: 0, traded: 1 },
+          )
+        }
+      />
+
+      {result ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Episode result"
+          className="fixed inset-0 z-[65] flex items-center justify-center px-6"
+        >
+          <button
+            type="button"
+            aria-label="Close result"
+            className="absolute inset-0 bg-ink/45"
+            onClick={() => setResult(null)}
+          />
+          <div className="relative w-full max-w-[440px]">
+            <ResultCard
+              announce
+              changeMicro={result.change}
+              called={result.called}
+              traded={result.traded}
+              redeemMicro={result.redeem}
+              onRedeem={() => {
+                setBalance((b) => b + result.redeem);
+                setResult(null);
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A stand-in for the clip: a voxel speaker with a talking bubble. Specimen only. */
+function SpecimenClip({ talking }: { talking: boolean }) {
+  const reduce = useReducedMotion() ?? false;
+  const bars = [0.5, 0.9, 0.6, 1, 0.7, 0.4, 0.8];
+  return (
+    <div className="absolute inset-0 flex items-center justify-center gap-[4%] bg-[radial-gradient(circle,rgb(79_82_232/0.16)_1.5px,transparent_1.6px)] bg-sky-tint bg-size-[18px_18px]">
+      <span className="absolute top-[13%] left-1/2 -translate-x-1/2 rounded-full bg-ink px-2.5 py-1 text-[10px] font-extrabold tracking-[0.14em] text-paper md:text-[11px]">
+        SAMPLE CLIP
+      </span>
+      <Voxel name="smiley-face" size={256} className="h-auto w-[24%] max-w-[220px]" />
+      <div className="sticker relative flex h-[22%] w-[30%] items-center justify-center gap-[6%] rounded-[999px] px-[4%]">
+        {bars.map((height, i) => (
+          <motion.span
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed decorative bars.
+            key={i}
+            className="block w-[7%] rounded-full bg-ink"
+            style={{ height: `${height * 60}%` }}
+            animate={talking && !reduce ? { scaleY: [1, 0.35, 1.1, 0.6, 1] } : { scaleY: 1 }}
+            transition={
+              talking && !reduce
+                ? {
+                    duration: 0.9,
+                    delay: i * 0.08,
+                    repeat: Number.POSITIVE_INFINITY,
+                    ease: "easeInOut",
+                  }
+                : { duration: 0.2 }
+            }
+          />
+        ))}
+        <span className="absolute -bottom-[14%] left-[10%] block size-[18%] rotate-45 border-r-2 border-b-2 border-ink bg-card" />
+      </div>
+    </div>
+  );
+}
+
+function Controls({
+  words,
+  phase,
+  onSay,
+  onMove,
+  onPhase,
+  onSettle,
+  onCashOut,
+  onTicket,
+  onResult,
+  onReset,
+}: {
+  words: readonly SpecimenWord[];
+  phase: Phase;
+  onSay: (word: string) => void;
+  onMove: () => void;
+  onPhase: () => void;
+  onSettle: () => void;
+  onCashOut: () => void;
+  onTicket: () => void;
+  onResult: (win: boolean) => void;
+  onReset: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="fixed bottom-3 left-3 z-[45] flex max-w-[calc(100vw-24px)] flex-col items-start gap-2">
+      {open ? (
+        <div className="sticker flex w-[340px] max-w-full flex-col gap-3 p-3 shadow-sticker-lg">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-ink-soft">
+              Flip a word to SAID
+            </p>
+            <button
+              type="button"
+              aria-label="Hide controls"
+              onClick={() => setOpen(false)}
+              className="inline-flex size-9 items-center justify-center rounded-full hover:bg-line"
+            >
+              <X aria-hidden size={18} />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {words.map((w) => (
+              <Chip key={w.word} disabled={w.state !== "open"} onClick={() => onSay(w.word)}>
+                {w.word}
+              </Chip>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={settle}>Settle all</Button>
-            <Button variant="secondary" onClick={nudgePrices}>
+          <div className="flex flex-wrap gap-1.5 border-t-2 border-line pt-3">
+            <Chip onClick={onMove} disabled={phase === "settled"}>
               Move prices
-            </Button>
-            <Button variant="secondary" onClick={() => setLive((value) => !value)}>
-              {live ? "Show pre-roll" : "Go live"}
-            </Button>
-            <Button variant="secondary" onClick={() => setCards(SPECIMEN_WORDS)}>
-              Reset
-            </Button>
+            </Chip>
+            <Chip onClick={onPhase} disabled={phase === "settled"}>
+              {phase === "preroll" ? "Go live" : "Pre-roll"}
+            </Chip>
+            <Chip onClick={onTicket} disabled={phase === "settled"}>
+              Open ticket
+            </Chip>
+            <Chip onClick={onCashOut} disabled={phase === "settled"}>
+              Cash out
+            </Chip>
+            <Chip onClick={onSettle} disabled={phase === "settled"}>
+              Settle
+            </Chip>
+            <Chip onClick={() => onResult(true)}>Win result</Chip>
+            <Chip onClick={() => onResult(false)}>Lose result</Chip>
+            <Chip onClick={onReset}>Reset</Chip>
           </div>
-        </Section>
-
-        <Section title="Every state" note="Static cards, plus long words at their fitted size.">
-          <StateGrid />
-        </Section>
-      </main>
+        </div>
+      ) : null}
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="sticker pressable inline-flex h-11 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-extrabold uppercase tracking-[0.12em] text-sun"
+      >
+        <SlidersHorizontal aria-hidden size={16} />
+        Dev specimen
+      </button>
     </div>
+  );
+}
+
+function Chip({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="pressable h-11 rounded-full border-2 border-ink bg-card px-3.5 text-[13px] font-bold shadow-[0_2px_0_var(--color-ink)] disabled:opacity-35"
+    >
+      {children}
+    </button>
   );
 }
 
 const STATES: readonly WordState[] = ["open", "said", "yes", "no"];
 
-function StateGrid() {
+function priceFor(state: WordState, open: number): number {
+  return state === "said" ? SAID_BID_CENTS : state === "yes" ? 100 : state === "no" ? 0 : open;
+}
+
+/** Static references below the live composition: every card state, ticket states, results. */
+function Gallery() {
   const [replay, setReplay] = useState<WordState>("said");
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3">
-        {STATES.map((state) => (
-          <WordCard key={state} word="Goal" priceCents={priceFor(state, 62)} state={state} />
-        ))}
-        {STATES.map((state) => (
-          <WordCard
-            key={`held-${state}`}
-            word="Extraordinary"
-            priceCents={priceFor(state, 28)}
-            state={state}
-            position={{ side: "yes", shares: 12.5 }}
-          />
-        ))}
-        <WordCard word="Championship" priceCents={priceFor(replay, 50)} state={replay} />
-        <WordCard
-          word="Unbelievable"
-          priceCents={priceFor(replay, 9)}
-          state={replay}
-          position={{ side: "no", shares: 1_250 }}
-        />
-      </div>
-      <Button
-        variant="secondary"
-        className="self-start"
-        onClick={() => {
-          setReplay("open");
-          // Two frames of OPEN first so the replayed flip starts from a painted face.
-          requestAnimationFrame(() => requestAnimationFrame(() => setReplay("said")));
-        }}
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-14 px-4 pt-14 pb-28 md:px-8 xl:px-12">
+      <Section
+        title="Every card state"
+        note="Open, SAID, settled YES, settled NO; short and long words, held and not."
       >
-        Replay flip
-      </Button>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-5 md:grid-cols-4 [&>*]:h-[132px] lg:[&>*]:h-[188px]">
+          {STATES.map((state) => (
+            <WordCard key={state} word="Goal" priceCents={priceFor(state, 62)} state={state} />
+          ))}
+          {STATES.map((state) => (
+            <WordCard
+              key={`held-${state}`}
+              word="Extraordinary"
+              priceCents={priceFor(state, 28)}
+              state={state}
+              position={{ side: "yes", shares: 12.5 }}
+            />
+          ))}
+          <WordCard word="Championship" priceCents={priceFor(replay, 50)} state={replay} />
+          <WordCard
+            word="Unbelievable"
+            priceCents={priceFor(replay, 9)}
+            state={replay}
+            position={{ side: "no", shares: 1_250 }}
+          />
+        </div>
+        <Chip
+          onClick={() => {
+            setReplay("open");
+            // Two frames of OPEN first so the replayed flip starts from a painted face.
+            requestAnimationFrame(() => requestAnimationFrame(() => setReplay("said")));
+          }}
+        >
+          Replay flip
+        </Chip>
+      </Section>
+
+      <Section
+        title="Ticket"
+        note="Buy, sending, filled and cash out; phone sheet body and desktop dock body."
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Frame label="Sheet · buy">
+            <Ticket word="Pressure" state="open" yesCents={62} balanceMicro={START_BALANCE} />
+          </Frame>
+          <Frame label="Sheet · cash out">
+            <Ticket
+              word="Pressure"
+              state="said"
+              yesCents={98}
+              position={{ side: "yes", shares: 40 }}
+            />
+          </Frame>
+          <Frame label="Dock · sending" dock>
+            <Ticket
+              word="Legacy"
+              state="open"
+              yesCents={41}
+              status="sending"
+              layout="dock"
+              initialSide="no"
+            />
+          </Frame>
+          <Frame label="Dock · filled" dock>
+            <Ticket word="Legacy" state="open" yesCents={41} status="filled" layout="dock" />
+          </Frame>
+        </div>
+      </Section>
+
+      <Section title="Result" note="End-of-episode card: win in sun with stickers, loss neutral.">
+        <div className="grid gap-16 py-8 md:grid-cols-2">
+          <ResultCard changeMicro={6_400_000n} called={2} traded={3} redeemMicro={46_400_000n} />
+          <ResultCard changeMicro={-2_100_000n} called={0} traded={1} redeemMicro={0n} />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function Frame({ label, dock, children }: { label: string; dock?: boolean; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-ink-soft">
+        {label}
+      </p>
+      <div
+        className={
+          dock
+            ? "sticker relative h-[270px] p-5 shadow-sticker-lg"
+            : "rounded-t-sheet border-2 border-b-0 border-ink bg-card px-4 pt-4 pb-5"
+        }
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
 function Section({ title, note, children }: { title: string; note: string; children: ReactNode }) {
   return (
-    <section className="mt-8 flex flex-col gap-3 border-t-2 border-ink px-4 pt-5">
-      <div>
-        <h2 className="font-display-wide text-2xl">{title}</h2>
-        <p className="text-sm text-ink-soft">{note}</p>
+    <section className="flex flex-col gap-5">
+      <div className="border-t-2 border-ink pt-5">
+        <h2 className="font-headline text-[32px] leading-none md:text-[44px]">{title}</h2>
+        <p className="mt-2 text-[15px] text-ink-soft">{note}</p>
       </div>
       {children}
     </section>
-  );
-}
-
-function priceFor(state: WordState, open: number): number {
-  return state === "said" ? SAID_BID_CENTS : state === "yes" ? 100 : state === "no" ? 0 : open;
-}
-
-/** Cents of the held side: YES is worth the price, NO is worth its complement. */
-function sideCents(card: SpecimenCard, yesCents: number): number {
-  return card.position?.side === "no" ? 100 - yesCents : yesCents;
-}
-
-function sumMicro(cards: readonly SpecimenCard[], cents: (card: SpecimenCard) => number): bigint {
-  return cards.reduce(
-    (total, card) =>
-      total + BigInt(Math.round(cents(card) * (card.position?.shares ?? 0))) * MICRO_PER_CENT,
-    0n,
   );
 }
