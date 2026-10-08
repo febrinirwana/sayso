@@ -14,6 +14,9 @@ export type PositionStripProps = {
   /** What they are worth at current prices, 6-decimal AUSD units. */
   valueMicro: bigint;
   className?: string;
+  costKnown?: boolean;
+  valueKnown?: boolean;
+  loading?: boolean;
 };
 
 /**
@@ -21,7 +24,15 @@ export type PositionStripProps = {
  * one chip per held word. Lays itself out by its own width, so it reads as a strip on phones and
  * as a compact card in the desktop dock, where it stretches to match the ticket alongside it.
  */
-export function PositionStrip({ holdings, costMicro, valueMicro, className }: PositionStripProps) {
+export function PositionStrip({
+  holdings,
+  costMicro,
+  valueMicro,
+  className,
+  costKnown = true,
+  valueKnown = true,
+  loading = false,
+}: PositionStripProps) {
   if (holdings.length === 0) {
     return (
       <section
@@ -31,8 +42,12 @@ export function PositionStrip({ holdings, costMicro, valueMicro, className }: Po
         <div className="flex w-full items-center gap-3 @min-[300px]:gap-4 @max-[299px]:flex-col @max-[299px]:text-center">
           <Voxel name="mystery-box" size={64} className="size-14 shrink-0 -rotate-6" />
           <div className="min-w-0 flex-1">
-            <p className="font-headline text-[17px] leading-6">No position yet</p>
-            <p className="text-[14px] leading-5 text-ink-soft">Tap a word to pick YES or NO.</p>
+            <p className="font-headline text-[17px] leading-6">
+              {loading ? "Reading your position…" : "No position yet"}
+            </p>
+            <p className="text-[14px] leading-5 text-ink-soft">
+              {loading ? "Balances come from the chain." : "Tap a word to pick YES or NO."}
+            </p>
           </div>
           <TestnetPill />
         </div>
@@ -52,29 +67,33 @@ export function PositionStrip({ holdings, costMicro, valueMicro, className }: Po
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <p className="flex items-center gap-2">
           <span className="flex items-baseline gap-1.5">
-            <RollingAusd
-              micro={valueMicro}
-              className="font-headline tabular text-[30px] leading-none @min-[420px]:text-[36px]"
-            />
+            {valueKnown ? (
+              <RollingAusd
+                micro={valueMicro}
+                className="font-headline tabular text-[30px] leading-none @min-[420px]:text-[36px]"
+              />
+            ) : (
+              <span className="font-headline text-[30px]">–</span>
+            )}
             <span className="text-[13px] font-bold text-ink-soft">AUSD</span>
           </span>
           <TestnetPill />
         </p>
         <p className="flex items-center gap-2 text-[13px] leading-5">
           <span className="tabular text-ink-soft">
-            Cost <RollingAusd micro={costMicro} />
+            Cost {costKnown ? <RollingAusd micro={costMicro} /> : "unavailable"}
           </span>
           <span
             className={`tabular inline-flex h-7 items-center rounded-full px-2.5 text-[13px] font-bold ${change > 0n ? "bg-gain-tint text-gain" : "bg-line/70 text-ink-soft"}`}
           >
-            {formatAusdChange(change)}
+            {costKnown && valueKnown ? formatAusdChange(change) : "Awaiting data"}
           </span>
         </p>
       </div>
       <ul className="flex flex-wrap gap-1.5" aria-label="Held words">
         {holdings.map((holding) => (
           <li
-            key={holding.word}
+            key={`${holding.word}-${holding.side}`}
             className="tabular inline-flex h-7 items-center gap-1.5 rounded-full border-2 border-ink bg-paper pr-2.5 pl-1 text-[12px] leading-none"
           >
             <span

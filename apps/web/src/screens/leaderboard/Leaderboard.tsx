@@ -11,7 +11,9 @@ export type LeaderboardProps = {
   you: LeaderboardEntry | null;
 };
 export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: LeaderboardProps) {
-  const podium = leaders.filter((entry) => entry.rank <= 3).sort((a, b) => a.rank - b.rank);
+  const podium = leaders
+    .filter((entry) => entry.rank > 0 && entry.rank <= 3)
+    .sort((a, b) => a.rank - b.rank);
   return (
     <div className="pb-6">
       <RecordHeading
@@ -141,7 +143,7 @@ function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }
       className={`grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-2 px-4 py-4 sm:grid-cols-[40px_minmax(0,1fr)_120px_48px_40px] sm:px-6 ${isYou ? "bg-sky-tint/50" : ""}`}
     >
       <span className="font-headline text-lg tabular">
-        {entry.rank.toString().padStart(2, "0")}
+        {entry.rank === 0 ? "—" : entry.rank.toString().padStart(2, "0")}
       </span>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Voxel name={entry.avatar} size={36} className="shrink-0 rounded-lg bg-paper p-1" />

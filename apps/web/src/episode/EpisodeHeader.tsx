@@ -11,7 +11,7 @@ export type EpisodeHeaderProps = {
   /** Clip title as curated. */
   title: string;
   /** Player AUSD balance in 6-decimal units; undefined while it loads. Counts when it changes. */
-  balanceMicro?: bigint;
+  balanceMicro?: bigint | undefined;
 };
 
 /**

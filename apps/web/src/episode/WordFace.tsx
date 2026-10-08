@@ -11,6 +11,7 @@ const faceTone: Record<WordState, string> = {
   said: "bg-said text-ink",
   yes: "bg-gain-tint text-ink",
   no: "bg-paper text-ink-soft",
+  void: "bg-paper text-ink-soft",
 };
 
 const hingeTone: Record<WordState, string> = {
@@ -18,11 +19,13 @@ const hingeTone: Record<WordState, string> = {
   said: "bg-ink/20",
   yes: "bg-gain/15",
   no: "bg-line",
+  void: "bg-line",
 };
 
 type WordFaceProps = {
   word: string;
   priceCents: number;
+  priceAvailable?: boolean;
   state: WordState;
   fontSize: number;
   /** Set when this face is arriving through a settle; delays the YES stamp to the card's wave slot. */
@@ -34,7 +37,14 @@ type WordFaceProps = {
  * chance meter that fills to the price; the bottom half holds only the word, so the split-flap
  * seam never cuts through a glyph. Sizes follow the card's own width (container queries).
  */
-export function WordFace({ word, priceCents, state, fontSize, settleDelay }: WordFaceProps) {
+export function WordFace({
+  word,
+  priceCents,
+  priceAvailable = true,
+  state,
+  fontSize,
+  settleDelay,
+}: WordFaceProps) {
   return (
     <span className={`absolute inset-0 block ${faceTone[state]}`}>
       {/* The split-flap hinge, visible at rest so the flip has somewhere to happen. */}
@@ -45,10 +55,14 @@ export function WordFace({ word, priceCents, state, fontSize, settleDelay }: Wor
       >
         <span className="flex items-start justify-between gap-2">
           <span className="flex items-baseline gap-1.5">
-            <RollingCents
-              cents={priceCents}
-              className={`font-headline tabular text-[24px] leading-none @min-[200px]:text-[32px] @min-[260px]:text-[38px] ${state === "yes" ? "text-gain" : ""}`}
-            />
+            {priceAvailable ? (
+              <RollingCents
+                cents={priceCents}
+                className={`font-headline tabular text-[24px] leading-none @min-[200px]:text-[32px] @min-[260px]:text-[38px] ${state === "yes" ? "text-gain" : ""}`}
+              />
+            ) : (
+              <span className="font-headline text-[24px]">–</span>
+            )}
             {state === "open" ? (
               <span className="text-[11px] font-bold leading-none tracking-[0.08em] text-ink-soft @min-[200px]:text-[12px]">
                 YES
@@ -91,10 +105,10 @@ function StateTag({ state, settleDelay }: { state: WordState; settleDelay: numbe
       </span>
     );
   }
-  if (state === "no") {
+  if (state === "no" || state === "void") {
     return (
       <span className="inline-flex h-7 shrink-0 items-center rounded-full border-2 border-no px-2.5 text-[12px] font-bold leading-none tracking-[0.1em]">
-        NO
+        {state === "void" ? "VOID" : "NO"}
       </span>
     );
   }

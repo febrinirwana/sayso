@@ -2,6 +2,12 @@ import type { Hash } from "viem";
 import type { TxRequest } from "./types";
 
 export type Send = (tx: TxRequest) => Promise<Hash>;
+/** A mined transaction that reverted; `hash` links the failure on the explorer. */
+export class TransactionRevertedError extends Error {
+  constructor(readonly hash: Hash) {
+    super("TRANSACTION_REVERTED");
+  }
+}
 type SendClient = {
   broadcast(tx: TxRequest): Promise<Hash>;
   waitForTransactionReceipt(request: { hash: Hash }): Promise<{
@@ -22,7 +28,7 @@ export function createSendQueue(client: SendClient): Send {
       while ((await client.getBlockNumber()) <= receipt.blockNumber) {
         await new Promise<void>((resolve) => setTimeout(resolve, 500));
       }
-      if (receipt.status === "reverted") throw new Error("TRANSACTION_REVERTED");
+      if (receipt.status === "reverted") throw new TransactionRevertedError(hash);
       return hash;
     });
     queue = result.catch(() => undefined);

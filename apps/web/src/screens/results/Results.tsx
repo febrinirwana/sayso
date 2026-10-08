@@ -19,6 +19,11 @@ export type ResultsProps = {
   onPlayNext: () => void;
   /** Used by the proof specimen, not required by real callers. */
   expandedWordId?: string | undefined;
+  onProofOpen?: ((wordId: string) => void) | undefined;
+  onRedeemWord?: ((wordId: string) => void) | undefined;
+  redeemableByWord?: Readonly<Record<string, bigint>>;
+  accountingUnavailable?: boolean;
+  balancesUnavailable?: boolean;
 };
 
 export function Results({
@@ -31,14 +36,19 @@ export function Results({
   onRedeem,
   onPlayNext,
   expandedWordId,
+  onProofOpen,
+  onRedeemWord,
+  redeemableByWord = {},
+  accountingUnavailable = false,
+  balancesUnavailable = false,
 }: ResultsProps) {
   const reduce = useReducedMotion();
   const sounded = useRef<string | null>(null);
   useEffect(() => {
-    if (state === "settling" || sounded.current === episodeId) return;
+    if (accountingUnavailable || state === "settling" || sounded.current === episodeId) return;
     sounded.current = episodeId;
     play(profit > 0n ? "win" : "lose");
-  }, [episodeId, state, profit]);
+  }, [episodeId, state, profit, accountingUnavailable]);
   const winning = profit > 0n;
   const pending = words.filter(
     (word) => word.state === "Open" || word.state === "SaidPending",
@@ -76,17 +86,23 @@ export function Results({
                   ? "You listened. You called it. Here’s how your words played out."
                   : "Some words went the other way. Every call has a receipt — and there’s always another episode."}
             </p>
-            {state !== "settling" && (
-              <div className="mt-7">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-soft">
-                  Your episode profit / loss
-                </p>
-                <Money
-                  value={profit}
-                  signed
-                  className={`font-headline text-[clamp(34px,4vw,60px)] leading-tight ${winning ? "text-gain" : "text-ink"}`}
-                />
-              </div>
+            {accountingUnavailable ? (
+              <p className="mt-7 text-sm text-ink-soft">
+                Profit / loss unavailable: Envio is offline.
+              </p>
+            ) : (
+              state !== "settling" && (
+                <div className="mt-7">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                    Your episode profit / loss
+                  </p>
+                  <Money
+                    value={profit}
+                    signed
+                    className={`font-headline text-[clamp(34px,4vw,60px)] leading-tight ${winning ? "text-gain" : "text-ink"}`}
+                  />
+                </div>
+              )
             )}
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Button size="lg" onClick={onPlayNext}>
@@ -157,6 +173,10 @@ export function Results({
                 word={word}
                 index={index}
                 expanded={word.id === expandedWordId}
+                onOpen={onProofOpen}
+                onRedeem={onRedeemWord}
+                redeemable={redeemableByWord[word.id] ?? 0n}
+                redeemSending={redeemState === "sending"}
               />
             ))}
           </div>
@@ -173,8 +193,14 @@ export function Results({
                 ? "Your winning shares are redeemed. The tokens are back in your balance."
                 : "Turn your winning shares back into practice tokens."}
           </p>
-          <Money value={redeemable} className="mt-6 block font-headline text-3xl" />
-          {state === "settling" ? (
+          {balancesUnavailable ? (
+            <p className="mt-6 text-sm">
+              Winning balances unavailable. Reconnecting to Monad testnet.
+            </p>
+          ) : (
+            <Money value={redeemable} className="mt-6 block font-headline text-3xl" />
+          )}
+          {state === "settling" && redeemable === 0n ? (
             <div
               role="status"
               className="mt-5 flex items-center gap-2 rounded-2xl bg-paper p-4 text-sm font-semibold"

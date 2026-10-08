@@ -13,6 +13,8 @@ export type PortfolioProps = {
   redeemState: "idle" | "sending" | "filled";
   onRedeemAll: () => void;
   onPlay: () => void;
+  onPlayEpisode?: ((episodeId: string) => void) | undefined;
+  historyUnavailable?: boolean;
 };
 
 export function Portfolio({
@@ -23,6 +25,8 @@ export function Portfolio({
   redeemState,
   onRedeemAll,
   onPlay,
+  onPlayEpisode,
+  historyUnavailable = false,
 }: PortfolioProps) {
   const grouped = new Map<string, PortfolioPosition[]>();
   for (const position of positions) {
@@ -33,10 +37,21 @@ export function Portfolio({
   const total = positions.reduce(
     (sum, position) =>
       sum +
-      positionValue(position.yes, position.no, position.word.state, position.currentYesPriceBps),
+      positionValue(
+        position.yes,
+        position.no,
+        position.word.state,
+        position.currentYesPriceBps ?? 0,
+      ),
     0n,
   );
+  const valueUnavailable = positions.some(
+    (position) =>
+      position.currentYesPriceBps === null &&
+      (position.word.state === "Open" || position.word.state === "SaidPending"),
+  );
   return (
+    // Missing book prices stay unavailable rather than receiving a synthetic quote.
     <div className="pb-6">
       <RecordHeading
         eyebrow="Your calls / your collection"
@@ -49,7 +64,16 @@ export function Portfolio({
           <p className="mt-4 text-xs font-bold uppercase tracking-wider text-ink-soft">
             {tab === "open" ? "Current position value" : "Remaining position value"}
           </p>
-          <Money value={total} className="mt-2 block font-headline text-[clamp(30px,3.5vw,48px)]" />
+          {valueUnavailable ? (
+            <p className="relative z-10 mt-2 max-w-[70%] font-headline text-2xl sm:text-3xl">
+              Book value unavailable
+            </p>
+          ) : (
+            <Money
+              value={total}
+              className="mt-2 block font-headline text-[clamp(30px,3.5vw,48px)]"
+            />
+          )}
           <p className="mt-3 max-w-[70%] text-xs leading-relaxed text-ink-soft">
             {tab === "open"
               ? "Open values follow the book. Final values follow the outcome."
@@ -108,6 +132,11 @@ export function Portfolio({
           {positions.length} word positions · Envio read model
         </p>
       </div>
+      {historyUnavailable && tab === "history" && (
+        <p role="status" className="mb-5 text-sm text-ink-soft">
+          History unavailable: Envio is offline. Only chain-visible holdings are shown.
+        </p>
+      )}
       {positions.length === 0 ? (
         <section className="grid items-center gap-6 rounded-[32px] border-2 border-ink bg-card p-8 shadow-sticker-lg md:grid-cols-2 lg:p-12">
           <div className="flex justify-center rounded-3xl bg-sun-tint py-6">
@@ -144,6 +173,11 @@ export function Portfolio({
                   </p>
                   <h2 className="mt-1 font-headline text-xl">{rows[0]?.episode.label}</h2>
                 </div>
+                {onPlayEpisode && (
+                  <Button variant="secondary" onClick={() => onPlayEpisode(id)}>
+                    Play <ArrowRight size={16} />
+                  </Button>
+                )}
                 <span
                   className={`rounded-full border border-ink px-3 py-1 text-xs font-semibold ${rows[0]?.episode.state === "Live" ? "bg-said-tint" : "bg-sky-tint"}`}
                 >
@@ -183,13 +217,17 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
       {sides.length ? (
         sides.map((side) => {
           const bps =
-            side === "yes" ? position.currentYesPriceBps : 10_000 - position.currentYesPriceBps;
+            position.currentYesPriceBps === null
+              ? null
+              : side === "yes"
+                ? position.currentYesPriceBps
+                : 10_000 - position.currentYesPriceBps;
           const average = side === "yes" ? position.averageYesPriceBps : position.averageNoPriceBps;
           const value = positionValue(
             side === "yes" ? position.yes : 0n,
             side === "no" ? position.no : 0n,
             word.state,
-            position.currentYesPriceBps,
+            position.currentYesPriceBps ?? 0,
           );
           return (
             <div
@@ -222,7 +260,7 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {price(bps)}
+                    {bps === null ? "—" : price(bps)}
                     <ExternalLink size={12} />
                   </a>
                 ) : (
@@ -233,14 +271,20 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
                         : (word.state === "Yes") === (side === "yes")
                           ? "100¢"
                           : "0¢"
-                      : price(bps)}
+                      : bps === null
+                        ? "—"
+                        : price(bps)}
                   </b>
                 )}
                 <span className="ml-1 text-[9px] text-ink-soft">TESTNET</span>
               </div>
               <div className="text-sm">
                 <span className="mr-2 text-xs text-ink-soft lg:hidden">Value</span>
-                <Money value={value} className="font-bold" />
+                {!final && bps === null ? (
+                  <span className="text-xs text-ink-soft">Unavailable</span>
+                ) : (
+                  <Money value={value} className="font-bold" />
+                )}
               </div>
               <span
                 className={`w-fit rounded-full border px-3 py-1.5 text-[11px] font-bold ${word.state === "Yes" ? "border-gain bg-gain-tint text-gain" : word.state === "SaidPending" ? "border-said bg-said-tint" : "border-line bg-paper"}`}

@@ -1,6 +1,6 @@
+import { matchesTarget } from "@sayso/core";
 import { Check, ChevronDown, ExternalLink, Fingerprint, ShieldCheck } from "lucide-react";
 import { play } from "@/sound";
-import { matchesTarget } from "../../../../../packages/core/src/match";
 import { amount, price, shares, timestamp } from "./format";
 import { Money, Spinner } from "./RecordUi";
 import type { ResultWord } from "./types";
@@ -9,10 +9,18 @@ export function WordResult({
   word,
   index,
   expanded = false,
+  onOpen,
+  onRedeem,
+  redeemable = 0n,
+  redeemSending = false,
 }: {
   word: ResultWord;
   index: number;
   expanded?: boolean;
+  onOpen?: ((wordId: string) => void) | undefined;
+  onRedeem?: ((wordId: string) => void) | undefined;
+  redeemable?: bigint;
+  redeemSending?: boolean;
 }) {
   const pending = word.state === "Open" || word.state === "SaidPending";
   const yes = word.state === "Yes";
@@ -21,7 +29,10 @@ export function WordResult({
       open={expanded || undefined}
       className="group min-w-0 rounded-3xl border-2 border-ink bg-card shadow-sticker open:md:col-span-2"
       onToggle={(event) => {
-        if (event.currentTarget.open) play("sheet");
+        if (event.currentTarget.open) {
+          play("sheet");
+          onOpen?.(word.id);
+        }
       }}
     >
       <summary className="flex min-h-[100px] cursor-pointer list-none items-center gap-3 p-5 [&::-webkit-details-marker]:hidden sm:p-6">
@@ -29,12 +40,14 @@ export function WordResult({
         <div className="min-w-0 flex-1">
           <h3 className="font-headline break-words text-[clamp(21px,2vw,28px)]">{word.text}</h3>
           <p className="mt-1 text-xs text-ink-soft">
-            {word.trades.length
-              ? `${word.trades.length} ${word.trades.length === 1 ? "trade" : "trades"} · ${pending ? "waiting for CRE" : "your result"}`
-              : "You sat this word out"}
+            {word.accountingUnavailable
+              ? "Trade history unavailable"
+              : word.trades.length
+                ? `${word.trades.length} ${word.trades.length === 1 ? "trade" : "trades"} · ${pending ? "waiting for CRE" : "your result"}`
+                : "You sat this word out"}
           </p>
           <div className="mt-2 min-h-5">
-            {!pending && word.trades.length > 0 && (
+            {!pending && !word.accountingUnavailable && word.trades.length > 0 && (
               <Money
                 value={word.profit}
                 signed
@@ -56,11 +69,16 @@ export function WordResult({
           <p role="status" className="text-sm leading-relaxed text-ink-soft">
             Chainlink CRE is checking both committed transcripts. This word is not final yet.
           </p>
-        ) : word.proof ? (
+        ) : null}
+        {word.proof ? (
           <>
             <p className="mb-4 flex items-center gap-2 text-sm font-bold">
               <ShieldCheck size={18} className="text-sky" />
-              {word.proof.specimen ? "Chainlink CRE proof preview" : "Verified by Chainlink CRE"}
+              {word.proof.specimen
+                ? "Chainlink CRE proof preview"
+                : pending
+                  ? "Transcript verified against the onchain roots"
+                  : "Verified by Chainlink CRE"}
             </p>
             {word.proof.engines.map((engine) => (
               <div key={engine.engine} className="mb-3 rounded-2xl bg-paper p-4">
@@ -138,12 +156,51 @@ export function WordResult({
           </>
         ) : (
           <p className="text-sm text-ink-soft">
-            Proof evidence is not available in this read model yet.
+            {word.proofStatus ?? "Proof evidence is not available in this read model yet."}
           </p>
+        )}
+        {word.roots && !word.proof && (
+          <div className="mt-4 space-y-2 break-all font-mono text-[10px] text-ink-soft">
+            <p>Root A: {word.roots[0]}</p>
+            <p>Root B: {word.roots[1]}</p>
+          </div>
+        )}
+        {(word.evidenceHash || word.proof?.evidenceHash) && (
+          <p className="mt-3 break-all font-mono text-[10px] text-ink-soft">
+            Evidence hash: {word.evidenceHash ?? word.proof?.evidenceHash}
+          </p>
+        )}
+        {!word.proof && word.resolveTxUrl && (
+          <a
+            href={word.resolveTxUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex min-h-11 items-center gap-1 text-xs underline"
+          >
+            CRE transaction <ExternalLink size={13} />
+          </a>
+        )}
+        {!word.proof && word.settlementMode && (
+          <p className="mt-3 text-xs text-ink-soft">CRE {word.settlementMode} mode</p>
+        )}
+        {onRedeem && redeemable > 0n && (
+          <button
+            type="button"
+            onClick={() => onRedeem(word.id)}
+            disabled={redeemSending}
+            className="mt-4 min-h-11 rounded-full border-2 border-ink bg-ink px-4 text-sm font-bold text-paper disabled:opacity-50"
+          >
+            {redeemSending ? "Redeeming…" : "Redeem this word"} · {amount(redeemable)} AUSD TESTNET
+          </button>
         )}
         <h4 className="mt-5 border-t border-line pt-4 text-xs font-bold tracking-wider uppercase">
           Your trades
         </h4>
+        {word.accountingUnavailable && (
+          <p className="mt-2 text-sm text-ink-soft">
+            Trade history and P/L unavailable: Envio is offline.
+          </p>
+        )}
         {word.trades.length ? (
           <ul className="mt-2 divide-y divide-line">
             {word.trades.map((trade) => (
@@ -170,7 +227,11 @@ export function WordResult({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-ink-soft">No trades on this word.</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            {word.accountingUnavailable
+              ? "Waiting for indexed trade history."
+              : "No trades on this word."}
+          </p>
         )}
       </div>
     </details>

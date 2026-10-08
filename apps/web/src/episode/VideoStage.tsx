@@ -2,6 +2,7 @@ import { Clock3 } from "lucide-react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import type { VoxelName } from "@/assets/voxels/names";
+import { useVideoSync, type VideoSync } from "@/live/useVideoSync";
 import { duck, play } from "@/sound";
 import { Voxel } from "@/ui/Voxel";
 import { ClipTimeline, type SaidMark } from "./ClipTimeline";
@@ -16,7 +17,7 @@ type VideoStageProps = {
   /** The clip has finished (episode closed or settled): the LIVE pill and the clock step down. */
   ended?: boolean;
   /** Pre-roll: seconds until the clip starts. Live: seconds left in the clip. */
-  secondsLeft?: number;
+  secondsLeft?: number | undefined;
   /** Clip length; with `live` and `secondsLeft` it draws the progress bar. */
   durationSeconds?: number;
   /** Words already SAID and when, as red dots on the progress bar. */
@@ -24,6 +25,7 @@ type VideoStageProps = {
   /** Overlay content above the frame, below the pills. */
   children?: ReactNode;
   className?: string;
+  sync?: VideoSync;
 };
 
 /**
@@ -41,19 +43,9 @@ export function VideoStage({
   marks,
   children,
   className,
+  sync,
 }: VideoStageProps) {
-  const video = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = video.current;
-    if (!el) return;
-    if (live) {
-      // Autoplay with sound can be refused before the first gesture; the poster stays up then.
-      el.play().catch(() => {});
-    } else {
-      el.pause();
-    }
-  }, [live]);
+  const { video, muted, blocked, failed, setFailed, unmute } = useVideoSync(src, sync, live);
 
   const moment = useRef<StageMoment | null>(null);
   useEffect(() => {
@@ -80,9 +72,10 @@ export function VideoStage({
           playsInline
           preload="auto"
           className="absolute inset-0 size-full object-cover"
-          onPlay={() => duck(true)}
+          onPlay={() => duck(!video.current?.muted)}
           onPause={() => duck(false)}
           onEnded={() => duck(false)}
+          onError={() => setFailed(true)}
         />
       ) : poster ? (
         <img src={poster} alt="" className="absolute inset-0 size-full object-cover" />
@@ -90,6 +83,22 @@ export function VideoStage({
         <PosterStand live={live} />
       )}
       {children}
+      {src && (muted || blocked) && !ended ? (
+        <button
+          type="button"
+          onClick={() => {
+            unmute();
+          }}
+          className="sticker pressable absolute bottom-12 left-3 rounded-full px-4 py-2 text-[13px] font-bold"
+        >
+          {blocked ? "Tap to play with sound" : "Tap to unmute"}
+        </button>
+      ) : null}
+      {failed ? (
+        <p role="status" className="absolute inset-x-4 top-14 rounded-xl bg-card p-3 text-[13px]">
+          Clip unavailable. The board still follows the chain.
+        </p>
+      ) : null}
       {!live && secondsLeft !== undefined ? <PreRollCountdown secondsLeft={secondsLeft} /> : null}
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 md:inset-x-4 md:top-4">
         {ended ? (

@@ -14,9 +14,13 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as ArenaRouteImport } from './routes/arena'
 import { Route as DesignRouteImport } from './routes/design'
 import { Route as JoinRouteImport } from './routes/join'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as Design3dRouteImport } from './routes/design_.3d'
 import { Route as DesignPlayerRouteImport } from './routes/design_.player'
 import { Route as DesignRecordsRouteImport } from './routes/design_.records'
+import { Route as EpisodeIdRouteImport } from './routes/episode.$id'
+import { Route as ResultsIdRouteImport } from './routes/results.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -43,6 +47,16 @@ const JoinRoute = JoinRouteImport.update({
   path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Design3dRoute = Design3dRouteImport.update({
   id: '/design_/3d',
   path: '/design/3d',
@@ -58,6 +72,16 @@ const DesignRecordsRoute = DesignRecordsRouteImport.update({
   path: '/design/records',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EpisodeIdRoute = EpisodeIdRouteImport.update({
+  id: '/episode/$id',
+  path: '/episode/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResultsIdRoute = ResultsIdRouteImport.update({
+  id: '/results/$id',
+  path: '/results/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -65,9 +89,13 @@ export interface FileRoutesByFullPath {
   '/arena': typeof ArenaRoute
   '/design': typeof DesignRoute
   '/join': typeof JoinRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/portfolio': typeof PortfolioRoute
   '/design/3d': typeof Design3dRoute
   '/design/player': typeof DesignPlayerRoute
   '/design/records': typeof DesignRecordsRoute
+  '/episode/$id': typeof EpisodeIdRoute
+  '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -75,9 +103,13 @@ export interface FileRoutesByTo {
   '/arena': typeof ArenaRoute
   '/design': typeof DesignRoute
   '/join': typeof JoinRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/portfolio': typeof PortfolioRoute
   '/design/3d': typeof Design3dRoute
   '/design/player': typeof DesignPlayerRoute
   '/design/records': typeof DesignRecordsRoute
+  '/episode/$id': typeof EpisodeIdRoute
+  '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,9 +118,13 @@ export interface FileRoutesById {
   '/arena': typeof ArenaRoute
   '/design': typeof DesignRoute
   '/join': typeof JoinRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/portfolio': typeof PortfolioRoute
   '/design_/3d': typeof Design3dRoute
   '/design_/player': typeof DesignPlayerRoute
   '/design_/records': typeof DesignRecordsRoute
+  '/episode/$id': typeof EpisodeIdRoute
+  '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -98,9 +134,13 @@ export interface FileRouteTypes {
     | '/arena'
     | '/design'
     | '/join'
+    | '/leaderboard'
+    | '/portfolio'
     | '/design/3d'
     | '/design/player'
     | '/design/records'
+    | '/episode/$id'
+    | '/results/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -108,9 +148,13 @@ export interface FileRouteTypes {
     | '/arena'
     | '/design'
     | '/join'
+    | '/leaderboard'
+    | '/portfolio'
     | '/design/3d'
     | '/design/player'
     | '/design/records'
+    | '/episode/$id'
+    | '/results/$id'
   id:
     | '__root__'
     | '/'
@@ -118,9 +162,13 @@ export interface FileRouteTypes {
     | '/arena'
     | '/design'
     | '/join'
+    | '/leaderboard'
+    | '/portfolio'
     | '/design_/3d'
     | '/design_/player'
     | '/design_/records'
+    | '/episode/$id'
+    | '/results/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -129,9 +177,13 @@ export interface RootRouteChildren {
   ArenaRoute: typeof ArenaRoute
   DesignRoute: typeof DesignRoute
   JoinRoute: typeof JoinRoute
+  LeaderboardRoute: typeof LeaderboardRoute
+  PortfolioRoute: typeof PortfolioRoute
   Design3dRoute: typeof Design3dRoute
   DesignPlayerRoute: typeof DesignPlayerRoute
   DesignRecordsRoute: typeof DesignRecordsRoute
+  EpisodeIdRoute: typeof EpisodeIdRoute
+  ResultsIdRoute: typeof ResultsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -171,6 +223,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/design_/3d': {
       id: '/design_/3d'
       path: '/design/3d'
@@ -192,6 +258,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DesignRecordsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/episode/$id': {
+      id: '/episode/$id'
+      path: '/episode/$id'
+      fullPath: '/episode/$id'
+      preLoaderRoute: typeof EpisodeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/results/$id': {
+      id: '/results/$id'
+      path: '/results/$id'
+      fullPath: '/results/$id'
+      preLoaderRoute: typeof ResultsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -201,9 +281,13 @@ const rootRouteChildren: RootRouteChildren = {
   ArenaRoute: ArenaRoute,
   DesignRoute: DesignRoute,
   JoinRoute: JoinRoute,
+  LeaderboardRoute: LeaderboardRoute,
+  PortfolioRoute: PortfolioRoute,
   Design3dRoute: Design3dRoute,
   DesignPlayerRoute: DesignPlayerRoute,
   DesignRecordsRoute: DesignRecordsRoute,
+  EpisodeIdRoute: EpisodeIdRoute,
+  ResultsIdRoute: ResultsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -7,6 +7,7 @@ import { BALANCE_ANCHOR, useEpisodeFx, wordAnchor } from "./EpisodeFx";
 import { formatAusd, formatAusdAmount, formatCents, formatShares } from "./format";
 import {
   AMOUNT_PRESETS_MICRO,
+  type BuyQuote,
   buyQuote,
   SAID_BID_CENTS,
   type Side,
@@ -26,7 +27,7 @@ export type TicketProps = {
   /** Current YES price in cents. */
   yesCents: number;
   /** The player's holding on this word. */
-  position?: { side: Side; shares: number };
+  position?: { side: Side; shares: number } | undefined;
   /** Spendable AUSD, 6-decimal units; presets above it are disabled. */
   balanceMicro?: bigint;
   /** Order lifecycle, driven by the caller: `sending` after confirm, then `filled` or `failed`. */
@@ -38,6 +39,17 @@ export type TicketProps = {
   onClose?: () => void;
   /** `sheet` stacks for phones; `dock` lays out in two columns for the desktop panel. */
   layout?: "sheet" | "dock";
+  /** Live callers supply executable book quotes, never a midpoint. */
+  quoteFor?: (side: Side, amountMicro: bigint) => BuyQuote | null;
+  noCents?: number;
+  disabledReason?: string | undefined;
+  cashOutBidCents?: number | null | undefined;
+  onSell?: (side: Side) => void;
+  sellPositions?: { yes: number; no: number };
+  transactionUrl?: string | undefined;
+  errorMessage?: string | undefined;
+  noDisabledReason?: string | undefined;
+  minSharesFor?: (side: Side, amountMicro: bigint) => bigint | null;
 };
 
 const DEFAULT_AMOUNT = AMOUNT_PRESETS_MICRO[1] ?? 5_000_000n;
@@ -60,6 +72,16 @@ export function Ticket({
   onCashOut,
   onClose,
   layout = "sheet",
+  quoteFor,
+  noCents,
+  disabledReason,
+  cashOutBidCents,
+  onSell,
+  sellPositions,
+  transactionUrl,
+  errorMessage,
+  noDisabledReason,
+  minSharesFor,
 }: TicketProps) {
   const fx = useEpisodeFx();
   const mode = state === "open" ? "buy" : state === "said" ? "cashout" : "settled";
@@ -120,15 +142,64 @@ export function Ticket({
           initialSide={initialSide}
           onConfirm={onConfirm}
           dock={dock}
+          quoteFor={quoteFor}
+          noCents={noCents}
+          disabledReason={disabledReason}
+          noDisabledReason={noDisabledReason}
+          minSharesFor={minSharesFor}
         />
       ) : mode === "cashout" ? (
-        <CashOutBody position={position} status={status} onCashOut={onCashOut} dock={dock} />
+        <CashOutBody
+          position={position}
+          status={status}
+          onCashOut={onCashOut}
+          dock={dock}
+          bidCents={cashOutBidCents}
+          disabledReason={disabledReason}
+        />
       ) : (
         <p className="text-[15px] leading-6 text-ink-soft">
-          This word settled {state === "yes" ? "YES" : "NO"}.
+          This word settled {state === "yes" ? "YES" : state === "void" ? "VOID" : "NO"}.
           {position ? " Redeem it from your results." : null}
         </p>
       )}
+      {disabledReason ? <p className="text-[12px] text-ink-soft">{disabledReason}</p> : null}
+      {onSell &&
+      sellPositions &&
+      (sellPositions.yes > 0 || sellPositions.no > 0) &&
+      mode !== "settled" ? (
+        <div className="flex gap-2">
+          {(["yes", "no"] as const).map((side) =>
+            sellPositions[side] > 0 && !(mode === "cashout" && side === "yes") ? (
+              <button
+                key={side}
+                type="button"
+                className="sticker pressable rounded-full px-3 py-2 text-[12px] font-bold"
+                disabled={!!disabledReason || status === "sending"}
+                onClick={() => onSell(side)}
+              >
+                Cash out {formatShares(sellPositions[side])} {side.toUpperCase()}
+              </button>
+            ) : null,
+          )}
+          <TestnetPill />
+        </div>
+      ) : null}
+      {transactionUrl ? (
+        <a
+          href={transactionUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[12px] font-bold underline"
+        >
+          View transaction · TESTNET explorer
+        </a>
+      ) : null}
+      {errorMessage ? (
+        <p role="alert" className="text-[12px] text-ink-soft">
+          {errorMessage}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -140,6 +211,11 @@ function BuyBody({
   initialSide,
   onConfirm,
   dock,
+  quoteFor,
+  noCents,
+  disabledReason,
+  noDisabledReason,
+  minSharesFor,
 }: {
   yesCents: number;
   balanceMicro: bigint | undefined;
@@ -147,20 +223,35 @@ function BuyBody({
   initialSide: Side;
   onConfirm: TicketProps["onConfirm"];
   dock: boolean;
+  quoteFor: TicketProps["quoteFor"];
+  noCents: TicketProps["noCents"];
+  disabledReason: TicketProps["disabledReason"];
+  noDisabledReason: TicketProps["noDisabledReason"];
+  minSharesFor: TicketProps["minSharesFor"];
 }) {
   const [side, setSide] = useState<Side>(initialSide);
   const [amountMicro, setAmountMicro] = useState(DEFAULT_AMOUNT);
-  const quote = buyQuote(side, yesCents, amountMicro);
+  const quote = quoteFor ? quoteFor(side, amountMicro) : buyQuote(side, yesCents, amountMicro);
   const affordable = balanceMicro === undefined || amountMicro <= balanceMicro;
   const busy = status === "sending" || status === "filled";
 
   const finePrint = (
-    <p className="text-[12px] leading-4 text-ink-soft">Fills now at this price, or not at all.</p>
+    <p className="text-[12px] leading-4 text-ink-soft">
+      {side === "no" && noDisabledReason
+        ? noDisabledReason
+        : "Immediate-or-cancel. 1% slippage guard; unspent AUSD returns to you."}
+    </p>
   );
 
   const choose = (
     <div className="flex flex-col gap-2.5">
-      <SideToggle side={side} yesCents={yesCents} onChange={setSide} disabled={busy} />
+      <SideToggle
+        side={side}
+        yesCents={yesCents}
+        noCents={noCents}
+        onChange={setSide}
+        disabled={busy}
+      />
       <fieldset className="flex flex-col gap-1.5" disabled={busy}>
         <legend className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-soft">
           Amount · AUSD
@@ -193,12 +284,18 @@ function BuyBody({
   const send = (
     <div className="flex flex-col gap-2">
       <div className="rounded-2xl border-2 border-ink bg-paper px-3.5 py-2.5">
-        <Line label="You pay" value={formatAusd(amountMicro)} />
+        <Line label="You pay up to" value={formatAusd(amountMicro)} />
         <Line
           label={side === "yes" ? "You get if it's said" : "You get if it's not said"}
           value={quote ? formatAusd(quote.payoutMicro) : "–"}
           strong
         />
+        {quote && minSharesFor ? (
+          <Line
+            label="Minimum shares"
+            value={formatShares(sharesFromMicro(minSharesFor(side, amountMicro) ?? 0n))}
+          />
+        ) : null}
         <div className="mt-1.5 flex items-center justify-between gap-2">
           <span className="text-[12px] text-ink-soft">
             {quote
@@ -210,7 +307,7 @@ function BuyBody({
       </div>
       <ActionButton
         status={status}
-        disabled={!quote || !affordable}
+        disabled={!quote || !affordable || !!disabledReason}
         onPress={() => {
           play("confirm");
           onConfirm?.({ side, amountMicro });
@@ -239,17 +336,19 @@ function SideToggle({
   yesCents,
   onChange,
   disabled,
+  noCents,
 }: {
   side: Side;
   yesCents: number;
   onChange: (side: Side) => void;
   disabled: boolean;
+  noCents?: number | undefined;
 }) {
   const reduce = useReducedMotion() ?? false;
   const pillId = useId();
   const options = [
     { value: "yes", label: "YES", cents: yesCents },
-    { value: "no", label: "NO", cents: 100 - yesCents },
+    { value: "no", label: "NO", cents: noCents ?? 100 - yesCents },
   ] as const;
   return (
     <fieldset
@@ -284,7 +383,7 @@ function SideToggle({
             ) : null}
             <span className="font-headline relative text-[18px] leading-none">{option.label}</span>
             <span className="tabular relative text-[14px] font-bold leading-none opacity-80">
-              {formatCents(option.cents)}
+              {option.cents > 0 && option.cents < 100 ? formatCents(option.cents) : "–"}
             </span>
           </label>
         );
@@ -298,18 +397,28 @@ function CashOutBody({
   status,
   onCashOut,
   dock,
+  bidCents = SAID_BID_CENTS,
+  disabledReason,
 }: {
   position: TicketProps["position"];
   status: TicketStatus;
   onCashOut: TicketProps["onCashOut"];
   dock: boolean;
+  bidCents: number | null | undefined;
+  disabledReason: string | undefined;
 }) {
+  if (bidCents !== SAID_BID_CENTS)
+    return (
+      <p className="text-[15px] leading-6 text-ink-soft">
+        Hold until settled. The house cash-out bid is not on the book yet.
+      </p>
+    );
   if (!position || position.side === "no") {
     return (
       <p className="text-[15px] leading-6 text-ink-soft">
         {position
-          ? `This word was said, so ${formatShares(position.shares)} NO pays nothing at settlement.`
-          : "This word was said. Trading on it is closed; the house only buys YES now."}
+          ? `This word was flagged SAID. Hold until CRE confirms the result.`
+          : "This word was flagged SAID. You have no YES position to cash out."}
       </p>
     );
   }
@@ -317,7 +426,7 @@ function CashOutBody({
   const holdMicro = sharesToMicro(position.shares);
   const disclosure = (
     <p className="text-[12px] leading-4 text-ink-soft">
-      The house buys every SAID word at {formatCents(SAID_BID_CENTS)}, for everyone.
+      The disclosed house bid is {formatCents(SAID_BID_CENTS)} while liquidity remains on the book.
     </p>
   );
   return (
@@ -348,7 +457,7 @@ function CashOutBody({
         </p>
         <ActionButton
           status={status}
-          disabled={false}
+          disabled={!!disabledReason}
           onPress={() => {
             play("confirm");
             onCashOut?.();

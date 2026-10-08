@@ -20,15 +20,16 @@ import { EASE_OUT, REDUCED_FADE, SETTLE_DURATION, SettleDelayContext } from "./s
 import { useFitText } from "./useFitText";
 import { FACE_INSET, WordFace } from "./WordFace";
 
-export type WordState = "open" | "said" | "yes" | "no";
+export type WordState = "open" | "said" | "yes" | "no" | "void";
 
 export type WordCardProps = {
   word: string;
   /** YES price in whole cents, 0..100. */
   priceCents: number;
+  priceAvailable?: boolean;
   state: WordState;
   /** The player's holding on this word, shown as a "You hold 40 YES" label. */
-  position?: { side: "yes" | "no"; shares: number };
+  position?: { side: "yes" | "no"; shares: number } | undefined;
   /** Open cards open the ticket; SAID cards open cash out. Omit for a read-only card. */
   onPress?: () => void;
   /** The ticket is open for this word: the card lifts and wears the focus-blue outline. */
@@ -49,6 +50,7 @@ const stateLabel: Record<WordState, string> = {
   said: "said",
   yes: "settled yes",
   no: "settled no",
+  void: "settled void",
 };
 
 /**
@@ -56,7 +58,15 @@ const stateLabel: Record<WordState, string> = {
  * shake, the `said` sound and a haptic tick; pulses when its price moves; settles with a stamp or
  * a fade. Fills its grid cell, so the board decides the size.
  */
-export function WordCard({ word, priceCents, state, position, onPress, selected }: WordCardProps) {
+export function WordCard({
+  word,
+  priceCents,
+  priceAvailable = true,
+  state,
+  position,
+  onPress,
+  selected,
+}: WordCardProps) {
   const reduce = useReducedMotion() ?? false;
   const settleDelay = useContext(SettleDelayContext);
   const fx = useEpisodeFx();
@@ -172,11 +182,11 @@ export function WordCard({ word, priceCents, state, position, onPress, selected 
     }
   }, [priceCents, state, reduce]);
 
-  const settling = shown === "yes" || shown === "no";
-  const faceProps = { word, priceCents, fontSize: size };
+  const settling = shown === "yes" || shown === "no" || shown === "void";
+  const faceProps = { word, priceCents, priceAvailable, fontSize: size };
   const label = [
     word,
-    formatCents(priceCents),
+    priceAvailable ? formatCents(priceCents) : "price unavailable",
     stateLabel[shown],
     position ? formatHolding(position).toLowerCase() : null,
   ]

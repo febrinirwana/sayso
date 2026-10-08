@@ -41,6 +41,12 @@ export type ResultWord = {
   profit: bigint;
   trades: readonly RecordTrade[];
   proof?: WordProof;
+  proofStatus?: string;
+  roots?: readonly [string, string];
+  evidenceHash?: string | null;
+  resolveTxUrl?: string;
+  settlementMode?: "simulation" | "don";
+  accountingUnavailable?: boolean;
 };
 export type PortfolioPosition = {
   id: string;
@@ -55,7 +61,7 @@ export type PortfolioPosition = {
   averageYesPriceBps: number | null;
   averageNoPriceBps: number | null;
   /** A fresh book quote, separate from Envio's balance. */
-  currentYesPriceBps: number;
+  currentYesPriceBps: number | null;
 };
 export type LeaderboardEntry = {
   id: string;
