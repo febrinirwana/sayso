@@ -117,7 +117,7 @@ A listed word trades while it is Open or SaidPending, including after episode cl
 
 1. Studio picks the next clip (on-demand request or the hourly slot), loads its two chunk sets and roots from SQLite.
 2. OPERATOR calls `createEpisode(clipId, rootA, rootB, startsAt, endsAt, words)`, which clones YES and NO tokens per word, then `listEpisode(episodeId)`, which deploys one Kuru YES/AUSD market per word through `Router.deployProxy` type 0.
-3. BOT mints complete sets for inventory and provisions a flip ladder around 0.50 on each book with `batchProvisionLiquidity`.
+3. BOT mints complete sets for inventory and provisions a flip ladder around 0.50 on each book with `batchProvisionLiquidity`. A six-word seed is 27 transactions (was 42): AUSD allowances to `SaysoMarkets` and to the Kuru margin account are approved only when the onchain allowance is below the episode's need, sized for 128 words (16 eight-word episodes, never unlimited), so later episodes skip both; the AUSD quote for every word goes in one margin deposit; each word keeps mint, YES approve-or-skip, YES deposit and ladder.
 4. Studio pushes the schedule over SSE; web shows the countdown.
 
 ### 5.2 Trade
@@ -300,7 +300,7 @@ The initial starter grant is **0.5 testnet MON + 10 testnet AUSD**, once per nor
 
 | Failure | Behaviour |
 |---|---|
-| RPC errors | Studio retries with backoff and pauses the episode start; web shows the stale state with its age |
+| RPC errors | Studio shares one cached transport per RPC URL: immutable contract reads cached for the process, chain id and bytecode for five minutes (chain id re-read before every sign and broadcast), head block 400 ms, episode/word state 2 s and dropped on confirmed writes, balances and allowances never. Budget: at most 8 requests/s while Live and 2 idle; the clock sleeps to the next scheduled action (1 s cap, 400 ms only while work is due) and CRE discovery runs every 2 s. HTTP 429 blocks reads with exponential backoff (1 s doubling to 30 s); writes are never delayed or retried. Each failure logs one JSON line `{event, source, kind, code}` with code from a closed set (`rpc_rate_limited`, `rpc_unavailable`, `receipt_timeout`, `reverted`, `insufficient_funds`, `unknown`), never a message body or URL. Episode start pauses; web shows the stale state with its age |
 | Flag transaction late | The card still flips at presentation time from SSE; the chain flag follows; settlement is unaffected |
 | Engines disagree on a word | No flag; the word resolves at close under the same agreement rule |
 | CRE run fails | Studio retries the trigger; after 24 h with no report the owner may void |

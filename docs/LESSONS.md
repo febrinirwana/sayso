@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/08 — Budget studio RPC calls per block
+
+- **Cause:** The studio clock polled every 50 ms and each runner, maker and CRE call opened its own uncached transport, re-reading immutable episode/word/market data and bytecode: about 1,540 requests/s while Live in a fake-transport replay, against a public RPC that rate-limits, with failures swallowed as fixed text. Seeding also approved AUSD twice per word and deposited quote per word, 42 transactions per episode.
+- **Rule:** Share one transport per RPC URL that caches by mutability (immutable forever, head per 400 ms block, state 2 s, chain id re-read before any sign or broadcast), sleep to the next scheduled action, and back off on 429 without retrying writes. Keep a fake-transport test asserting ≤ 8 req/s Live and ≤ 2 idle, and log failures as closed codes, never messages. Reuse bounded allowances and batch deposits.
+
 ### 2026/10/07 — Capture verified request identity before body buffering
 
 - **Cause:** Hono bodyLimit replaces the raw Request for streamed bodies; identity keyed by the original object disappeared, causing valid drip claims to return invalid_ip.

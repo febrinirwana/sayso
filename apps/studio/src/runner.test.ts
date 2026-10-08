@@ -181,6 +181,24 @@ it("persists fixture flag times, reveal batches, and a seconds-safe close margin
       ),
     );
 });
+
+it("wakes exactly at the next flag instead of rounding it to a polling interval", async () => {
+  await runner.request("on_demand", "judge");
+  // Nothing due in a Live window: sleep a full second instead of polling every block.
+  now = 166000;
+  expect(runner.nextWakeMs()).toBe(1000);
+  now = 167000;
+  expect(runner.nextWakeMs()).toBe(90);
+  const sendTimes: number[] = [];
+  const broadcast = chain.broadcast.bind(chain);
+  chain.broadcast = async (tx) => {
+    if (chain.prepared.get(tx.hash)?.kind === "flagSaid") sendTimes.push(now);
+    return broadcast(tx);
+  };
+  now += runner.nextWakeMs();
+  await runner.tick();
+  expect(sendTimes).toEqual([167090]);
+});
 it("never broadcasts a second operator transaction before the first receipt", async () => {
   chain.hold = Promise.withResolvers<void>();
   const creating = runner.request("on_demand", "judge");

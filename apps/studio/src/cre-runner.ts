@@ -16,6 +16,8 @@ import {
   zeroAddress,
 } from "viem";
 import { monadTestnet } from "viem/chains";
+import { operatorFailure } from "./operator-log.ts";
+import { expireStudioChainId, studioRpc } from "./rpc.ts";
 import type { ActionKind, Receipt } from "./runner.ts";
 
 export type CreRunnerDeps = {
@@ -78,7 +80,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
   const now = deps.now ?? Date.now;
   const client = createPublicClient({
     chain: monadTestnet,
-    transport: http(deps.rpcUrl, { retryCount: 0 }),
+    transport: studioRpc(deps.rpcUrl),
   });
   const notified = new Set<Hex>();
   let active: ChildProcess | undefined;
@@ -490,6 +492,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
       )
       .all();
     if (!runs.length) return;
+    expireStudioChainId(deps.rpcUrl);
     if ((await client.getChainId()) !== 10143) throw new Error("CRE processing chain mismatch");
     for (const run of runs) {
       if (stopped) return;
@@ -594,7 +597,8 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
         await discover();
         discoveryFailures = 0;
         discoveryAfter = 0;
-      } catch {
+      } catch (error) {
+        operatorFailure("receipt", error);
         discoveryAfter =
           now() + (retryDelays[Math.min(discoveryFailures++, retryDelays.length - 1)] ?? 600_000);
       }
@@ -604,7 +608,8 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
       await processRuns();
       processingAfter = 0;
       processingFailures = 0;
-    } catch {
+    } catch (error) {
+      operatorFailure("receipt", error);
       processingAfter =
         now() + (retryDelays[Math.min(processingFailures++, retryDelays.length - 1)] ?? 600_000);
     }
@@ -627,7 +632,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
       if (timer) return;
       timer = setInterval(() => {
         void api.tick();
-      }, deps.pollMs ?? 1000);
+      }, deps.pollMs ?? 2000);
       void api.tick();
     },
     async stop() {

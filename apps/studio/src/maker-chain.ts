@@ -18,7 +18,6 @@ import {
   encodeFunctionData,
   erc20Abi,
   type Hex,
-  http,
   keccak256,
   parseEventLogs,
   type TransactionReceipt,
@@ -27,6 +26,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import type { StudioConfig } from "./config.ts";
 import type { HouseOrder, MakerChain, MakerCommand, MakerReceipt } from "./maker.ts";
+import { expireStudioChainId, studioRpc } from "./rpc.ts";
 
 export function createMakerChain(
   config: StudioConfig,
@@ -36,17 +36,20 @@ export function createMakerChain(
   const markets = config.saysoMarkets;
   if (!key || !markets) throw new Error("BOT configuration missing");
   const account = privateKeyToAccount(key);
-  const client = createPublicClient({ chain: monadTestnet, transport: http(config.rpcUrl) });
+  const client = createPublicClient({ chain: monadTestnet, transport: studioRpc(config.rpcUrl) });
   const wallet = createWalletClient({
     account,
     chain: monadTestnet,
-    transport: http(config.rpcUrl),
+    transport: studioRpc(config.rpcUrl),
   });
   const ausd = addresses.ausd,
     margin = addresses.kuruMarginAccount;
   let pending: Hex | undefined,
     lastBlock = 0n;
-  async function verify(extra: Address[] = []) {
+  const scans = new Map<Address, { ids: Set<number>; next: bigint }>();
+  // Reads accept the cached chain id; signing and broadcasting re-read it from the endpoint.
+  async function verify(extra: Address[] = [], writing = false) {
+    if (writing) expireStudioChainId(config.rpcUrl);
     if ((await client.getChainId()) !== 10143) throw new Error("BOT RPC must be Monad testnet");
     for (const address of new Set([markets!, ausd, margin, addresses.kuruRouter, ...extra])) {
       const code = await client.getCode({ address });
@@ -88,7 +91,7 @@ export function createMakerChain(
         error.name === "TransactionReceiptNotFoundError"
       )
         return null;
-      throw new Error("BOT receipt unavailable");
+      throw error;
     }
   }
   const adapter: MakerChain = {
@@ -176,6 +179,14 @@ export function createMakerChain(
         endsAt: Number(episode.endsAt),
       };
     },
+    async allowance(token, spender) {
+      return client.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [account.address, spender],
+      });
+    },
     async balance(token, inMargin = false) {
       return inMargin
         ? client.readContract({
@@ -194,10 +205,11 @@ export function createMakerChain(
     async orders(market, fromBlock) {
       await verify([market]);
       const end = await client.getBlockNumber();
-      const ids = new Set<number>();
+      const scan = scans.get(market) ?? { ids: new Set<number>(), next: BigInt(fromBlock) };
+      const ids = scan.ids;
       // Replacement IDs are emitted by FlippedOrderCreated, not the original seed receipt.
       // Bounded RPC ranges avoid providers silently truncating long log requests.
-      for (let start = BigInt(fromBlock); start <= end; start += 100n) {
+      for (let start = scan.next; start <= end; start += 100n) {
         const to = start + 99n < end ? start + 99n : end;
         const logs = await client.getLogs({ address: market, fromBlock: start, toBlock: to });
         for (const log of parseEventLogs({ abi: orderBookAbi, logs, strict: true })) {
@@ -213,6 +225,8 @@ export function createMakerChain(
           }
         }
       }
+      scan.next = end + 1n;
+      scans.set(market, scan);
       const orders: HouseOrder[] = [];
       // Include paired IDs from storage as well; zero-size dormant pairs are not cancelable.
       for (const id of ids) {
@@ -247,7 +261,7 @@ export function createMakerChain(
         command.spender,
         ...(command.tokens ?? []),
       ].filter((v): v is Address => v !== undefined);
-      await verify(extra);
+      await verify(extra, true);
       // Receipt/block gating, never a sleep-based nonce policy. Unknown outcomes retain pending.
       if (lastBlock > 0n && (await client.getBlockNumber({ cacheTime: 0 })) <= lastBlock) {
         await new Promise<void>((resolve, reject) => {
@@ -257,7 +271,7 @@ export function createMakerChain(
           }, 30_000);
           const unwatch = client.watchBlockNumber({
             poll: true,
-            pollingInterval: 100,
+            pollingInterval: 400,
             emitOnBegin: true,
             onBlockNumber(block) {
               if (block <= lastBlock) return;
@@ -265,10 +279,10 @@ export function createMakerChain(
               unwatch();
               resolve();
             },
-            onError() {
+            onError(error) {
               clearTimeout(timeout);
               unwatch();
-              reject(new Error("BOT successor block unavailable"));
+              reject(error);
             },
           });
         });
@@ -350,13 +364,15 @@ export function createMakerChain(
           gas = gasLimit("redeem");
           break;
       }
-      gas ??= gasWithMargin(await client.estimateGas({ account, to, data }));
+      gas ??= gasWithMargin(await client.estimateGas({ account, to, data, prepare: false }));
       if (gas <= 0n || gas > 30000000n) throw new Error("BOT gas exceeds Monad transaction limit");
       const request = await wallet.prepareTransactionRequest({
         account,
         to,
         data,
         gas,
+        chainId: 10143,
+        ...(await client.estimateFeesPerGas()),
         nonce: await client.getTransactionCount({ address: account.address, blockTag: "pending" }),
       });
       if (
@@ -381,20 +397,21 @@ export function createMakerChain(
       if (pending && pending !== transaction.hash)
         throw new Error("BOT sender has another unresolved hash");
       pending = transaction.hash;
-      await verify();
+      await verify([], true);
       try {
         await client.sendRawTransaction({ serializedTransaction: transaction.raw });
-      } catch {
+      } catch (error) {
         if (!(await client.getTransaction({ hash: transaction.hash }).catch(() => null)))
-          throw new Error("BOT broadcast outcome unavailable");
+          throw error;
       }
-      try {
-        return decode(
-          await client.waitForTransactionReceipt({ hash: transaction.hash, pollingInterval: 100 }),
-        );
-      } catch {
-        throw new Error("BOT receipt outcome unavailable");
-      }
+      return decode(
+        await client.waitForTransactionReceipt({
+          hash: transaction.hash,
+          pollingInterval: 400,
+          checkReplacement: false,
+          timeout: 30_000,
+        }),
+      );
     },
   };
   return adapter;

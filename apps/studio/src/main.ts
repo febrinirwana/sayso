@@ -13,6 +13,7 @@ import { createEpisodeChain } from "./episode-chain.ts";
 import { loadClipLibrary } from "./library.ts";
 import { createPositionsReader, HouseMaker } from "./maker.ts";
 import { createMakerChain } from "./maker-chain.ts";
+import { operatorFailure } from "./operator-log.ts";
 import { EpisodeRunner } from "./runner.ts";
 
 try {
@@ -95,8 +96,7 @@ try {
             log: (entry) => console.log(JSON.stringify({ event: "flag_latency", ...entry })),
             seed: maker,
             onReceipt: cre.onReceipt,
-            onBackgroundError: (source) =>
-              console.error(`Studio ${source} work unavailable; journal retained.`),
+            onBackgroundError: operatorFailure,
           })
         : undefined;
     await runner?.tick();
@@ -122,25 +122,22 @@ try {
       },
     });
     cre?.start();
-    let ticking = false;
-    const clock = runner
-      ? setInterval(async () => {
-          if (ticking) return;
-          ticking = true;
-          try {
-            await runner.tick();
-          } catch {
-            console.error("Episode clock unavailable; pending actions retained.");
-          } finally {
-            ticking = false;
-          }
-        }, 50)
-      : undefined;
     let stopping = false;
+    let clock: Timer | undefined;
+    const tick = async () => {
+      try {
+        await runner?.tick();
+      } catch (error) {
+        operatorFailure("clock", error);
+      } finally {
+        if (!stopping && runner) clock = setTimeout(tick, runner.nextWakeMs());
+      }
+    };
+    if (runner) clock = setTimeout(tick, runner.nextWakeMs());
     const shutdown = async () => {
       if (stopping) return;
       stopping = true;
-      clearInterval(clock);
+      clearTimeout(clock);
       server.stop(true);
       await runner?.stop();
       await Promise.all([maker?.stop(), cre?.stop(), drip?.stop()]);
@@ -154,8 +151,7 @@ try {
     db.close();
     throw error;
   }
-} catch {
-  // Never print arbitrary env/parser/RPC errors: they may contain private studio data.
-  console.error("Studio startup failed; check environment and committed clip library.");
+} catch (error) {
+  operatorFailure("startup", error);
   process.exitCode = 1;
 }

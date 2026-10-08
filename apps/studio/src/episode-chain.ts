@@ -4,7 +4,6 @@ import {
   createWalletClient,
   encodeFunctionData,
   type Hex,
-  http,
   keccak256,
   parseEventLogs,
   stringToHex,
@@ -13,6 +12,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import type { KeyRole, StudioConfig } from "./config.ts";
+import { expireStudioChainId, invalidateStudioReads, studioRpc } from "./rpc.ts";
 import type { Command, EpisodeChain, Prepared, Receipt } from "./runner.ts";
 
 function decodeReceipt(receipt: TransactionReceipt): Receipt {
@@ -40,17 +40,18 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
   const address = config.saysoMarkets;
   if (!privateKey || !address) throw new Error("Episode chain configuration missing");
   const account = privateKeyToAccount(privateKey);
-  const client = createPublicClient({ chain: monadTestnet, transport: http(config.rpcUrl) });
+  const client = createPublicClient({ chain: monadTestnet, transport: studioRpc(config.rpcUrl) });
   const wallet = createWalletClient({
     account,
     chain: monadTestnet,
-    transport: http(config.rpcUrl),
+    transport: studioRpc(config.rpcUrl),
   });
   let tail = Promise.resolve();
   let unresolved: Hex | undefined;
   let lastBlock = 0n;
   function recordReceipt(receipt: TransactionReceipt): Receipt {
     if (receipt.blockNumber > lastBlock) lastBlock = receipt.blockNumber;
+    invalidateStudioReads(config.rpcUrl);
     if (unresolved === receipt.transactionHash) unresolved = undefined;
     return decodeReceipt(receipt);
   }
@@ -63,12 +64,13 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
       await previous;
       try {
         if (unresolved) throw new Error("Operator transaction requires recovery");
+        expireStudioChainId(config.rpcUrl);
         if ((await client.getChainId()) !== 10143) throw new Error("RPC is not Monad testnet");
         if (!(await client.getCode({ address }))) throw new Error("Missing SaysoMarkets bytecode");
         if (lastBlock > 0n && (await client.getBlockNumber({ cacheTime: 0 })) <= lastBlock) {
           const advanced = Promise.withResolvers<void>();
           const stop = client.watchBlockNumber({
-            pollingInterval: 100,
+            pollingInterval: 400,
             onBlockNumber(block) {
               if (block > lastBlock) advanced.resolve();
             },
@@ -148,6 +150,8 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
           to: address,
           data,
           gas: command.gas,
+          chainId: 10143,
+          ...(await client.estimateFeesPerGas()),
           nonce: await client.getTransactionCount({
             address: account.address,
             blockTag: "pending",
@@ -184,7 +188,8 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
         return recordReceipt(
           await client.waitForTransactionReceipt({
             hash: transaction.hash,
-            pollingInterval: 100,
+            pollingInterval: 400,
+            checkReplacement: false,
             timeout: 30_000,
           }),
         );

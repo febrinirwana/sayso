@@ -71,8 +71,11 @@ type Action = {
   status: string;
 };
 export class EpisodeError extends Error {
-  constructor(readonly status: 409 | 429 | 503) {
-    super("Episode unavailable");
+  constructor(
+    readonly status: 409 | 429 | 503,
+    cause?: unknown,
+  ) {
+    super("Episode unavailable", { cause });
   }
 }
 export type SeedHook = {
@@ -94,7 +97,7 @@ export type RunnerDeps = {
   }): void;
   seed?: SeedHook;
   onReceipt?(action: { episodeId: number; kind: ActionKind; receipt: Receipt }): Promise<void>;
-  onBackgroundError?(source: "maker" | "receipt"): void;
+  onBackgroundError?(source: "maker" | "receipt", error: unknown): void;
 };
 
 export class EpisodeRunner {
@@ -103,6 +106,7 @@ export class EpisodeRunner {
   #announced = new Set<number>();
   #nextHour: number;
   #makerWork: Promise<void> | undefined;
+  #nextMaker = 0;
   #stopped = false;
   #receiptWork = new Set<Promise<void>>();
   #senderRestored = false;
@@ -128,10 +132,17 @@ export class EpisodeRunner {
   }
   private kickMaker() {
     if (this.#stopped || !this.deps.seed?.tick || this.#makerWork) return;
+    const due = this.deps.db
+      .query(
+        "SELECT id FROM actions WHERE kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? LIMIT 1",
+      )
+      .get(this.deps.now());
+    if (!due && this.deps.now() < this.#nextMaker) return;
+    this.#nextMaker = this.deps.now() + 5000;
     this.#makerWork = this.deps.seed
       .tick()
-      .catch(() => {
-        this.deps.onBackgroundError?.("maker");
+      .catch((error) => {
+        this.deps.onBackgroundError?.("maker", error);
       })
       .finally(() => {
         this.#makerWork = undefined;
@@ -187,6 +198,25 @@ export class EpisodeRunner {
       this.kickMaker();
       return id;
     });
+  }
+  // Sleep to the next scheduled action (capped at 1 s for state refresh); retry due or
+  // in-flight work at Monad block cadence, e.g. a flag waiting for chain time to reach startsAt.
+  nextWakeMs(): number {
+    const now = this.deps.now();
+    const next = this.deps.db
+      .query<{ at: number | null }, [number]>(
+        "SELECT MIN(scheduled_ms) AS at FROM actions WHERE status='pending' AND scheduled_ms>?",
+      )
+      .get(now)?.at;
+    const due = this.deps.db
+      .query(
+        "SELECT id FROM actions WHERE status='sent' OR (status='pending' AND scheduled_ms<=?) LIMIT 1",
+      )
+      .get(now);
+    return Math.max(
+      1,
+      Math.min(due ? 400 : 1000, next === null || next === undefined ? Infinity : next - now),
+    );
   }
   async tick(): Promise<void> {
     await this.exclusive(async () => {
@@ -400,9 +430,9 @@ export class EpisodeRunner {
         if (!payload.raw) throw new EpisodeError(503);
         try {
           receipt = await chain.broadcast({ hash: action.tx_hash, raw: payload.raw });
-        } catch {
+        } catch (error) {
           db.query("UPDATE actions SET error='transaction unavailable' WHERE id=?").run(action.id);
-          throw new EpisodeError(503);
+          throw new EpisodeError(503, error);
         }
       }
       if (!receipt) {
@@ -485,11 +515,11 @@ export class EpisodeRunner {
           );
         try {
           receipt = await chain.broadcast(prepared);
-        } catch {
+        } catch (error) {
           db.query("UPDATE actions SET error = 'transaction unavailable' WHERE id = ?").run(
             action.id,
           );
-          throw new EpisodeError(503);
+          throw new EpisodeError(503, error);
         }
       }
       db.query("UPDATE actions SET status = ?, block = ?, error = ? WHERE id = ?").run(
@@ -519,8 +549,8 @@ export class EpisodeRunner {
       });
       if (background) {
         const work = background
-          .catch(() => {
-            this.deps.onBackgroundError?.("receipt");
+          .catch((error) => {
+            this.deps.onBackgroundError?.("receipt", error);
           })
           .finally(() => {
             this.#receiptWork.delete(work);

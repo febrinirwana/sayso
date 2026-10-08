@@ -48,6 +48,7 @@ export type MakerChain = {
     episodeId: number,
   ): Promise<{ block: number; timestamp: number; closed: boolean; endsAt: number }>;
   balance(token: Address, margin?: boolean): Promise<bigint>;
+  allowance(token: Address, spender: Address): Promise<bigint>;
   orders(market: Address, fromBlock: number): Promise<{ block: number; orders: HouseOrder[] }>;
   prepare(command: MakerCommand): Promise<Prepared>;
   broadcast(transaction: Prepared): Promise<MakerReceipt>;
@@ -149,30 +150,71 @@ export class HouseMaker implements SeedHook {
       this.finish(action, "observed");
       return;
     }
-    for (const id of await chain.words(action.episode_id)) {
-      const word = await chain.word(id);
-      if (word.state !== 0) continue;
-      const sets = 20n * ONE;
-      const quote =
-        quoteCost(10n * ONE, priceToKuru("0.49")) + quoteCost(10n * ONE, priceToKuru("0.48"));
-      const commands: MakerCommand[] = [
-        { kind: "approve", token: chain.ausd, spender: chain.markets, amount: sets.toString() },
-        { kind: "mint", wordId: id, amount: sets.toString() },
-        { kind: "approve", token: word.yes, spender: chain.margin, amount: sets.toString() },
-        { kind: "deposit", token: word.yes, amount: sets.toString() },
-        { kind: "approve", token: chain.ausd, spender: chain.margin, amount: quote.toString() },
-        { kind: "deposit", token: chain.ausd, amount: quote.toString() },
-        { kind: "ladder", market: word.market },
-      ];
-      for (let index = 0; index < commands.length; index++) {
-        const current = await chain.clock(action.episode_id);
-        if (current.closed || current.timestamp >= current.endsAt) {
-          this.finish(action, "observed");
-          return;
-        }
-        if (commands[index]!.kind === "ladder" && (await chain.word(id)).state !== 0) break;
-        await this.step(action, journal, `${id}:${index}`, commands[index]!);
+    const words = await Promise.all(
+      (await chain.words(action.episode_id)).map((id) => chain.word(id)),
+    );
+    const sets = 20n * ONE;
+    const quote =
+      quoteCost(10n * ONE, priceToKuru("0.49")) + quoteCost(10n * ONE, priceToKuru("0.48"));
+    const open = words.filter((word) => word.state === 0);
+    // Fixed exposure: 16 eight-word episodes, never unlimited approvals.
+    const allowanceEpisodes = 16n * 8n;
+    if (
+      open.length &&
+      (await chain.allowance(chain.ausd, chain.markets)) < sets * BigInt(open.length)
+    )
+      await this.step(action, journal, "ausd:markets", {
+        kind: "approve",
+        token: chain.ausd,
+        spender: chain.markets,
+        amount: (sets * allowanceEpisodes).toString(),
+      });
+    // Account for any already-confirmed per-word deposits from an older journal.
+    const quoteWords = open.filter(
+      (word) =>
+        !journal.steps?.some((step) => step.key === `${word.id}:5` && step.status === "confirmed"),
+    );
+    const totalQuote = quote * BigInt(quoteWords.length);
+    if (totalQuote > 0n) {
+      if ((await chain.allowance(chain.ausd, chain.margin)) < totalQuote)
+        await this.step(action, journal, "ausd:margin", {
+          kind: "approve",
+          token: chain.ausd,
+          spender: chain.margin,
+          amount: (quote * allowanceEpisodes).toString(),
+        });
+      await this.step(action, journal, "quote:deposit", {
+        kind: "deposit",
+        token: chain.ausd,
+        amount: totalQuote.toString(),
+      });
+    }
+    for (const word of open) {
+      const id = word.id;
+      await this.step(action, journal, `${id}:1`, {
+        kind: "mint",
+        wordId: id,
+        amount: sets.toString(),
+      });
+      if ((await chain.allowance(word.yes, chain.margin)) < sets)
+        await this.step(action, journal, `${id}:2`, {
+          kind: "approve",
+          token: word.yes,
+          spender: chain.margin,
+          amount: sets.toString(),
+        });
+      await this.step(action, journal, `${id}:3`, {
+        kind: "deposit",
+        token: word.yes,
+        amount: sets.toString(),
+      });
+      const current = await chain.clock(action.episode_id);
+      if (current.closed || current.timestamp >= current.endsAt) {
+        this.finish(action, "observed");
+        return;
       }
+      if ((await chain.word(id)).state === 0)
+        await this.step(action, journal, `${id}:6`, { kind: "ladder", market: word.market });
       await this.syncOrders(action.episode_id, word.market);
     }
     this.finish(action);
@@ -309,7 +351,7 @@ export class HouseMaker implements SeedHook {
             }
             db.query("UPDATE actions SET error='BOT action unavailable' WHERE id=?").run(action.id);
             // Do not skip an unknown signed outcome and sign another nonce.
-            throw new Error("BOT action unavailable");
+            throw error;
           }
         }
       }

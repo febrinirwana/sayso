@@ -33,6 +33,7 @@ function fixture() {
     cash = 100n * ONE;
   const balances = new Map<string, bigint>([[ausd, cash]]),
     deposits = new Map<string, bigint>();
+  const allowances = new Map<string, bigint>();
   const prepared = new Map<Hex, MakerCommand>(),
     mined = new Map<Hex, MakerReceipt>();
   const orders: {
@@ -51,14 +52,17 @@ function fixture() {
     ausd,
     margin,
     markets,
+    async allowance(token, spender) {
+      return allowances.get(`${token}:${spender}`) ?? 0n;
+    },
     async ready(count) {
       return cash >= BigInt(count) * 29700000n;
     },
     async words() {
       return [1];
     },
-    async word() {
-      return { id: 1, yes, no, market, state };
+    async word(id) {
+      return { id, yes, no, market, state };
     },
     async clock() {
       return { block, timestamp: Math.floor(now / 1000), closed, endsAt: 10 };
@@ -81,9 +85,18 @@ function fixture() {
       if (mined.has(tx.hash)) return mined.get(tx.hash)!;
       const c = prepared.get(tx.hash)!;
       const amount = BigInt(c.amount ?? "0");
+      if (c.kind === "approve") allowances.set(`${c.token}:${c.spender}`, amount);
+      if (c.kind === "mint" || c.kind === "deposit") {
+        const token = c.kind === "mint" ? ausd : c.token!;
+        const spender = c.kind === "mint" ? markets : margin;
+        const key = `${token}:${spender}`;
+        const allowed = allowances.get(key) ?? 0n;
+        if (allowed < amount) throw new Error("Insufficient allowance");
+        allowances.set(key, allowed - amount);
+      }
       if (c.kind === "mint") {
         mints++;
-        cash -= amount;
+        cash = (balances.get(ausd) ?? 0n) - amount;
         balances.set(ausd, cash);
         balances.set(yes, (balances.get(yes) ?? 0n) + amount);
         balances.set(no, (balances.get(no) ?? 0n) + amount);
@@ -159,6 +172,7 @@ function fixture() {
     orders,
     balances,
     deposits,
+    prepared,
     setNow: (n: number) => {
       now = n;
     },
@@ -175,6 +189,29 @@ function fixture() {
   };
 }
 describe("house economic lifecycle", () => {
+  it("reuses bounded AUSD allowances across episodes and deposits quote once", async () => {
+    const f = fixture();
+    await f.maker().seed(1);
+    const commands = () => [...f.prepared.values()];
+    expect(commands()).toHaveLength(7);
+    f.db.exec(
+      "INSERT INTO episodes VALUES(2,10000,'Live'); INSERT INTO actions(episode_id,kind,scheduled_ms) VALUES(2,'seed',0);",
+    );
+    await f.maker().seed(2);
+    expect(commands()).toHaveLength(12);
+    expect(commands().filter((c) => c.kind === "approve" && c.token === ausd)).toHaveLength(2);
+    expect(commands().filter((c) => c.kind === "deposit" && c.token === ausd)).toHaveLength(2);
+  });
+  it("seeds six books in 27 transactions instead of 42", async () => {
+    const f = fixture();
+    f.chain.words = async () => [1, 2, 3, 4, 5, 6];
+    f.balances.set(ausd, 300n * ONE);
+    await f.maker().seed(1);
+    const commands = [...f.prepared.values()];
+    expect(commands).toHaveLength(27);
+    expect(commands.filter((c) => c.kind === "deposit" && c.token === ausd)).toHaveLength(1);
+    expect(commands.filter((c) => c.kind === "mint")).toHaveLength(6);
+  });
   it("seeds once across restart and recovers mined mint before any new economic action", async () => {
     const f = fixture();
     f.loseResponse();
