@@ -99,3 +99,25 @@
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Landing ambience (DESIGN sections 6 and 8): an endless strip that moves left by half its width. */
+@theme {
+  --animate-marquee: marquee 42s linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+}
+
+/* Large hero sticker card: same outline, deeper hard shadow. */
+@utility sticker-lg {
+  background: var(--color-card);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sticker-lg);
+}

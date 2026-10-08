@@ -1,10 +1,10 @@
 import { useReducedMotion } from "motion/react";
-import { lazy, Suspense, useState } from "react";
-import { BurstStickers, HeroStickers } from "./Stickers";
+import { lazy, Suspense } from "react";
+import { BurstStickers } from "./Stickers";
 
 // The only entry points pages import. three.js lives behind these dynamic imports, so it ships
-// in its own chunk and loads on S0 and S5 alone.
-const HeroScene = lazy(() => import("./HeroScene"));
+// in its own chunks and loads on S0 and S5 alone.
+const Stage = lazy(() => import("./Stage"));
 const WinBurst = lazy(() => import("./WinBurst"));
 
 let webgl: boolean | undefined;
@@ -25,31 +25,22 @@ function hasWebGL(): boolean {
 }
 
 /** Live 3D is skipped under reduced motion and without WebGL; stickers stand in. */
-function useLive(): boolean {
+export function useLive(): boolean {
   const reduced = useReducedMotion();
   return reduced !== true && hasWebGL();
 }
 
-const LAYER = "[grid-area:1/1] min-h-0 min-w-0";
-
 /**
- * Landing hero voxels. Fills the box `className` gives it. Stickers hold the layout while the 3D
- * chunk loads, then fade out as the canvas fades in.
+ * The landing's one WebGL context: a fixed, click-through canvas that draws every registered
+ * `StageSlot`. Mount once per page; renders nothing when 3D is off.
  */
-export function LazyHeroScene({ className }: { className?: string }) {
+export function LazyStage() {
   const live = useLive();
-  const [ready, setReady] = useState(false);
+  if (!live) return null;
   return (
-    <div className={`grid ${className ?? ""}`} aria-hidden="true">
-      <HeroStickers
-        className={`${LAYER} transition-opacity duration-300 ease-out ${live && ready ? "opacity-0" : ""}`}
-      />
-      {live && (
-        <Suspense fallback={null}>
-          <HeroScene className={LAYER} onReady={() => setReady(true)} />
-        </Suspense>
-      )}
-    </div>
+    <Suspense fallback={null}>
+      <Stage />
+    </Suspense>
   );
 }
 

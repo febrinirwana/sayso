@@ -1,12 +1,12 @@
 import { motion, type Variants } from "motion/react";
 import type { ReactNode } from "react";
 
-/** DESIGN section 8: whileInView once, y 24 px, 400 ms ease-out, 60 ms stagger. */
-const group: Variants = { hidden: {}, shown: { transition: { staggerChildren: 0.06 } } };
+/** DESIGN section 6: whileInView once, y 32 px, 500 ms ease-out, 70 ms stagger. */
+const group: Variants = { hidden: {}, shown: { transition: { staggerChildren: 0.07 } } };
 
 const item: Variants = {
-  hidden: { opacity: 0, y: 24 },
-  shown: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.23, 1, 0.32, 1] } },
+  hidden: { opacity: 0, y: 32 },
+  shown: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.23, 1, 0.32, 1] } },
 };
 
 type RevealProps = { children: ReactNode; className?: string };

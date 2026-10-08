@@ -1,18 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   burstLayout,
-  HERO_CLEAR_BOTTOM,
-  HERO_CLEAR_TOP,
-  HERO_MOBILE_MAX,
-  HERO_TEXT_MAX,
+  HERO_COPY,
+  HERO_PHONE_MAX,
   HERO_WIDE_MIN,
   heroLayout,
   type Piece,
 } from "./layout";
-
-const widths = [320, 390, 412, 430, 600, 767, 768, 1024, 1099, 1100, 1280, 1440, 1920, 2560];
-const heights = [640, 780, 851, 920];
-const sizes = widths.flatMap((w) => heights.map((h) => [w, h] as const));
 
 type Box = { left: number; right: number; top: number; bottom: number };
 
@@ -24,29 +18,45 @@ const box = (p: Pick<Piece, "x" | "y" | "size">): Box => ({
 });
 
 describe("heroLayout", () => {
-  it.each(sizes)("keeps every piece inside the %ix%i box and off the text", (w, h) => {
+  // Wide boxes are the whole hero under the top bar; bands are the art strip above phone copy.
+  const wide = [1024, 1280, 1440, 1920].flatMap((w) => [640, 736, 836].map((h) => [w, h] as const));
+  const bands = [320, 390, 412, 430, 600, 768, 1023].flatMap((w) =>
+    [280, 340, 420].map((h) => [w, h] as const),
+  );
+
+  it.each(wide)("keeps every piece in the %ix%i hero and out of the copy column", (w, h) => {
     const pieces = heroLayout(w, h);
-    expect(pieces.length).toBeGreaterThanOrEqual(4);
+    expect(pieces.length).toBeGreaterThanOrEqual(7);
     for (const piece of pieces) {
       const b = box(piece);
       expect(b.left).toBeGreaterThanOrEqual(0);
       expect(b.right).toBeLessThanOrEqual(w);
       expect(b.top).toBeGreaterThanOrEqual(0);
       expect(b.bottom).toBeLessThanOrEqual(h);
-      if (w >= HERO_WIDE_MIN) {
-        const textLeft = (w - HERO_TEXT_MAX) / 2;
-        expect(b.right <= textLeft || b.left >= w - textLeft).toBe(true);
-      } else {
-        expect(b.bottom <= h * HERO_CLEAR_TOP || b.top >= h * (1 - HERO_CLEAR_BOTTOM)).toBe(true);
-      }
+      const besideCopy = b.left >= w * HERO_COPY.right;
+      const clearOfCopy = b.bottom <= h * HERO_COPY.top || b.top >= h * HERO_COPY.bottom;
+      expect(besideCopy || clearOfCopy).toBe(true);
+    }
+  });
+
+  it.each(bands)("keeps every piece in the %ix%i band and off the mascot", (w, h) => {
+    expect(w).toBeLessThan(HERO_WIDE_MIN);
+    for (const piece of heroLayout(w, h)) {
+      const b = box(piece);
+      expect(b.left).toBeGreaterThanOrEqual(0);
+      expect(b.right).toBeLessThanOrEqual(w);
+      expect(b.top).toBeGreaterThanOrEqual(0);
+      expect(b.bottom).toBeLessThanOrEqual(h);
+      // The mascot is centred and at most 52 % of the band wide.
+      expect(b.right <= w * 0.24 || b.left >= w * 0.76).toBe(true);
     }
   });
 
   it("shows fewer, smaller pieces on phones than on desktop", () => {
-    const phone = heroLayout(412, 851);
+    const phone = heroLayout(412, 340);
     const desktop = heroLayout(1440, 836);
     expect(phone.length).toBeLessThan(desktop.length);
-    expect(phone.length).toBe(heroLayout(HERO_MOBILE_MAX - 1, 851).length);
+    expect(phone.length).toBe(heroLayout(HERO_PHONE_MAX - 1, 340).length);
     const largest = (pieces: Piece[]) => Math.max(...pieces.map((p) => p.size));
     expect(largest(phone)).toBeLessThan(largest(desktop));
   });

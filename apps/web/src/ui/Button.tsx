@@ -2,10 +2,13 @@ import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from "react";
 import { play } from "@/sound";
 
 type ButtonBase = {
-  /** `primary` is the ink pill; `secondary` is the white sticker pill. There is no red button. */
-  variant?: "primary" | "secondary";
-  /** `md` is 44 px tall (minimum tap target); `lg` is 56 px for hero and closing CTAs. */
-  size?: "md" | "lg";
+  /**
+   * `brand` is the mascot-red pill for landing CTAs only; `primary` is the ink pill the app uses;
+   * `secondary` is the white sticker pill.
+   */
+  variant?: "brand" | "primary" | "secondary";
+  /** `md` is 44 px tall (minimum tap target); `lg` is 56 px; `xl` is 64 px for the hero. */
+  size?: "md" | "lg" | "xl";
   children: ReactNode;
   className?: string;
 };
@@ -19,22 +22,30 @@ type NativeButtonProps = ButtonBase &
 export type ButtonProps = AnchorButtonProps | NativeButtonProps;
 
 const base =
-  "sticker pressable inline-flex shrink-0 select-none items-center justify-center gap-2 rounded-full font-display-wide whitespace-nowrap disabled:pointer-events-none disabled:opacity-50";
+  "sticker pressable inline-flex shrink-0 select-none items-center justify-center gap-2 rounded-full font-headline whitespace-nowrap disabled:pointer-events-none disabled:opacity-50";
 
 const variants = {
+  brand: "bg-said text-white",
   primary: "bg-ink text-paper",
   secondary: "bg-card text-ink",
 } as const;
 
 const sizes = {
-  md: "h-11 px-5 text-[15px]",
-  lg: "h-14 px-7 text-lg",
+  md: "h-11 px-5",
+  lg: "h-14 px-7",
+  xl: "h-16 px-9",
 } as const;
+
+const labels = { md: "text-[15px]", lg: "text-lg", xl: "text-xl" } as const;
 
 /** Pill button per DESIGN section 4. Renders `<a>` when `href` is given; every press plays `tap`. */
 export function Button(props: ButtonProps) {
   const { variant = "primary", size = "md", className, children } = props;
-  const classes = [base, variants[variant], sizes[size], className].filter(Boolean).join(" ");
+  // White on said red is 3.9:1: brand labels are 24 px bold at every size (DESIGN section 2).
+  const label = variant === "brand" ? "text-2xl" : labels[size];
+  const classes = [base, variants[variant], sizes[size], label, className]
+    .filter(Boolean)
+    .join(" ");
 
   if (props.href !== undefined) {
     const { variant: _v, size: _s, className: _c, children: _ch, href, onClick, ...rest } = props;

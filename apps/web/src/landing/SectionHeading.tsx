@@ -3,29 +3,53 @@ import { RevealGroup, RevealItem } from "./Reveal";
 
 type SectionHeadingProps = {
   id: string;
-  title: string;
+  /** Short tag above the title, set as a tilted sticker. */
+  eyebrow: string;
+  title: ReactNode;
   /** One plain sentence under the title. */
   lede: ReactNode;
-  /** Small label beside the title, e.g. the Demo pill. */
+  /** Small label beside the eyebrow, e.g. the Demo or TESTNET pill. */
   badge?: ReactNode;
   align?: "start" | "center";
+  className?: string;
 };
 
-export function SectionHeading({ id, title, lede, badge, align = "start" }: SectionHeadingProps) {
+export function SectionHeading({
+  id,
+  eyebrow,
+  title,
+  lede,
+  badge,
+  align = "start",
+  className,
+}: SectionHeadingProps) {
   const centred = align === "center";
   return (
-    <RevealGroup className={centred ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
-      <RevealItem className={`flex items-center gap-3 ${centred ? "justify-center" : ""}`}>
-        <h2
-          id={id}
-          className="font-display-wide text-[40px] leading-[0.95] text-balance md:text-7xl"
-        >
-          {title}
-        </h2>
+    <RevealGroup
+      className={`relative z-[2] ${centred ? "mx-auto max-w-3xl text-center" : "max-w-3xl"} ${className ?? ""}`}
+    >
+      <RevealItem
+        className={`flex flex-wrap items-center gap-2 ${centred ? "justify-center" : ""}`}
+      >
+        <span className="inline-flex h-8 -rotate-2 items-center rounded-full border-2 border-ink bg-card px-3.5 text-sm font-bold tracking-[0.02em] shadow-sticker">
+          {eyebrow}
+        </span>
         {badge}
       </RevealItem>
       <RevealItem>
-        <p className="mt-4 text-lg leading-normal text-ink-soft md:mt-5 md:text-xl">{lede}</p>
+        <h2
+          id={id}
+          className="mt-5 font-headline text-[clamp(44px,7vw,88px)] leading-[0.95] text-balance"
+        >
+          {title}
+        </h2>
+      </RevealItem>
+      <RevealItem>
+        <p
+          className={`mt-5 max-w-[46ch] text-lg leading-normal text-pretty text-ink-soft md:text-xl ${centred ? "mx-auto" : ""}`}
+        >
+          {lede}
+        </p>
       </RevealItem>
     </RevealGroup>
   );

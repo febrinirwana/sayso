@@ -3,8 +3,16 @@ import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
 import { SoundToggle } from "@/ui/SoundToggle";
 import { TestnetPill } from "@/ui/TestnetPill";
+import { scrollToSection } from "./scroll";
 
-/** Sticky 64 px bar; the ink rule appears only once the page has scrolled under it. */
+const LINKS = [
+  { href: "#how-it-plays", label: "How it plays" },
+  { href: "#try-it", label: "Try it" },
+  { href: "#fair", label: "Why it's fair" },
+  { href: "#faq", label: "FAQ" },
+] as const;
+
+/** Sticky 72 px bar over paper; the ink rule appears only once the page has scrolled under it. */
 export function TopBar() {
   const [scrolled, setScrolled] = useState(false);
 
@@ -21,13 +29,25 @@ export function TopBar() {
         scrolled ? "border-ink" : "border-transparent"
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 md:px-8">
-        <a href="/" aria-label="SAYSO home" className="-ml-1 mr-auto rounded-lg px-1 py-[7px]">
-          <Logo height={30} className="h-[30px] w-auto md:h-9" />
+      <div className="mx-auto flex h-16 max-w-[1360px] items-center gap-2 px-4 md:h-[72px] md:px-8 lg:px-12">
+        <a href="/" aria-label="SAYSO home" className="-ml-1 mr-auto rounded-lg px-1 py-1.5">
+          <Logo height={36} className="h-8 w-auto md:h-10" />
         </a>
-        <TestnetPill className="mr-1" />
+        <nav aria-label="Sections" className="mr-4 hidden items-center gap-1 lg:flex">
+          {LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              onClick={(event) => scrollToSection(event, link.href.slice(1))}
+              className="inline-flex h-11 items-center rounded-full px-4 text-[15px] font-semibold transition-colors duration-150 hover:bg-ink/5"
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
+        <TestnetPill className="mr-1 max-[359px]:hidden" />
         <SoundToggle />
-        <Button href="/arena" className="max-[359px]:hidden">
+        <Button href="/arena" variant="brand" className="ml-1 px-5">
           Play
         </Button>
       </div>

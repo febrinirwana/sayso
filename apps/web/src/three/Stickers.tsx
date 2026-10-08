@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import type { CSSProperties } from "react";
 import { Voxel } from "@/ui/Voxel";
 import { burstLayout, heroLayout } from "./layout";
 import { useBoxSize } from "./useBoxSize";
@@ -17,10 +18,17 @@ const placed = (x: number, y: number, size: number, roll: number) => ({
   height: size * ART_SCALE,
 });
 
-export function HeroStickers({ className }: { className?: string | undefined }) {
+/** The hero's voxels as static stickers, at the same spots the 3D scene puts them. */
+export function HeroStickers({
+  className,
+  style,
+}: {
+  className?: string | undefined;
+  style?: CSSProperties;
+}) {
   const [ref, box] = useBoxSize<HTMLDivElement>();
   return (
-    <div ref={ref} className={`relative ${className ?? ""}`} aria-hidden="true">
+    <div ref={ref} className={`relative ${className ?? ""}`} style={style} aria-hidden="true">
       {heroLayout(box.width, box.height).map((piece) => (
         <div
           key={piece.name}

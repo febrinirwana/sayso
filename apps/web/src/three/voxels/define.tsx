@@ -33,7 +33,8 @@ const POP = 0.15;
 const geometries = new Map<number, BufferGeometry>();
 const materials = new Map<string, MeshStandardMaterial>();
 
-function geometry(depth: number): BufferGeometry {
+/** Shared rounded voxel of the given depth; scale instances for other sizes. */
+export function voxelGeometry(depth: number): BufferGeometry {
   let geo = geometries.get(depth);
   if (!geo) {
     // One corner segment: at a 0.03 radius it reads the same as more, at a third of the triangles.
@@ -43,7 +44,7 @@ function geometry(depth: number): BufferGeometry {
   return geo;
 }
 
-function material(color: string): MeshStandardMaterial {
+export function voxelMaterial(color: string): MeshStandardMaterial {
   let mat = materials.get(color);
   if (!mat) {
     mat = new MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1 });
@@ -52,7 +53,7 @@ function material(color: string): MeshStandardMaterial {
   return mat;
 }
 
-type Batch = {
+export type Batch = {
   key: string;
   geometry: BufferGeometry;
   material: MeshStandardMaterial;
@@ -98,7 +99,13 @@ export function defineVoxel(
         i++;
       }
     }
-    return { key, geometry: geometry(depth), material: material(part.color), count, matrices };
+    return {
+      key,
+      geometry: voxelGeometry(depth),
+      material: voxelMaterial(part.color),
+      count,
+      matrices,
+    };
   });
 
   const Mesh = forwardRef<Group, VoxelMeshProps>(function Voxel(props, ref) {
@@ -114,7 +121,8 @@ export function defineVoxel(
   return Object.assign(Mesh, { span: Math.max(cols, rows.length) });
 }
 
-function BatchMesh({ batch }: { batch: Batch }) {
+/** One instanced batch; `matrices` is copied into `instanceMatrix` on mount. */
+export function BatchMesh({ batch }: { batch: Batch }) {
   const ref = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
     const mesh = ref.current;
