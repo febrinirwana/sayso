@@ -17,7 +17,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 |---|---|---|---|---|
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DONE | 10/10 | none | none |
-| Spikes | DOING | 2/6 | Live S2+S3 from BOT after 2.9 | S4 needs the CRE CLI and account |
+| Spikes | DOING | 2/6 | Live S2+S3: house seed and player trade after the studio RPC budget fix | S4 needs `cre login` (B02); dedicated RPC (B14) |
 | 2 Contracts | DOING | 10/11 | 2.9 Monadscan verification (deployed, MonadVision verified) | Etherscan API key |
 | 3 Transcription | DOING | 2/3 | 3.3 original rights-cleared English clip library | B07; Indonesian/bilingual clips additionally B10 |
 | 4 CRE resolver | DOING | 2/3 | 4.3 staged simulation, then broadcast | `cre login`, S4, deployed contract, reveal API |
@@ -80,7 +80,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 - [ ] **S2 + S3** Kuru book from a contract · DOING
   - [x] fork probe drafted: `spikes\s3\test\KuruProbe.t.sol` (149 lines) deploys a token and its book via `Router.deployProxy(0, …)`
   - [x] probe compiles and the fork run is green, including `test_ausdQuote` — proof: `forge test --via-ir --fork-url https://testnet-rpc.monad.xyz -vv` → 2 passed (2026-10-05); findings in INTEGRATIONS section 2 · `Stack too deep` only without `--via-ir`
-  - [ ] live run from BOT: provision a flip ladder, contract-side `placeAndExecuteMarketBuy/Sell` with `isMargin = false` — proof: tx hashes; who is debited; where tokens land; `quoteSize` units; one live `Trade` log
+  - [ ] live run from BOT: provision a flip ladder, contract-side `placeAndExecuteMarketBuy/Sell` with `isMargin = false` — proof: tx hashes; who is debited; where tokens land; `quoteSize` units; one live `Trade` log · DOING 2026-10-08: the studio created and listed live episodes 1–4 (episode 1 create `0xb6d201e0df0cfb28535c4f20bd8bf83373cfe80f56bc294e7c4be95cf59925cd`, list `0x13fb7d67fcb5a51405482a99027009c8e48589e11d7ad8e1b27113c2a7a5b3ae`, six Kuru books each) and BOT placed one four-order flip ladder on word 1's book; flags, evidence and close all landed. The seed never completed before the clip window and a player `buyYes` therefore reverted (`0x859d2519f885b26f638a70ad586c03f4aa428527c6861cabc15ad79dfb9096e3`): RPC rate limits (BLOCKERS B14) plus 42 sequenced seed transactions. Studio RPC budget fix in progress
 - [ ] **S4** CRE on Monad testnet · BLOCKED (CLI not installed; user account)
   - [ ] CRE CLI 1.36.0 installed; `cre login`; `cre account access` requested — proof: `cre version`, access request id
   - [ ] `cre workflow supported-chains --output json` lists `monad-testnet`
@@ -155,7 +155,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 **Goal:** trade feed, positions and leaderboard come from Envio HyperIndex.
 
-- [ ] **6.1** Envio 3.12.1 config for chain 10143 + dynamic OutcomeToken registration, ERD schema and workspace landed; Linux/WSL codegen and typecheck pass with generated core ABI. Receiver address remains unset; local sync-to-head requires funded deployment and a cast-code-verified address/start block, so this item remains open
+- [ ] **6.1** Envio 3.12.1 config for chain 10143 + dynamic OutcomeToken registration, ERD schema and workspace landed; Linux/WSL codegen and typecheck pass with generated core ABI · DOING 2026-10-08: a WSL runtime copy synced from block 69,202,243 to head (progress 69,236,871 = source head) and served episodes 1–4 with words, markets and SAID flags over GraphQL; it used an untracked RPC source because the tracked HyperSync config needs `ENVIO_API_TOKEN` (BLOCKERS B13)
 - [x] **6.2** Event handlers, Transfer-only token balances, actual payer/recipient set cashflows, final-word-only profit and settled ranks — proof: Envio test-indexer helpers 10/10 under Linux/WSL, including gifted contract-caller mint/direct burn (not tx.origin), all four trades, sellNo YES dust, winner/No/Void redemption, unsettled exclusion and two-player hand calculation. Runtime handler pipeline discovered clones, indexed buy→resolution→redemption without profit double count; economic smoke: payer −3, holder +2, cash recipient +1 AUSD, origin unindexed. Full root `bun run verify` 270 tests passed under WSL (15 Biome non-null warnings, no errors)
 - [ ] **6.3** Spike S6 hosting decision and deployment; GraphQL URL documented — proof: query answered from the host
 
