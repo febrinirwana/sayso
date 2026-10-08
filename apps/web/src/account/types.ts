@@ -13,7 +13,7 @@ export type TxRequest = {
   to: Address;
   data: Hex;
   value?: bigint;
-  /** Explicit limit, always from `gasLimit()` in @sayso/core. Monad bills the limit. */
+  /** Explicit limit from @sayso/core `gasLimit()`, raised to `gasWithMargin(estimate)` for trades. Monad bills the limit. */
   gas: bigint;
 };
 

@@ -3,6 +3,7 @@ import {
   centsToKuru,
   explorerTxUrl,
   gasLimit,
+  gasWithMargin,
   kuruToCents,
   quoteProceeds,
   saysoMarketsAbi,
@@ -223,14 +224,25 @@ export function useLiveEpisode(id: number) {
         : side === "yes"
           ? "buyYes"
           : "buyNo";
+      const data = encodeFunctionData({
+        abi: saysoMarketsAbi,
+        functionName: kind,
+        args: [word.id, input, guard],
+      });
+      // Live Kuru books cost more than the measured table (crossed levels, cold slots), and Monad
+      // bills the limit: take the larger of the table and this exact call's estimate. A call that
+      // would revert fails here, before the player pays for it.
+      const estimate = await publicClient
+        .estimateGas({ account: account.address, to: addresses.saysoMarkets, data })
+        .catch(() => {
+          throw new Error("This order would not fill at the current price. Nothing was sent.");
+        });
+      const table = gasLimit(kind);
+      const live = gasWithMargin(estimate);
       const txHash = await account.send({
         to: addresses.saysoMarkets,
-        data: encodeFunctionData({
-          abi: saysoMarketsAbi,
-          functionName: kind,
-          args: [word.id, input, guard],
-        }),
-        gas: gasLimit(kind),
+        data,
+        gas: live > table ? live : table,
       });
       setHash(txHash);
       const receipt = await publicClient.getTransactionReceipt({ hash: txHash });

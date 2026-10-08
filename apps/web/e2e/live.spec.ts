@@ -74,8 +74,9 @@ test.describe("live episode on Monad testnet", () => {
       await joinWithPasskey(page, "/account");
       evidence.address = await readAddress(page);
 
-      // Arena: the starter drip lands and the TESTNET balance shows AUSD.
-      await page.goto("/arena");
+      // Arena: the starter drip lands and the TESTNET balance shows AUSD. In-app links only:
+      // a full page load drops the memory-only passkey session by design.
+      await navigate(page, "Arena", "/arena");
       await expect(page.getByText(/You.re ready to play\.|Starter kit claimed\./)).toBeVisible({
         timeout: 180_000,
       });
@@ -153,10 +154,11 @@ test.describe("live episode on Monad testnet", () => {
       await expect(page.getByRole("link", { name: "See results" })).toBeVisible({
         timeout: 10 * 60_000,
       });
-      await page.goto(`/results/${evidence.episodeId}`);
+      await page.getByRole("link", { name: "See results" }).click();
+      await page.waitForURL((url) => url.pathname === `/results/${evidence.episodeId}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 60_000 });
       await shot("06-results");
-      await page.goto("/portfolio");
+      await navigate(page, "Portfolio", "/portfolio");
       await expect(page.getByText("The word on your words.")).toBeVisible({ timeout: 60_000 });
       await shot("07-portfolio");
 
@@ -177,6 +179,11 @@ test.describe("live episode on Monad testnet", () => {
     }
   });
 });
+
+async function navigate(page: Page, label: string, path: string) {
+  await page.getByRole("link", { name: label, exact: true }).first().click();
+  await page.waitForURL((url) => url.pathname === path);
+}
 
 async function headerAusd(page: Page): Promise<number> {
   const balance = page
