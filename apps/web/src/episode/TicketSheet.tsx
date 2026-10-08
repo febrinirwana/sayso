@@ -1,4 +1,10 @@
-import { AnimatePresence, motion, type PanInfo, useReducedMotion } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  type PanInfo,
+  useDragControls,
+  useReducedMotion,
+} from "motion/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { play } from "@/sound";
 
@@ -7,22 +13,21 @@ const DRAWER = { duration: 0.28, ease: [0.32, 0.72, 0, 1] } as const;
 const DISMISS_OFFSET = 96;
 const DISMISS_VELOCITY = 500;
 
-/**
- * Phone and tablet ticket: a bottom sheet over a dimmed screen. Drag it down, tap outside or press
- * Escape to close. Plays `sheet` whenever it opens on a word. `word` keys the content so each word
- * opens fresh.
- */
-export function TicketSheet({
-  word,
-  onClose,
-  children,
-}: {
+export type TicketSheetProps = {
   /** The word the ticket is for; `null` hides the sheet. */
   word: string | null;
   onClose: () => void;
   children: ReactNode;
-}) {
+};
+
+/**
+ * Phone and tablet ticket: a bottom sheet over a dimmed screen. Drag its handle down, tap outside
+ * or press Escape to close. The body scrolls independently on short screens. Plays `sheet` when
+ * it opens on a word. `word` keys the content so each word opens fresh.
+ */
+export function TicketSheet({ word, onClose, children }: TicketSheetProps) {
   const reduce = useReducedMotion() ?? false;
+  const dragControls = useDragControls();
   const sheet = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
 
@@ -74,18 +79,29 @@ export function TicketSheet({
           aria-modal="true"
           aria-label={`Ticket: ${word}`}
           tabIndex={-1}
-          className="fixed inset-x-0 bottom-0 z-[60] mx-auto max-h-[92dvh] w-full max-w-[560px] touch-none overflow-y-auto rounded-t-sheet border-2 border-b-0 border-ink bg-card px-4 pt-2 pb-[max(20px,env(safe-area-inset-bottom))] shadow-[0_-10px_0_rgb(10_10_10/0.08)] outline-none md:px-6"
+          className="fixed inset-x-0 bottom-0 z-[60] mx-auto max-h-[92dvh] w-full max-w-[560px] overflow-y-auto overscroll-contain rounded-t-sheet border-2 border-b-0 border-ink bg-card px-6 pt-2 pb-[max(20px,env(safe-area-inset-bottom))] shadow-[0_-10px_0_rgb(10_10_10/0.08)] outline-none"
           initial={reduce ? { opacity: 0 } : { y: "100%" }}
           animate={reduce ? { opacity: 1 } : { y: 0 }}
           exit={reduce ? { opacity: 0 } : { y: "100%" }}
           transition={DRAWER}
           drag={reduce ? false : "y"}
+          dragControls={dragControls}
+          dragListener={false}
+          style={{ touchAction: "pan-y" }}
           dragConstraints={{ top: 0, bottom: 0 }}
           dragElastic={{ top: 0.04, bottom: 0.7 }}
           dragSnapToOrigin
           onDragEnd={onDragEnd}
         >
-          <div aria-hidden className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-ink/25" />
+          <div
+            aria-hidden
+            className="flex h-11 touch-none cursor-grab items-center justify-center active:cursor-grabbing"
+            onPointerDown={(event) => {
+              if (!reduce) dragControls.start(event);
+            }}
+          >
+            <span className="h-1.5 w-12 rounded-full bg-ink/25" />
+          </div>
           <motion.div
             key={word}
             initial={reduce ? false : { opacity: 0, y: 8 }}

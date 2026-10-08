@@ -70,12 +70,12 @@ export function Hero() {
         />
       </div>
 
-      <div className="relative z-[2] mx-auto grid max-w-[1360px] px-4 pb-14 md:px-8 lg:min-h-[calc(100svh-72px)] lg:grid-cols-[56fr_44fr] lg:items-center lg:px-12 lg:pb-10">
+      <div className="relative z-[2] grid px-6 pb-14 md:px-8 lg:min-h-[calc(100svh-72px)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-center lg:gap-8 lg:px-12 lg:pb-10 2xl:gap-12">
         {/* Mascot column: a square anchor the 3D mascot sits on, plus the tap target. */}
         <div className="relative flex h-[clamp(240px,30svh,320px)] items-center justify-center md:h-[clamp(280px,38svh,400px)] lg:order-2 lg:h-auto lg:py-10">
           <div
             ref={mascot}
-            className="relative aspect-square w-[min(56vw,86%)] md:w-[min(46vw,320px)] lg:w-[92%]"
+            className="relative aspect-square w-[min(56vw,86%)] md:w-[min(46vw,320px)] lg:w-[min(100%,68svh)] 2xl:w-[min(100%,76svh)]"
           >
             <motion.img
               src={mascotUrl}
@@ -100,7 +100,7 @@ export function Hero() {
         </div>
 
         {/* Copy column. */}
-        <div className="relative lg:order-1 lg:py-12">
+        <div className="relative min-w-0 lg:order-1 lg:py-12">
           <motion.div {...enter(0.05)} className="flex flex-wrap items-center gap-2">
             <span className="inline-flex h-8 -rotate-2 items-center gap-2 rounded-full border-2 border-ink bg-sun px-3.5 text-sm font-bold shadow-sticker">
               The word-calling game show
@@ -110,7 +110,7 @@ export function Hero() {
 
           <h1
             id="hero-title"
-            className="mt-5 font-headline text-[clamp(48px,12.6vw,64px)] leading-[0.92] text-balance md:text-[clamp(64px,8.6vw,88px)] lg:mt-7 lg:text-[clamp(80px,6.9vw,124px)] lg:leading-[0.9]"
+            className="mt-5 max-w-[11ch] font-headline text-[clamp(48px,12.6vw,64px)] leading-[0.92] text-balance md:text-[clamp(64px,8.6vw,88px)] lg:mt-7 lg:text-[clamp(80px,6.9vw,160px)] lg:leading-[0.9]"
           >
             <Words text="Bet on the" delay={0.1} />{" "}
             <motion.span

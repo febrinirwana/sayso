@@ -297,8 +297,6 @@ function DesignSpecimen() {
         onTicketClose={() => setTicket(null)}
       />
 
-      <Gallery />
-
       <Controls
         words={words}
         phase={phase}
@@ -328,6 +326,8 @@ function DesignSpecimen() {
           )
         }
       />
+
+      <Gallery />
 
       {result ? (
         <div
@@ -422,7 +422,7 @@ function Controls({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="fixed bottom-3 left-3 z-[45] flex max-w-[calc(100vw-24px)] flex-col items-start gap-2">
+    <div className="relative z-[45] mx-6 mt-8 flex flex-col items-start gap-2 md:mx-8 xl:mx-12">
       {open ? (
         <div className="sticker flex w-[340px] max-w-full flex-col gap-3 p-3 shadow-sticker-lg">
           <div className="flex items-center justify-between">
@@ -433,7 +433,7 @@ function Controls({
               type="button"
               aria-label="Hide controls"
               onClick={() => setOpen(false)}
-              className="inline-flex size-9 items-center justify-center rounded-full hover:bg-line"
+              className="inline-flex size-11 items-center justify-center rounded-full hover:bg-line"
             >
               <X aria-hidden size={18} />
             </button>
@@ -511,7 +511,7 @@ function priceFor(state: WordState, open: number): number {
 function Gallery() {
   const [replay, setReplay] = useState<WordState>("said");
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-14 px-4 pt-14 pb-28 md:px-8 xl:px-12">
+    <div className="mx-auto flex max-w-[1616px] flex-col gap-14 px-6 pt-14 pb-28 md:px-8 xl:px-12">
       <Section
         title="Every card state"
         note="Open, SAID, settled YES, settled NO; short and long words, held and not."
@@ -599,8 +599,8 @@ function Frame({ label, dock, children }: { label: string; dock?: boolean; child
       <div
         className={
           dock
-            ? "sticker relative h-[270px] p-5 shadow-sticker-lg"
-            : "rounded-t-sheet border-2 border-b-0 border-ink bg-card px-4 pt-4 pb-5"
+            ? "sticker relative p-5 shadow-sticker-lg"
+            : "rounded-card border-2 border-ink bg-card px-4 pt-4 pb-5 shadow-sticker"
         }
       >
         {children}

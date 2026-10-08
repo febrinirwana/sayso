@@ -5,20 +5,18 @@ import { Voxel } from "@/ui/Voxel";
 
 const SLIDE = { duration: 0.28, ease: [0.32, 0.72, 0, 1] } as const;
 
-/**
- * Desktop ticket: a panel docked under the clip that never moves the layout. Empty, it points at
- * the board; with a word it slides that word's ticket in and plays `sheet`.
- */
-export function TicketDock({
-  word,
-  children,
-  className,
-}: {
+export type TicketDockProps = {
   /** The word the ticket is for; `null` shows the empty prompt. */
   word: string | null;
   children: ReactNode;
   className?: string;
-}) {
+};
+
+/**
+ * Desktop ticket: a panel docked under the clip that never moves the layout. Empty, it points at
+ * the board; with a word it slides that word's ticket in and plays `sheet`.
+ */
+export function TicketDock({ word, children, className }: TicketDockProps) {
   const reduce = useReducedMotion() ?? false;
   useEffect(() => {
     if (word !== null) play("sheet");
@@ -27,12 +25,12 @@ export function TicketDock({
   return (
     <section
       aria-label={word === null ? "Ticket" : `Ticket: ${word}`}
-      className={`sticker relative overflow-hidden shadow-sticker-lg ${className ?? ""}`}
+      className={`sticker relative grid overflow-hidden shadow-sticker-lg ${className ?? ""}`}
     >
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={word ?? "empty"}
-          className="absolute inset-0 p-4 xl:p-5"
+          className="min-h-0 overflow-y-auto overscroll-contain p-4 xl:p-5"
           initial={reduce ? { opacity: 0 } : { opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
           exit={reduce ? { opacity: 0 } : { opacity: 0, x: -40 }}

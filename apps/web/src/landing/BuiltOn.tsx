@@ -47,9 +47,9 @@ export function BuiltOn() {
     <section
       ref={section}
       aria-labelledby="built-on-title"
-      className="relative px-4 py-24 md:px-8 md:py-32 lg:px-12"
+      className="relative px-6 py-24 md:px-8 md:py-32 lg:px-12"
     >
-      <div className="mx-auto max-w-[1360px]">
+      <div className="mx-auto max-w-[1520px]">
         <SectionHeading
           id="built-on-title"
           eyebrow="Built on"

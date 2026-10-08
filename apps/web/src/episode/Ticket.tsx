@@ -81,7 +81,7 @@ export function Ticket({
 
   const dock = layout === "dock";
   return (
-    <div className={`@container flex flex-col ${dock ? "h-full gap-3" : "gap-4"}`}>
+    <div className={`@container flex flex-col ${dock ? "gap-3" : "gap-4"}`}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-soft">
@@ -187,7 +187,6 @@ function BuyBody({
           })}
         </div>
       </fieldset>
-      {dock ? <div className="mt-auto">{finePrint}</div> : null}
     </div>
   );
 
@@ -222,15 +221,14 @@ function BuyBody({
     </div>
   );
 
-  return dock ? (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 @min-[480px]:grid-cols-2">
-      {choose}
-      {send}
-    </div>
-  ) : (
-    <div className="flex flex-col gap-4">
-      {choose}
-      {send}
+  return (
+    <div className={dock ? "flex flex-col gap-3" : "flex flex-col gap-4"}>
+      <div
+        className={dock ? "grid grid-cols-1 gap-4 @min-[480px]:grid-cols-2" : "flex flex-col gap-4"}
+      >
+        {choose}
+        {send}
+      </div>
       {finePrint}
     </div>
   );
@@ -324,11 +322,7 @@ function CashOutBody({
   );
   return (
     <div
-      className={
-        dock
-          ? "grid min-h-0 flex-1 grid-cols-1 gap-4 @min-[480px]:grid-cols-2"
-          : "flex flex-col gap-4"
-      }
+      className={dock ? "grid grid-cols-1 gap-4 @min-[480px]:grid-cols-2" : "flex flex-col gap-4"}
     >
       <div className="flex flex-col justify-center rounded-2xl border-2 border-ink bg-said-tint px-4 py-3">
         <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-ink-soft">
@@ -373,7 +367,7 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
     <p className="flex items-baseline justify-between gap-3 leading-6">
       <span className="text-[13px] text-ink-soft">{label}</span>
       <span
-        className={`tabular ${strong ? "font-headline text-[20px] text-gain" : "text-[15px] font-semibold"}`}
+        className={`tabular shrink-0 whitespace-nowrap ${strong ? "font-headline text-[20px] text-gain" : "text-[15px] font-semibold"}`}
       >
         {value}
       </span>
@@ -415,7 +409,7 @@ function ActionButton({
       disabled={disabled || status === "sending" || status === "filled"}
       onClick={onPress}
       aria-live="polite"
-      className={`sticker pressable font-headline relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full px-5 text-[17px] transition-colors duration-140 disabled:pointer-events-none ${status === "filled" ? "bg-gain-bright text-ink" : "bg-ink text-paper"} ${disabled && status === "idle" ? "opacity-45" : ""}`}
+      className={`sticker pressable font-headline relative inline-flex h-14 w-full shrink-0 items-center justify-center gap-2 overflow-hidden rounded-full px-5 text-[17px] transition-colors duration-140 disabled:pointer-events-none ${status === "filled" ? "bg-gain-bright text-ink" : "bg-ink text-paper"} ${disabled && status === "idle" ? "opacity-45" : ""}`}
     >
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span

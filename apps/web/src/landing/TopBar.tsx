@@ -29,7 +29,7 @@ export function TopBar() {
         scrolled ? "border-ink" : "border-transparent"
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-[1360px] items-center gap-2 px-4 md:h-[72px] md:px-8 lg:px-12">
+      <div className="flex h-16 w-full items-center gap-2 px-6 md:h-[72px] md:px-8 lg:px-12">
         <a href="/" aria-label="SAYSO home" className="-ml-1 mr-auto rounded-lg px-1 py-1.5">
           <Logo height={36} className="h-8 w-auto md:h-10" />
         </a>

@@ -6,7 +6,7 @@ import { RollingAusd } from "./RollingAusd";
 
 export type Holding = { word: string; side: Side; shares: number };
 
-type PositionStripProps = {
+export type PositionStripProps = {
   /** Words the player holds YES or NO on, in board order. */
   holdings: readonly Holding[];
   /** What those positions cost, 6-decimal AUSD units. */
@@ -19,7 +19,7 @@ type PositionStripProps = {
 /**
  * The player's whole-episode position at a glance: value (counts when it moves), cost, change and
  * one chip per held word. Lays itself out by its own width, so it reads as a strip on phones and
- * as a tall card in the desktop dock.
+ * as a compact card in the desktop dock. Its height grows with the holding list, not the dock.
  */
 export function PositionStrip({ holdings, costMicro, valueMicro, className }: PositionStripProps) {
   if (holdings.length === 0) {

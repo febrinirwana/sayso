@@ -15,7 +15,7 @@ export function Finale() {
     <section
       ref={section}
       aria-labelledby="finale-title"
-      className="relative mx-2 mt-6 overflow-hidden rounded-[40px] border-2 border-ink bg-ink px-4 py-20 text-paper md:mx-4 md:px-8 md:py-28 lg:px-12 lg:py-36"
+      className="relative mx-2 mt-6 overflow-hidden rounded-[40px] border-2 border-ink bg-ink px-6 py-20 text-paper md:mx-4 md:px-8 md:py-28 lg:px-12 lg:py-36"
     >
       <StageSlot
         scene={{ kind: "finale" }}
@@ -27,7 +27,7 @@ export function Finale() {
           </div>
         }
       />
-      <div className="mx-auto max-w-[1360px] pt-[44vw] md:pt-[42vw] lg:pt-0">
+      <div className="mx-auto max-w-[1520px] pt-[44vw] md:pt-[42vw] lg:pt-0">
         <RevealGroup className="relative z-[2] max-w-[720px]">
           <RevealItem>
             <h2
@@ -70,8 +70,8 @@ export function Finale() {
 
 export function Footer() {
   return (
-    <footer className="px-4 py-10 md:px-8 lg:px-12">
-      <div className="mx-auto flex max-w-[1360px] flex-col items-center gap-5 text-sm text-ink-soft md:flex-row md:justify-between">
+    <footer className="px-6 py-10 md:px-8 lg:px-12">
+      <div className="mx-auto flex max-w-[1520px] flex-col items-center gap-5 text-sm text-ink-soft md:flex-row md:justify-between">
         <Logo variant="full" height={32} className="h-8 w-auto" />
         <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
           <TestnetPill />

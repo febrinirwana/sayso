@@ -46,14 +46,14 @@ Two families, both OFL, self-hosted through `@fontsource-variable`. Desktop head
 - Sticker card: `card` fill, 2 px `ink` border, 24 px radius, hard shadow `0 4px 0 ink`; large hero cards `0 8px 0 ink`. Press: down 3 px, shadow collapses; hover (fine pointers): up 2 px.
 - Pills (buttons, tags): 999 px radius, same border and shadow. Landing primary CTA is `said` red with white bold text; app primary is `ink`; secondary is white.
 - Sheets: 32 px top radius on phones; on desktop the ticket is a docked side panel.
-- Spacing scale 4 px. Gutters 16 px at 412, 32 px at 768, 48–64 px at 1280+. Content max width 1280 px (landing 1360 px).
+- Spacing scale 4 px. Fluid full-width shell: gutters 24 px on phones, 32 px at 768, 48 px at 1024+. Headers and app bars span the viewport (logo flush to the left gutter, primary action flush to the right); section content max width 1520 px; the landing hero is full-bleed.
 
 ## 5. Layout
 
-- Breakpoints: phone < 768, tablet 768–1023, desktop ≥ 1024, wide ≥ 1440. Verify at 412, 768, 1280 and 1440.
+- Breakpoints: phone < 768, tablet 768–1023, desktop ≥ 1024, wide ≥ 1440. Verify at 412, 768, 1280, 1440 and 1920.
 - S0 Landing is a full responsive marketing page (section 8).
 - S3 Episode, phone: 16:9 clip on top, LIVE pill and countdown over it, 2×3 word board, position strip, ticket as bottom sheet.
-- S3 Episode, desktop: a studio layout. Clip and position strip on the left (about 60 %), the word board as a 2×3 grid of large cards on the right, the ticket as a docked panel; nothing scrolls during play at 1280×800.
+- S3 Episode, desktop: a fluid full-width studio layout. Clip and position strip on the left (about 60 %), the word board as a 2×3 grid of large cards on the right, the ticket as a docked panel; nothing scrolls during play at 1280×800, and clip and board scale up to fill 1920.
 - Other app screens follow the same rule: one real desktop composition (two columns or a centred wide card with voxel art), never a 430 px phone column floating in empty space.
 
 ## 6. Motion

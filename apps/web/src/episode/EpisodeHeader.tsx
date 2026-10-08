@@ -5,7 +5,7 @@ import { Voxel } from "@/ui/Voxel";
 import { BALANCE_ANCHOR, useEpisodeFx } from "./EpisodeFx";
 import { RollingAusd } from "./RollingAusd";
 
-type EpisodeHeaderProps = {
+export type EpisodeHeaderProps = {
   /** Short episode tag, e.g. "Episode 14". */
   episode: string;
   /** Clip title as curated. */
@@ -21,7 +21,7 @@ type EpisodeHeaderProps = {
 export function EpisodeHeader({ episode, title, balanceMicro }: EpisodeHeaderProps) {
   const { anchor } = useEpisodeFx();
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-2.5 border-b-2 border-ink bg-paper px-4 md:px-8 lg:static lg:h-[76px] lg:gap-4 lg:border-b-0 xl:px-12">
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-2.5 border-b-2 border-ink bg-paper px-6 md:px-8 lg:static lg:h-[76px] lg:gap-4 lg:border-b-0 xl:px-12">
       <Logo variant="mark" height={38} className="shrink-0 lg:hidden" />
       <Logo variant="full" height={40} className="hidden shrink-0 lg:block" />
       <span aria-hidden className="hidden h-9 w-0.5 rounded-full bg-ink/15 lg:block" />

@@ -41,9 +41,9 @@ export function Faq() {
       ref={section}
       id="faq"
       aria-labelledby="faq-title"
-      className="relative mx-2 scroll-mt-20 rounded-[40px] border-2 border-ink bg-bubble-tint px-4 py-20 md:mx-4 md:px-8 md:py-28 lg:px-12"
+      className="relative mx-2 scroll-mt-20 rounded-[40px] border-2 border-ink bg-bubble-tint px-6 py-20 md:mx-4 md:px-8 md:py-28 lg:px-12"
     >
-      <div className="mx-auto grid max-w-[1360px] gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
+      <div className="mx-auto grid max-w-[1520px] gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
         <div>
           <SectionHeading
             id="faq-title"

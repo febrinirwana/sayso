@@ -60,9 +60,9 @@ export function Fair() {
       ref={section}
       id="fair"
       aria-labelledby="fair-title"
-      className="relative mx-2 mt-6 scroll-mt-20 rounded-[40px] border-2 border-ink bg-mint-tint px-4 py-20 md:mx-4 md:px-8 md:py-28 lg:px-12"
+      className="relative mx-2 mt-6 scroll-mt-20 rounded-[40px] border-2 border-ink bg-mint-tint px-6 py-20 md:mx-4 md:px-8 md:py-28 lg:px-12"
     >
-      <div className="mx-auto max-w-[1360px]">
+      <div className="mx-auto max-w-[1520px]">
         <SectionHeading
           id="fair-title"
           eyebrow="Fair by construction"
