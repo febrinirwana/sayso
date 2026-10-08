@@ -65,7 +65,9 @@ export function AccountScreen({
             <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">
               Your address
             </p>
-            <p className="mt-3 break-all font-mono text-sm leading-7">{address}</p>
+            <p data-testid="account-address" className="mt-3 break-all font-mono text-sm leading-7">
+              {address}
+            </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button variant="secondary" onClick={() => onCopy(address)}>
                 {copyState === "copied" ? (

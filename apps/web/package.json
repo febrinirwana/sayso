@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "test": "vitest run --passWithNoTests",
-    "assets": "bun scripts/build-assets.ts"
+    "assets": "bun scripts/build-assets.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@category-labs/mera": "0.2.0",

@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "types": ["bun"] },
-  "include": ["vite.config.ts", "vitest.config.ts", "scripts"]
+  "compilerOptions": { "lib": ["es2023", "dom"], "types": ["bun"] },
+  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts", "scripts", "e2e"]
 }

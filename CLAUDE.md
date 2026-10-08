@@ -56,6 +56,7 @@ Commands exist once their owning phase lands; never report one as run before it 
 | `bun install` | Install workspaces |
 | `bun run verify` | Typecheck, Biome, Vitest across workspaces |
 | `bun run --cwd apps/web dev` | Web on a phone-sized viewport |
+| `bun run --cwd apps/web e2e` | Playwright in Edge at 412×915 with a CDP PRF passkey on port 5181; screenshots to `SAYSO_SCREENS_DIR` (default `handoff\sayso\screens\e2e`). `SAYSO_E2E_LIVE=1` adds the live testnet path and needs a healthy studio (`SAYSO_STUDIO_HEALTH_URL`) |
 | `bun run --cwd apps/studio dev` | Studio against testnet with `.env` (needs `RPC_URL`, `CHAIN_ID=10143`, `STUDIO_DATA_DIR`; ingests `STUDIO_DATA_DIR/clips` at start) |
 | `forge soldeer install` (in `contracts`) | Restore pinned forge-std and OpenZeppelin from `soldeer.lock` after a clean clone |
 | `forge test` (in `contracts`) | Unit and invariant tests; add `--gas-report` when gas changes |

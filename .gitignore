@@ -11,6 +11,8 @@ build/
 .tanstack/
 *.tsbuildinfo
 coverage/
+test-results/
+playwright-report/
 
 # foundry
 contracts/out/
