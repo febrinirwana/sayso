@@ -19,14 +19,19 @@ export function formatCents(cents: number): string {
   return `${cents}¢`;
 }
 
-/** 6-decimal AUSD units to two decimals, truncated toward zero: `12_349_999n` → `"12.34 AUSD"`. */
-export function formatAusd(micro: bigint): string {
+/** 6-decimal AUSD units to a two-decimal amount, truncated toward zero: `12_349_999n` → `"12.34"`. */
+export function formatAusdAmount(micro: bigint): string {
   const negative = micro < 0n;
   const cents = (negative ? -micro : micro) / MICRO_PER_CENT;
   const whole = thousands.format(cents / 100n);
   const fraction = (cents % 100n).toString().padStart(2, "0");
   const sign = negative && cents > 0n ? MINUS : "";
-  return `${sign}${whole}.${fraction} AUSD`;
+  return `${sign}${whole}.${fraction}`;
+}
+
+/** 6-decimal AUSD units with the unit: `12_349_999n` → `"12.34 AUSD"`. */
+export function formatAusd(micro: bigint): string {
+  return `${formatAusdAmount(micro)} AUSD`;
 }
 
 /** A profit or loss with an explicit sign: `"+6.40 AUSD"`, `"−2.10 AUSD"`, `"0.00 AUSD"`. */
@@ -41,6 +46,11 @@ export function formatShares(shares: number): string {
     throw new RangeError(`shares must be a finite non-negative number, got ${shares}`);
   }
   return shareFormat.format(shares);
+}
+
+/** The holding badge on a card: `{ side: "yes", shares: 40 }` → `"You hold 40 YES"`. */
+export function formatHolding(position: { side: "yes" | "no"; shares: number }): string {
+  return `You hold ${formatShares(position.shares)} ${position.side.toUpperCase()}`;
 }
 
 /** Countdown seconds as `m:ss`, rounding up so "0:01" shows until time is actually up. */

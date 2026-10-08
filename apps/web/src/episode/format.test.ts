@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatAusd, formatAusdChange, formatCents, formatClock, formatShares } from "./format";
+import {
+  formatAusd,
+  formatAusdAmount,
+  formatAusdChange,
+  formatCents,
+  formatClock,
+  formatHolding,
+  formatShares,
+} from "./format";
 
 describe("formatCents", () => {
   it("shows the full price range in cents", () => {
@@ -41,6 +49,14 @@ describe("formatAusd", () => {
   });
 });
 
+describe("formatAusdAmount", () => {
+  it("shows the bare amount for balance chips that print the unit separately", () => {
+    expect(formatAusdAmount(124_500_000n)).toBe("124.50");
+    expect(formatAusdAmount(1_234_567_890_000n)).toBe("1,234,567.89");
+    expect(formatAusdAmount(-2_105_000n)).toBe("\u22122.10");
+  });
+});
+
 describe("formatAusdChange", () => {
   it("marks gains with a plus and leaves flat results unsigned", () => {
     expect(formatAusdChange(6_400_000n)).toBe("+6.40 AUSD");
@@ -60,6 +76,13 @@ describe("formatShares", () => {
   it("rejects negative or non-finite amounts", () => {
     expect(() => formatShares(-1)).toThrow(RangeError);
     expect(() => formatShares(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+  });
+});
+
+describe("formatHolding", () => {
+  it("reads as the badge a player sees on a card they hold", () => {
+    expect(formatHolding({ side: "yes", shares: 40 })).toBe("You hold 40 YES");
+    expect(formatHolding({ side: "no", shares: 1234.567 })).toBe("You hold 1,234.56 NO");
   });
 });
 
