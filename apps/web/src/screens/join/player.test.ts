@@ -1,3 +1,9 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -23,7 +29,6 @@ describe("player-visible screen states", () => {
     const html = renderToStaticMarkup(
       h(JoinScreen, { ...join, state: { status: "prf-unavailable" } }),
     );
-    expect(html).toContain("QR placeholder");
     expect(html).toContain(join.currentUrl);
     expect(html).toContain("phone");
   });
@@ -54,13 +59,18 @@ describe("player-visible screen states", () => {
     expect(busy).toContain("Setting the stage");
   });
   it("shows an exact large AUSD balance and active nav", () => {
+    const router = createRouter({ routeTree: createRootRoute(), history: createMemoryHistory() });
     const html = renderToStaticMarkup(
-      h(AppShell, {
-        active: "arena",
-        balance: 9007199254740991000000n,
-        nickname: "Sunny Duck",
+      h(RouterContextProvider, {
+        router,
         // biome-ignore lint/correctness/noChildrenProp: required typed children in a non-JSX Vitest file.
-        children: "Round",
+        children: h(AppShell, {
+          active: "arena",
+          balance: 9007199254740991000000n,
+          nickname: "Sunny Duck",
+          // biome-ignore lint/correctness/noChildrenProp: required typed children in a non-JSX Vitest file.
+          children: "Round",
+        }),
       }),
     );
     expect(html).toContain("9,007,199,254,740,991.00");

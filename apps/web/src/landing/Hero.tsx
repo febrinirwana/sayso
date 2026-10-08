@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { PlayLink } from "@/account/PlayLink";
 import mascotUrl from "@/assets/brand/mascot-640.webp";
 import { play } from "@/sound";
 import { sendSignal, useStageReady } from "@/three/registry";
@@ -134,9 +135,9 @@ export function Hero() {
           </motion.p>
 
           <motion.div {...enter(0.7)} className="mt-8 flex flex-wrap items-center gap-3 lg:mt-10">
-            <Button href="/arena" variant="brand" size="xl" className="max-md:h-14 max-md:px-5">
+            <PlayLink variant="brand" size="xl" className="max-md:h-14 max-md:px-5">
               Play now
-            </Button>
+            </PlayLink>
             <Button
               href="#how-it-plays"
               variant="secondary"

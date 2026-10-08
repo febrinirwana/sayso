@@ -15,9 +15,10 @@ import { nicknameOf } from "../../../../../packages/core/src/nickname";
 
 export type AccountScreenProps = {
   address: `0x${string}`;
-  balances: { monWei: bigint; ausd: bigint };
+  balances: { monWei: bigint; ausd: bigint } | null;
+  balanceState?: "loading" | "error";
   copyState: "idle" | "copied" | "error";
-  restoreState: "idle" | "instructions" | "verified";
+  restoreState: "idle" | "instructions" | "checking" | "verified" | "mismatch" | "error";
   onCopy(address: string): void;
   onRestoreCheck(): void;
   onSignOut(): void;
@@ -26,6 +27,7 @@ export function AccountScreen({
   address,
   balances,
   copyState,
+  balanceState,
   restoreState,
   onCopy,
   onRestoreCheck,
@@ -108,11 +110,17 @@ export function AccountScreen({
                 className="block rounded-2xl border-2 border-ink bg-card p-4"
               >
                 <p className="mb-2 text-xs text-ink-soft">For predictions</p>
-                <TokenAmount
-                  amount={balances.ausd}
-                  symbol="AUSD"
-                  className="font-headline text-xl"
-                />
+                {balances ? (
+                  <TokenAmount
+                    amount={balances.ausd}
+                    symbol="AUSD"
+                    className="font-headline text-xl"
+                  />
+                ) : (
+                  <p className="text-sm font-semibold">
+                    {balanceState === "error" ? "Unavailable" : "Loading…"} · TESTNET
+                  </p>
+                )}
               </a>
               <a
                 href={explorerAddressUrl(address)}
@@ -121,11 +129,17 @@ export function AccountScreen({
                 className="block rounded-2xl border-2 border-ink bg-card p-4"
               >
                 <p className="mb-2 text-xs text-ink-soft">For your moves</p>
-                <TokenAmount
-                  amount={balances.monWei}
-                  symbol="MON"
-                  className="font-headline text-xl"
-                />
+                {balances ? (
+                  <TokenAmount
+                    amount={balances.monWei}
+                    symbol="MON"
+                    className="font-headline text-xl"
+                  />
+                ) : (
+                  <p className="text-sm font-semibold">
+                    {balanceState === "error" ? "Unavailable" : "Loading…"} · TESTNET
+                  </p>
+                )}
               </a>
             </div>
             <p className="mt-4 text-xs leading-relaxed text-ink-soft">
@@ -163,15 +177,36 @@ export function AccountScreen({
                 Same address restored. Still you.
               </p>
             )}
-            <Button variant="secondary" className="mt-5" onClick={onRestoreCheck}>
+            {(restoreState === "mismatch" ||
+              restoreState === "error" ||
+              restoreState === "checking") && (
+              <p
+                role="status"
+                className="mt-5 rounded-2xl border border-ink/20 bg-card p-4 text-sm font-semibold"
+              >
+                {restoreState === "checking"
+                  ? "Choose the same passkey to compare your address."
+                  : restoreState === "mismatch"
+                    ? "That passkey restores a different address. Choose your original passkey."
+                    : "The passkey check could not finish. Try again."}
+              </p>
+            )}
+            <Button
+              variant="secondary"
+              className="mt-5"
+              onClick={onRestoreCheck}
+              disabled={restoreState === "checking"}
+            >
               <RotateCcw size={17} aria-hidden />
-              {restoreState === "idle"
-                ? "How to check"
-                : restoreState === "verified"
-                  ? "Check again"
-                  : "Keep instructions open"}
+              {restoreState === "checking"
+                ? "Checking passkey…"
+                : restoreState === "idle"
+                  ? "Check restore"
+                  : "Check again"}
             </Button>
-            <p className="mt-4 text-xs text-ink-soft">This button never clears your storage.</p>
+            <p className="mt-4 text-xs text-ink-soft">
+              This checks your passkey without clearing storage or changing your account.
+            </p>
           </section>
         </div>
       </div>

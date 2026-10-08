@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
+import { Route as ArenaRouteImport } from './routes/arena'
 import { Route as DesignRouteImport } from './routes/design'
+import { Route as JoinRouteImport } from './routes/join'
 import { Route as Design3dRouteImport } from './routes/design_.3d'
 import { Route as DesignPlayerRouteImport } from './routes/design_.player'
 import { Route as DesignRecordsRouteImport } from './routes/design_.records'
@@ -20,9 +23,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArenaRoute = ArenaRouteImport.update({
+  id: '/arena',
+  path: '/arena',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DesignRoute = DesignRouteImport.update({
   id: '/design',
   path: '/design',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Design3dRoute = Design3dRouteImport.update({
@@ -43,14 +61,20 @@ const DesignRecordsRoute = DesignRecordsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/arena': typeof ArenaRoute
   '/design': typeof DesignRoute
+  '/join': typeof JoinRoute
   '/design/3d': typeof Design3dRoute
   '/design/player': typeof DesignPlayerRoute
   '/design/records': typeof DesignRecordsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/arena': typeof ArenaRoute
   '/design': typeof DesignRoute
+  '/join': typeof JoinRoute
   '/design/3d': typeof Design3dRoute
   '/design/player': typeof DesignPlayerRoute
   '/design/records': typeof DesignRecordsRoute
@@ -58,7 +82,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/arena': typeof ArenaRoute
   '/design': typeof DesignRoute
+  '/join': typeof JoinRoute
   '/design_/3d': typeof Design3dRoute
   '/design_/player': typeof DesignPlayerRoute
   '/design_/records': typeof DesignRecordsRoute
@@ -66,13 +93,31 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/design' | '/design/3d' | '/design/player' | '/design/records'
+    | '/'
+    | '/account'
+    | '/arena'
+    | '/design'
+    | '/join'
+    | '/design/3d'
+    | '/design/player'
+    | '/design/records'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/design' | '/design/3d' | '/design/player' | '/design/records'
+  to:
+    | '/'
+    | '/account'
+    | '/arena'
+    | '/design'
+    | '/join'
+    | '/design/3d'
+    | '/design/player'
+    | '/design/records'
   id:
     | '__root__'
     | '/'
+    | '/account'
+    | '/arena'
     | '/design'
+    | '/join'
     | '/design_/3d'
     | '/design_/player'
     | '/design_/records'
@@ -80,7 +125,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
+  ArenaRoute: typeof ArenaRoute
   DesignRoute: typeof DesignRoute
+  JoinRoute: typeof JoinRoute
   Design3dRoute: typeof Design3dRoute
   DesignPlayerRoute: typeof DesignPlayerRoute
   DesignRecordsRoute: typeof DesignRecordsRoute
@@ -95,11 +143,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/arena': {
+      id: '/arena'
+      path: '/arena'
+      fullPath: '/arena'
+      preLoaderRoute: typeof ArenaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/design': {
       id: '/design'
       path: '/design'
       fullPath: '/design'
       preLoaderRoute: typeof DesignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/design_/3d': {
@@ -128,7 +197,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
+  ArenaRoute: ArenaRoute,
   DesignRoute: DesignRoute,
+  JoinRoute: JoinRoute,
   Design3dRoute: Design3dRoute,
   DesignPlayerRoute: DesignPlayerRoute,
   DesignRecordsRoute: DesignRecordsRoute,

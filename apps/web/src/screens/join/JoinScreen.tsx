@@ -1,12 +1,4 @@
-import {
-  ArrowRight,
-  Check,
-  Fingerprint,
-  KeyRound,
-  LoaderCircle,
-  QrCode,
-  Smartphone,
-} from "lucide-react";
+import { ArrowRight, Check, Fingerprint, KeyRound, LoaderCircle, Smartphone } from "lucide-react";
 import mascot from "@/assets/brand/mascot-640.webp";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
@@ -109,15 +101,14 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
                 </p>
                 <div className="mt-5 flex gap-4 rounded-2xl border-2 border-dashed border-ink/30 bg-paper p-4">
                   <div className="flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-sky-tint">
-                    <QrCode size={32} aria-hidden />
-                    <span className="text-[9px] font-bold">QR placeholder</span>
+                    <Smartphone size={32} aria-hidden />
+                    <span className="text-[9px] font-bold">SAME PASSKEY</span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold">Open this same link</p>
                     <p className="mt-2 break-all text-xs leading-relaxed text-ink-soft">
                       {currentUrl}
                     </p>
-                    <p className="mt-2 text-[10px] text-ink-soft">Specimen only · not scannable</p>
                   </div>
                 </div>
                 <Button onClick={onRetry} variant="secondary" className="mt-5 w-full">

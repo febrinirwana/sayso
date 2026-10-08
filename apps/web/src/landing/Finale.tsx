@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { PlayLink } from "@/account/PlayLink";
 import { StageSlot } from "@/three/Slot";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
@@ -43,9 +44,9 @@ export function Finale() {
             </p>
           </RevealItem>
           <RevealItem className="mt-10 flex flex-wrap items-center gap-3">
-            <Button href="/arena" variant="brand" size="xl">
+            <PlayLink variant="brand" size="xl">
               Play now
-            </Button>
+            </PlayLink>
             <Button
               href="#try-it"
               variant="secondary"

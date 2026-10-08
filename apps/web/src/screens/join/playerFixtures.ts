@@ -13,7 +13,7 @@ import type { JoinState } from "./JoinScreen";
 export const PLAYER_ADDRESS = "0x0000000000000000000000000000000000000001";
 export const PLAYER_NICKNAME = nicknameOf(PLAYER_ADDRESS);
 export const SPECIMEN_NOW = 1_791_417_600_000;
-export const PLAYER_BALANCES: AccountScreenProps["balances"] = {
+export const PLAYER_BALANCES: NonNullable<AccountScreenProps["balances"]> = {
   monWei: 500_000_000_000_000_000n,
   ausd: 124_500_000n,
 };

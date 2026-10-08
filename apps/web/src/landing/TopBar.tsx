@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/ui/Button";
+import { PlayLink } from "@/account/PlayLink";
 import { Logo } from "@/ui/Logo";
 import { SoundToggle } from "@/ui/SoundToggle";
 import { TestnetPill } from "@/ui/TestnetPill";
@@ -47,9 +47,9 @@ export function TopBar() {
         </nav>
         <TestnetPill className="mr-1 max-[359px]:hidden" />
         <SoundToggle />
-        <Button href="/arena" variant="brand" className="ml-1 px-5">
+        <PlayLink variant="brand" className="ml-1 px-5">
           Play
-        </Button>
+        </PlayLink>
       </div>
     </header>
   );

@@ -1,7 +1,12 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { AccountProvider } from "@/account";
 
 export const Route = createRootRoute({
-  component: Outlet,
+  component: () => (
+    <AccountProvider>
+      <Outlet />
+    </AccountProvider>
+  ),
   notFoundComponent: NotFound,
 });
 
