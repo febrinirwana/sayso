@@ -289,11 +289,18 @@ export class HouseMaker implements SeedHook {
             ).run(episode.id, word.id);
           }
         }
-        for (const action of db
-          .query<Action, [number, number]>(
-            "SELECT * FROM actions WHERE episode_id=? AND kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? ORDER BY scheduled_ms,id",
-          )
-          .all(episode.id, now())) {
+        // Re-pick after every action and run due pulls first: a pull that falls due while a
+        // bid is signing must not leave its asks resting on a word that is about to flip.
+        const visited = new Set<number>();
+        for (;;) {
+          const action = db
+            .query<Action, [number, number]>(
+              "SELECT * FROM actions WHERE episode_id=? AND kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? ORDER BY CASE kind WHEN 'pull' THEN 0 ELSE 1 END,scheduled_ms,id",
+            )
+            .all(episode.id, now())
+            .find((a) => !visited.has(a.id));
+          if (!action) break;
+          visited.add(action.id);
           try {
             const currentWindow = await chain.clock(episode.id);
             if (

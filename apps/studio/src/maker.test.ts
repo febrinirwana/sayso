@@ -281,6 +281,47 @@ describe("house economic lifecycle", () => {
     await f.maker().tick();
     expect(f.orders).toHaveLength(1);
   });
+  it("pulls a word that fell due before bidding on an earlier SAID word", async () => {
+    const f = fixture();
+    const other = "0x0000000000000000000000000000000000000008" as Address;
+    const m = f.maker();
+    await m.seed(1);
+    f.db.exec("INSERT INTO actions(episode_id,kind,word_id,scheduled_ms) VALUES(1,'pull',2,5100)");
+    const sync = f.chain.orders;
+    let otherOpen = true;
+    f.chain.words = async () => [1, 2];
+    f.chain.word = async (id) => ({
+      id,
+      yes,
+      no,
+      market: id === 1 ? market : other,
+      state: id === 1 ? 1 : 0,
+    });
+    f.chain.orders = async (book, from) => {
+      if (book !== other) return sync(book, from);
+      const { block } = await sync(market, from);
+      return {
+        block,
+        orders: otherOpen
+          ? [{ market: other, id: 7, flip: true, price: 5100, size: 10n * ONE, buy: false }]
+          : [],
+      };
+    };
+    const sent: string[] = [];
+    const prepare = f.chain.prepare;
+    f.chain.prepare = async (command, guard) => {
+      if (command.market) sent.push(`${command.kind}:${command.market}`);
+      if (command.market === other) {
+        otherOpen = false;
+        f.orders.push({ id: 7, flip: true, price: 5100, size: 10n * ONE, buy: false });
+      }
+      return prepare(command, guard);
+    };
+    f.setState(1);
+    f.setNow(5200);
+    await m.tick();
+    expect(sent).toEqual([`cancel:${market}`, `cancel:${other}`, `bid:${market}`]);
+  });
   it("cancels replacement flip IDs and never executes an expired bid", async () => {
     const f = fixture();
     const m = f.maker();
