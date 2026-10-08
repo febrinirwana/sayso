@@ -53,8 +53,9 @@ Two families, both OFL, self-hosted through `@fontsource-variable`. Desktop head
 - Breakpoints: phone < 768, tablet 768–1023, desktop ≥ 1024, wide ≥ 1440. Verify at 412, 768, 1280, 1440 and 1920.
 - S0 Landing is a full responsive marketing page (section 8).
 - S3 Episode, phone: 16:9 clip on top, LIVE pill and countdown over it, 2×3 word board, position strip, ticket as bottom sheet.
-- S3 Episode, desktop: a fluid full-width studio layout. Clip and position strip on the left (about 60 %), the word board as a 2×3 grid of large cards on the right, the ticket as a docked panel; nothing scrolls during play at 1280×800, and clip and board scale up to fill 1920.
+- S3 Episode, desktop: a fluid full-width studio layout. Clip and position strip on the left (about 60 %), the word board as a 2×3 grid of large cards on the right, the ticket as a docked panel; nothing scrolls during play at 1280×800, and clip and board scale up to fill 1920. The clip spans its full column; position and ticket sit beneath it at equal height with outer edges flush to the clip, and the left stack ends on the board's bottom edge.
 - Other app screens follow the same rule: one real desktop composition (two columns or a centred wide card with voxel art), never a 430 px phone column floating in empty space.
+- Symmetry: sibling cards in a row share one height (reserve empty rows, such as "You sat this word out", rather than letting a card shrink), grids share column edges with the cards above them, step strips use equal cells, and a side panel starts on the first row of the grid it serves.
 
 ## 6. Motion
 

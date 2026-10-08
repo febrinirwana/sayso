@@ -46,8 +46,8 @@ export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: Leade
           <LeaderRow entry={you} isYou />
         </section>
       )}
-      <div className="grid items-start gap-7 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="relative overflow-hidden rounded-[32px] border-2 border-ink bg-sun-tint p-5 shadow-sticker-lg sm:p-8">
+      <div className="grid gap-7 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="relative flex flex-col overflow-hidden rounded-[32px] border-2 border-ink bg-sun-tint p-5 shadow-sticker-lg sm:p-8">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-bold tracking-widest uppercase text-ink-soft">
@@ -57,7 +57,7 @@ export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: Leade
             </div>
             <Trophy size={30} />
           </div>
-          <div className="mt-8 grid grid-cols-3 items-end gap-2 sm:gap-4">
+          <div className="mt-8 grid flex-1 grid-cols-3 items-end gap-2 sm:gap-4">
             {[2, 1, 3].map((rank) => {
               const entry = podium.find((row) => row.rank === rank);
               return entry ? (

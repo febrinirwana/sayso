@@ -52,15 +52,15 @@ export function EpisodeLayout({
           {header}
           <ShakeZone className="grid min-h-0 w-full flex-1 grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 px-8 pt-2 pb-7 xl:gap-10 xl:px-12">
             <div className="flex min-h-0 flex-col gap-5">
-              <div className="relative flex min-h-0 flex-1 justify-center [container-type:size]">
-                <div className="h-fit w-[min(100cqw,calc(100cqh*16/9))]">{stage}</div>
+              <div className="relative min-h-0 w-full flex-1 [&>section]:h-full [&>section]:aspect-auto [&_video]:object-contain">
+                {stage}
               </div>
               <div
                 className={`grid min-h-[284px] shrink-0 gap-5 ${ticketWord === null ? "grid-cols-[minmax(0,0.82fr)_minmax(0,1.5fr)]" : "grid-cols-1"}`}
               >
                 {/* An open ticket takes the whole dock: the trade needs the room, and the
                     word's own card already wears the holding. */}
-                {ticketWord === null ? <div className="min-h-0 self-start">{position}</div> : null}
+                {ticketWord === null ? <div className="grid min-h-0">{position}</div> : null}
                 <TicketDock word={ticketWord} className="min-h-0">
                   {ticketWord === null ? null : renderTicket("dock")}
                 </TicketDock>

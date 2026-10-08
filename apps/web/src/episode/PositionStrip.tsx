@@ -19,7 +19,7 @@ export type PositionStripProps = {
 /**
  * The player's whole-episode position at a glance: value (counts when it moves), cost, change and
  * one chip per held word. Lays itself out by its own width, so it reads as a strip on phones and
- * as a compact card in the desktop dock. Its height grows with the holding list, not the dock.
+ * as a compact card in the desktop dock, where it stretches to match the ticket alongside it.
  */
 export function PositionStrip({ holdings, costMicro, valueMicro, className }: PositionStripProps) {
   if (holdings.length === 0) {
@@ -44,7 +44,7 @@ export function PositionStrip({ holdings, costMicro, valueMicro, className }: Po
   return (
     <section
       aria-label="Your position"
-      className={`@container sticker flex flex-col gap-3 px-4 py-3.5 ${className ?? ""}`}
+      className={`@container sticker flex flex-col justify-center gap-3 px-4 py-3.5 ${className ?? ""}`}
     >
       <p className="text-[11px] font-extrabold uppercase leading-4 tracking-[0.12em] text-ink-soft">
         Your position · {words} {words === 1 ? "word" : "words"}

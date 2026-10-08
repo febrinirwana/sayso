@@ -139,18 +139,18 @@ export function Results({
           </div>
         )}
       </section>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <h2 className="font-headline text-2xl sm:text-3xl">Six words. No guesswork.</h2>
+        <span className="shrink-0 text-xs font-semibold text-ink-soft">
+          {words.length - pending} / {words.length} final
+        </span>
+      </div>
+      <p className="mb-5 text-sm text-ink-soft">
+        Open a word to see both transcripts and your trades.
+      </p>
       <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <h2 className="font-headline text-2xl sm:text-3xl">Six words. No guesswork.</h2>
-            <span className="shrink-0 text-xs font-semibold text-ink-soft">
-              {words.length - pending} / {words.length} final
-            </span>
-          </div>
-          <p className="mb-5 text-sm text-ink-soft">
-            Open a word to see both transcripts and your trades.
-          </p>
-          <div className="grid items-start gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {words.map((word, index) => (
               <WordResult
                 key={`${word.id}-${expandedWordId ?? "closed"}`}
@@ -161,7 +161,7 @@ export function Results({
             ))}
           </div>
         </section>
-        <aside className="rounded-3xl border-2 border-ink bg-card p-6 shadow-sticker xl:sticky xl:top-6">
+        <aside className="rounded-3xl border-2 border-ink bg-card p-6 shadow-sticker xl:sticky xl:top-6 xl:min-h-[458px]">
           <Coins size={28} className="mb-4" />
           <h2 className="font-headline text-2xl">
             {state === "redeemed" ? "All yours." : "Bring it home."}

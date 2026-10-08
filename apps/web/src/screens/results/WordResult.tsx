@@ -19,7 +19,7 @@ export function WordResult({
   return (
     <details
       open={expanded || undefined}
-      className="group min-w-0 rounded-3xl border-2 border-ink bg-card shadow-sticker"
+      className="group min-w-0 rounded-3xl border-2 border-ink bg-card shadow-sticker open:md:col-span-2"
       onToggle={(event) => {
         if (event.currentTarget.open) play("sheet");
       }}
@@ -33,13 +33,15 @@ export function WordResult({
               ? `${word.trades.length} ${word.trades.length === 1 ? "trade" : "trades"} · ${pending ? "waiting for CRE" : "your result"}`
               : "You sat this word out"}
           </p>
-          {!pending && word.trades.length > 0 && (
-            <Money
-              value={word.profit}
-              signed
-              className={`mt-2 block text-sm font-bold ${word.profit > 0n ? "text-gain" : "text-ink"}`}
-            />
-          )}
+          <div className="mt-2 min-h-5">
+            {!pending && word.trades.length > 0 && (
+              <Money
+                value={word.profit}
+                signed
+                className={`block text-sm font-bold ${word.profit > 0n ? "text-gain" : "text-ink"}`}
+              />
+            )}
+          </div>
         </div>
         <span
           className={`flex shrink-0 items-center gap-1 rounded-lg border-2 px-2 py-1.5 font-headline text-sm ${pending ? "border-line bg-paper" : yes ? "rotate-[-5deg] border-gain bg-gain-tint text-gain" : "border-ink-soft bg-line text-ink-soft"}`}
