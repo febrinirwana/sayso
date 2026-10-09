@@ -49,6 +49,8 @@ export interface DripDependencies {
   db: Database;
   chain: DripChain;
   ipSalt: string;
+  /** New addresses one client IP may receive per rolling hour; production keeps 1. */
+  maxPerIpHour?: number;
   now?: () => number;
 }
 export class DripError extends Error {
@@ -167,11 +169,12 @@ export class DripService {
       const current = this.#row(address);
       if (current?.status === "completed") throw new DripError("already_awarded", 409);
       if (current) return;
-      if (
-        db
-          .query("SELECT address FROM drips WHERE ip_hash=? AND at>? LIMIT 1")
-          .get(ipHash, at - 3_600_000)
-      )
+      const recent = db
+        .query<{ n: number }, [string, number]>(
+          "SELECT count(*) AS n FROM drips WHERE ip_hash=? AND at>?",
+        )
+        .get(ipHash, at - 3_600_000);
+      if ((recent?.n ?? 0) >= (this.#deps.maxPerIpHour ?? 1))
         throw new DripError("rate_limited", 429);
       // An unresolved signed nonce must block every other recipient, even across restart.
       if (db.query("SELECT address FROM drips WHERE status<>'completed' LIMIT 1").get())

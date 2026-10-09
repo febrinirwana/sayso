@@ -29,7 +29,12 @@ try {
     const salt = config.dripIpSalt();
     const drip =
       salt && config.privateKey("drip")
-        ? new DripService({ db, chain: createDripChain(config), ipSalt: salt })
+        ? new DripService({
+            db,
+            chain: createDripChain(config),
+            ipSalt: salt,
+            maxPerIpHour: config.dripMaxPerIpHour,
+          })
         : undefined;
     const reporter = config.keyAddresses.find(({ role }) => role === "reporter");
     const cre =

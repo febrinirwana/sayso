@@ -168,6 +168,22 @@ it("reserves one new address per IP hour, including concurrent claim attempts", 
   await service.claim(b, "192.0.2.1");
   expect(chain.balances.get(b)?.ausd).toBe(10_000_000n);
 });
+it("a configured rehearsal allowance admits that many new addresses per IP hour, then rate-limits", async () => {
+  service = new DripService({
+    db,
+    chain,
+    ipSalt: "a stable deployment salt of at least 32 characters",
+    maxPerIpHour: 2,
+    now: () => now,
+  });
+  const c = "0x2222222222222222222222222222222222222222";
+  await service.claim(a, "192.0.2.1");
+  await service.claim(b, "192.0.2.1");
+  chain.mon += parseEther("1"); // fund a third grant so only the IP allowance can refuse it
+  chain.ausd += 10_000_000n;
+  await expect(service.claim(c, "192.0.2.1")).rejects.toMatchObject({ httpStatus: 429 });
+  expect(chain.balances.get(c)).toBeUndefined();
+});
 it("concurrent case variants cannot double either leg", async () => {
   await Promise.allSettled([
     service.claim(a, "192.0.2.1"),

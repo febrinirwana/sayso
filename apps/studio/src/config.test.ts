@@ -55,6 +55,12 @@ it("keeps the drip salt out of JSON and hidden-property inspection", () => {
   expect(JSON.stringify(config)).not.toContain(salt);
   expect(inspect(config, { showHidden: true })).not.toContain(salt);
 });
+it("defaults the drip to one new address per IP hour and refuses non-positive allowances", () => {
+  expect(parseConfig(base).dripMaxPerIpHour).toBe(1);
+  expect(parseConfig({ ...base, DRIP_MAX_PER_IP_HOUR: "5" }).dripMaxPerIpHour).toBe(5);
+  for (const value of ["0", "-1", "1.5", "abc"])
+    expect(() => parseConfig({ ...base, DRIP_MAX_PER_IP_HOUR: value })).toThrow();
+});
 
 it("refuses two role writers sharing a sender nonce stream", () => {
   const key = `0x${"12".repeat(32)}`;

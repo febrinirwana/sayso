@@ -43,6 +43,7 @@ const envSchema = z.object({
   DRIP_PK: optionalValue(key),
   REPORTER_PK: optionalValue(key),
   DRIP_IP_SALT: optionalValue(z.string().min(32)),
+  DRIP_MAX_PER_IP_HOUR: z.coerce.number().int().min(1).default(1),
   STUDIO_REVEAL_URL: optionalValue(z.url()),
   SAYSO_START_BLOCK: optionalValue(z.string().regex(/^(0|[1-9]\d*)$/)),
   CRE_MODE: z.enum(["simulation", "don"]).default("simulation"),
@@ -64,6 +65,7 @@ export class StudioConfig {
   readonly creMode: "simulation" | "don";
   readonly creResolverDir: string | undefined;
   readonly creCliPath: string;
+  readonly dripMaxPerIpHour: number;
   #dripSalt: string | undefined;
   readonly keyAddresses: { role: KeyRole; address: Address }[];
   #keys: Partial<Record<KeyRole, Hex>> = {};
@@ -81,6 +83,7 @@ export class StudioConfig {
     this.creMode = env.CRE_MODE;
     this.creResolverDir = env.CRE_RESOLVER_DIR as string | undefined;
     this.creCliPath = env.CRE_CLI_PATH;
+    this.dripMaxPerIpHour = env.DRIP_MAX_PER_IP_HOUR;
     this.#dripSalt = env.DRIP_IP_SALT as string | undefined;
     this.keyAddresses = [];
     for (const [role, value] of [
