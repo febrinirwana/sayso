@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/09 — A migrated studio database must catch up only its own episodes
+
+- **Cause:** studio-data-12's CRE log catch-up started at the contract deployment block. Episodes 1–11 were created by earlier development databases, so their `EvidenceReady` logs had no local projection; discovery (correctly) refused to skip them, held its cursor at 69,236,243 and backed off for up to 10 minutes, which delayed episode 14's settlement discovery.
+- **Rule:** `SAYSO_START_BLOCK` and the stored cursor start at the create block of the database's first episode; check `cre_runner_state` before starting a migrated studio.
+
 ### 2026/10/09 — A reservation that nothing signed must not outlive its request
 
 - **Cause:** The starter drip reserves a row (sender gate plus the IP hour) before signing. A transient public-RPC failure between reservation and signing left an unsigned `pending` row; status reads kept answering `pending`, the web never re-posted, and the global "one unresolved sender nonce" gate then refused every other player's drip.

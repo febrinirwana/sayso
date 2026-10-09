@@ -137,6 +137,8 @@ sudo chmod 0700 /var/lib/sayso /var/lib/sayso/clips
 sudo rm -rf /tmp/sayso-private-data
 ```
 
+The CRE log catch-up holds at any trigger whose episode this database never created, so a migrated database must start after foreign episodes: set `SAYSO_START_BLOCK` to the create block of the database's first episode (`SELECT MIN(block) FROM actions WHERE kind='create'`; studio-data-12 = 69452459) and confirm `SELECT next_block FROM cre_runner_state` is at or after it before starting the service.
+
 If the source studio cannot be stopped, do not copy its SQLite/WAL independently: first take a consistent SQLite backup and coordinate a single-writer cutover. Do not expose private data, symlinks to it, transcripts, clip metadata JSON or flag plans. For each rights-cleared FINAL encoded MP4, locally select its matching private clip directory and export using this hash check; the script emits no metadata:
 
 ```sh
