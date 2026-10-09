@@ -50,6 +50,7 @@ const envSchema = z.object({
   CRE_MODE: z.enum(["simulation", "don"]).default("simulation"),
   CRE_RESOLVER_DIR: optionalValue(z.string().min(1)),
   CRE_CLI_PATH: z.string().min(1).default("cre"),
+  CRE_RESOLVER_WASM: optionalValue(z.string().min(1)),
 });
 export type KeyRole = "operator" | "bot" | "drip" | "reporter";
 
@@ -67,6 +68,7 @@ export class StudioConfig {
   readonly creMode: "simulation" | "don";
   readonly creResolverDir: string | undefined;
   readonly creCliPath: string;
+  readonly creResolverWasm: string | undefined;
   readonly dripMaxPerIpHour: number;
   #dripSalt: string | undefined;
   readonly keyAddresses: { role: KeyRole; address: Address }[];
@@ -86,6 +88,7 @@ export class StudioConfig {
     this.creMode = env.CRE_MODE;
     this.creResolverDir = env.CRE_RESOLVER_DIR as string | undefined;
     this.creCliPath = env.CRE_CLI_PATH;
+    this.creResolverWasm = env.CRE_RESOLVER_WASM as string | undefined;
     this.dripMaxPerIpHour = env.DRIP_MAX_PER_IP_HOUR;
     this.#dripSalt = env.DRIP_IP_SALT as string | undefined;
     this.keyAddresses = [];

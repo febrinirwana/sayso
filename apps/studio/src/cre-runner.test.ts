@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addresses, saysoMarketsAbi } from "@sayso/core";
@@ -329,7 +329,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
   runner = undefined;
 });
-function make(mode: "simulation" | "don" = "simulation") {
+function make(mode: "simulation" | "don" = "simulation", wasmPath?: string) {
   runner = createCreRunner({
     db,
     rpcUrl: server.url.toString(),
@@ -344,6 +344,7 @@ function make(mode: "simulation" | "don" = "simulation") {
     now: () => now,
     timeoutMs: 500,
     pollMs: 1000,
+    ...(wasmPath ? { wasmPath } : {}),
   });
   return runner;
 }
@@ -750,6 +751,21 @@ it("a proven prewrite no-agreement result does not block the episode close subpr
     { status: "no-report", attempts: 1 },
     { status: "no-report", attempts: 1 },
   ]);
+});
+it("simulates the release's prebuilt resolver WASM so a run never compiles inside its timeout", async () => {
+  // VPS episode 18: compiling TypeScript to WASM on each run overran the 120 s budget and left the
+  // evidence run ambiguous; the same simulate with --wasm took 6.4 s.
+  trigger();
+  const argvFile = join(dir, "argv.json");
+  await writeFile(
+    cli,
+    `await Bun.write(${JSON.stringify(argvFile)}, JSON.stringify(process.argv.slice(2)));`,
+  );
+  await make("simulation", "/opt/sayso/resolver.wasm").tick();
+  const argv = JSON.parse(await readFile(argvFile, "utf8")) as string[];
+  const at = argv.indexOf("--wasm");
+  expect(argv.slice(at, at + 2)).toEqual(["--wasm", "/opt/sayso/resolver.wasm"]);
+  expect(argv).toContain("--broadcast");
 });
 it("backs off a proven prewrite reveal failure then safely reruns without re-signing an unknown write", async () => {
   trigger();

@@ -35,6 +35,8 @@ export type CreRunnerDeps = {
   pollMs?: number;
   timeoutMs?: number;
   cliPath?: string;
+  /** Release-built resolver WASM; without it every run recompiles TypeScript inside its timeout. */
+  wasmPath?: string;
   // Executable and optional fixed prefix, useful for a process-plumbing smoke (not CRE proof).
   command?: readonly string[];
 };
@@ -399,6 +401,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
       run.trigger_tx,
       "--evm-event-index",
       String(run.trigger_log_index),
+      ...(deps.wasmPath ? ["--wasm", deps.wasmPath] : []),
       "--broadcast",
     ];
     // Never retain raw output: only the resolver's bounded, exact prewrite completion protocol.

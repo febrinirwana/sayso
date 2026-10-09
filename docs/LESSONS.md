@@ -4,6 +4,16 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/10 — A server CRE run must not compile the workflow
+
+- **Cause:** `cre workflow simulate` compiles the TypeScript resolver to WASM (and downloads Javy the first time) inside each run. On the 2-vCPU VPS under the service's CPU/memory caps that overran the runner's 120 s timeout, so episode 18's evidence run went ambiguous and, by design, blocked every later simulation until reconciled.
+- **Rule:** build the resolver WASM once per release and set `CRE_RESOLVER_WASM` so runs use `--wasm` (6.4 s on the same host); rebuild it whenever `cre/resolver` changes.
+
+### 2026/10/10 — Never run a Linux package install against the Windows checkout
+
+- **Cause:** a WSL `bun install` during release staging wrote Linux symlinks into the repository's `node_modules` through `/mnt/c`. Windows tools then failed with "Unsupported reparse point type" and Bun could not overwrite them (`EEXIST`).
+- **Rule:** stage releases only under a Linux path such as `/tmp`, verify the install landed there, and repair a polluted checkout by deleting the Linux links from WSL, then reinstalling on Windows.
+
 ### 2026/10/09 — A migrated studio database must catch up only its own episodes
 
 - **Cause:** studio-data-12's CRE log catch-up started at the contract deployment block. Episodes 1–11 were created by earlier development databases, so their `EvidenceReady` logs had no local projection; discovery (correctly) refused to skip them, held its cursor at 69,236,243 and backed off for up to 10 minutes, which delayed episode 14's settlement discovery.

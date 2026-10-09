@@ -194,9 +194,13 @@ await Bun.write(path, JSON.stringify(config, null, 2) + "\n");
 await Bun.write("/var/lib/sayso/resolver/project.yaml", "monad-testnet:\n  rpcs:\n    - chain-name: monad-testnet\n      url: " + JSON.stringify(process.env.RPC_URL) + "\n");
 '
 sudo -u sayso env HOME=/var/lib/sayso PATH=/opt/sayso/bin:/usr/local/bin:/usr/bin:/bin /opt/sayso/bin/cre login
+# Build the resolver WASM once per release; CRE_RESOLVER_WASM points the studio at it.
+sudo systemd-run --wait --pipe --collect --unit=sayso-wasm-build -p User=sayso -p WorkingDirectory=/var/lib/sayso/resolver -p Environment=HOME=/var/lib/sayso -p Environment=PATH=/opt/sayso/bin:/usr/bin:/bin -p MemoryMax=320M -p CPUQuota=75% /opt/sayso/bin/bun x --no-install cre-compile src/main.ts /var/lib/sayso/resolver.wasm
 ```
 
 Existing explicit reportGasLimit is preserved. Owner completes CRE login locally as sayso, not root; CRE_API_KEY can instead be securely provisioned if supported by the account. Perform a real-event non-broadcast simulation under this user before admitting judging traffic; omit --broadcast. Do not capture raw output (it can contain outcome evidence). CLI simulation/compilation is part of the later memory/load gate, not proof merely from login.
+
+[V: VPS 2026-10-09] Compiling inside each run overran the runner's 120 s timeout (episode 18's evidence run went ambiguous); the first compile also downloads Javy. Compile alone took 71 s under the service caps, while `simulate --wasm` of a real close trigger took 6.4 s. Rebuild the WASM whenever `cre/resolver` changes; a stale WASM silently runs old resolver logic.
 
 ### 6. Validate/start ONLY SAYSO gateway and studio
 

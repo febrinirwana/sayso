@@ -51,6 +51,7 @@ try {
               config.creResolverDir ??
               fileURLToPath(new URL("../../../cre/resolver/", import.meta.url)),
             cliPath: config.creCliPath,
+            ...(config.creResolverWasm ? { wasmPath: config.creResolverWasm } : {}),
             mode: config.creMode,
             startBlock: config.startBlock,
             ...(reporter ? { reporterAddress: reporter.address } : {}),
