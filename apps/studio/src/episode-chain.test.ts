@@ -248,6 +248,7 @@ it("consumes a synchronous flag receipt without polling or an inclusion sleep", 
     const scheduledMs = Date.now() + 600;
     const tx = await chain.prepare({ ...flag, notBeforeMs: scheduledMs });
     const receipt = await chain.broadcast(tx);
+    const returnedMs = Date.now();
     expect(receipt).toMatchObject({ hash: tx.hash, success: true });
     const methods = log.map((r) => r.method);
     expect(methods.filter((m) => m === "eth_sendRawTransactionSync")).toHaveLength(1);
@@ -255,7 +256,9 @@ it("consumes a synchronous flag receipt without polling or an inclusion sleep", 
     expect(methods).not.toContain("eth_getTransactionReceipt");
     const timing = receipt.timing;
     if (!timing || timing.signedReadyMs === undefined) throw new Error("Missing flag timing");
-    expect(timing.receiptObservedMs - scheduledMs).toBeLessThan(300);
+    // The fallback's 300 ms inclusion pause runs after the receipt is observed; measure only that gap,
+    // not signing or HTTP time, which varies with suite load.
+    expect(returnedMs - timing.receiptObservedMs).toBeLessThan(150);
     expect(timing.signedReadyMs).toBeGreaterThanOrEqual(scheduledMs);
     expect(timing.rpcSendStartMs).toBeGreaterThanOrEqual(timing.signedReadyMs);
     expect(timing.rpcSendAckMs).toBe(timing.receiptObservedMs);
