@@ -11,7 +11,12 @@ it("redeems against the settled chain state, not the state captured with the hol
   // Live episode 15: Results enabled Redeem from the fresh episode, but the holdings rows still
   // carried SaidPending, so redeem found nothing to send and silently reported success.
   const stale = episode(["SaidPending", "No"]);
-  const holdings: Holding[] = stale.words.map((w) => ({ word: w, episode: stale, yes: 2n, no: 0n }));
+  const holdings: Holding[] = stale.words.map((w) => ({
+    word: w,
+    episode: stale,
+    yes: 2n,
+    no: 0n,
+  }));
   const settled = episode(["Yes", "No"]);
   const redeemable = await readRedeemable(holdings, player, {
     episode: async () => settled,
