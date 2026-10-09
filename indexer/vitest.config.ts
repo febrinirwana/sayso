@@ -15,7 +15,7 @@ writeFileSync(
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     testTimeout: 30_000,
     env: { ENVIO_CONFIG: "config.test.yaml" },
   },

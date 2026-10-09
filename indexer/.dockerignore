@@ -1,0 +1,8 @@
+node_modules
+.envio
+generated
+.env
+.env.*
+config.runtime.yaml
+config.test.yaml
+**/*.test.ts

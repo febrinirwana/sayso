@@ -1,2 +1,6 @@
 # Offline test configuration uses a synthetic factory, never a deployment.
 config.test.yaml
+config.runtime.yaml
+.envio/
+generated/
+node_modules/

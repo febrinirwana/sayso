@@ -65,7 +65,7 @@ Commands exist once their owning phase lands; never report one as run before it 
 | `bun run --cwd tools/sfx generate -- [--only <ids>]` / `measure` | Generate and master DESIGN section 10 sounds from ElevenLabs (`ELEVEN_LABS_API_KEY`) into `apps/web/public/sfx`; `measure` checks every file against its targets |
 | `cre workflow simulate . --target monad-testnet --non-interactive --trigger-index <i> ...` (in `cre/resolver`) | Resolver run; see `cre-resolver` skill and INTEGRATIONS section 3 |
 | `bun x --no-install cre-compile src/main.ts <out>.wasm` (in `cre/resolver`) | Build the resolver WASM without CRE login |
-| `bun run --cwd indexer codegen` / `dev` | Envio generation and local indexer (Linux/macOS; Windows uses WSL). `dev` requires deployed/cast-code-verified receiver config |
+| `bun run --cwd indexer prepare:deployment` / `check` / `codegen` / `dev` | Regenerate (or drift-check) the committed hosted `config.yaml` and `abi/` from `@sayso/core`; Envio generation; local indexer with `ENVIO_API_TOKEN` (HyperSync) or `ENVIO_RPC_URL` (Linux/macOS; Windows uses WSL). Envio Cloud deploys `indexer/` with `config.yaml` as committed |
 
 Bun installs and runs scripts; Node 24 runs Vite and Vitest, except `apps/studio`, whose tests run Vitest inside Bun (`bun --bun vitest run`) to exercise `bun:sqlite`.
 

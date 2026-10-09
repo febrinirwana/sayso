@@ -4,17 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "codegen": "bun scripts/prepare.ts && envio codegen",
-    "dev": "bun scripts/prepare.ts --deployed && envio dev",
-    "typecheck": "bun run codegen && tsc -p tsconfig.json",
-    "test": "bun run codegen && vitest run"
+    "prepare:deployment": "bun scripts/prepare.ts",
+    "check": "bun scripts/prepare.ts --check",
+    "codegen": "envio codegen",
+    "dev": "bun scripts/runtime.ts && envio dev --config config.runtime.yaml",
+    "start": "envio start",
+    "start:local": "bun scripts/runtime.ts && envio start --config config.runtime.yaml",
+    "typecheck": "envio codegen && tsc -p tsconfig.json",
+    "test": "envio codegen && vitest run"
   },
   "dependencies": {
-    "@sayso/core": "workspace:*",
     "envio": "3.12.1"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
+    "typescript": "7.0.2",
     "vitest": "5.0.3"
   }
 }

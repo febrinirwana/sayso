@@ -30,16 +30,16 @@ contracts:
     events:
       - event: Transfer
 chains:
-  - id: 10143
+  - id: __CHAIN_ID__
     # [V] docs.envio.dev/docs/HyperSync/hypersync-supported-networks
     # Envio Cloud supplies HyperSync access; local/VPS selects its source in runtime.ts.
     hypersync_config:
       url: https://monad-testnet.hypersync.xyz
     # SaysoMarkets creation block (2026-10-08). Never start after creation.
-    start_block: 69202243
+    start_block: __START_BLOCK__
     contracts:
       - name: SaysoMarkets
         # cast-code verified, SMART-CONTRACTS section 9; generated from core addresses.
         address:
-          - "0xc8492B2906d57c184be372899d18EDF195D11CF8"
+          - "__MARKETS_ADDRESS__"
       - name: OutcomeToken
