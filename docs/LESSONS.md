@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/09 — Isolate Envio simulation from deployed address and block filters
+
+- **Cause:** The test config replaced only an inline `address: ...` scalar. Testnet deployment changed it to a multiline list and a nonzero creation block, leaving all ten block-1 synthetic handler scenarios unrouted in a clean Linux verification.
+- **Rule:** The simulation fixture must replace either address form and reset its start block to zero, without changing production filters or handler assertions. Run the full economic handler suite from generated clean-checkout dependencies after deployment config changes.
+
 ### 2026/10/08 — Fit the house seed inside the pre-roll
 
 - **Cause:** Episode 5 seeded only 13 of 27 steps in its 60 s pre-roll: every BOT step ran 12-16 serial RPC round trips (forced chain id, a bytecode read per address, head, estimate, fees, nonce, balance, two receipt pre-checks, viem's block-watching receipt wait) plus between-step word, clock, allowance and log reads, about 3 s per receipt-gated step on a ~130 ms public RPC. Making receipts faster then exposed a stale 400 ms head cache: the post-cancel book snapshot read state from before the cancel's own block.

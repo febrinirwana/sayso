@@ -4,10 +4,12 @@ import { defineConfig } from "vitest/config";
 // Simulate still requires one configured address. This fixture is never used by dev.
 writeFileSync(
   "config.test.yaml",
-  readFileSync("config.yaml", "utf8").replace(
-    /address: .*/,
-    'address: ["0x00000000000000000000000000000000000000c1"]',
-  ),
+  readFileSync("config.yaml", "utf8")
+    .replace(/^([ \t]*)start_block:.*$/m, "$1start_block: 0")
+    .replace(
+      /^([ \t]*)address:[^\n]*(?:\n\1[ \t]+-[^\n]*)*/m,
+      '$1address: ["0x00000000000000000000000000000000000000c1"]',
+    ),
 );
 
 export default defineConfig({
