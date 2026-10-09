@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { orderBookAbi, routerAbi, saysoMarketsAbi } from "@sayso/core";
 import {
   BaseError,
@@ -10,6 +11,12 @@ import {
   toFunctionSelector,
 } from "viem";
 import { failureCode } from "./operator-log.ts";
+
+const urgent = new AsyncLocalStorage<true>();
+/** Reads inside `work` skip read pacing (still consuming the bucket): a write's preparation. */
+export function urgentReads<T>(work: () => Promise<T>): Promise<T> {
+  return urgent.run(true, work);
+}
 
 // Immutable contract readers are process-cached; chain id and bytecode live five minutes
 // and pre-sign/broadcast checks expire chain id first. Mutable state expires in two
@@ -107,7 +114,9 @@ export function studioRpc(url: string): Transport {
     const base = Math.max(theoreticalMs, now);
     const start = Math.max(now, base - toleranceMs);
     theoreticalMs = base + intervalMs;
-    if (start <= now) return Promise.resolve();
+    // Urgent reads (a write's preparation) still spend a token, so later paced reads wait for it,
+    // but they never wait themselves: writes are never delayed and neither is what signs them.
+    if (start <= now || urgent.getStore()) return Promise.resolve();
     const { promise, resolve } = Promise.withResolvers<void>();
     setTimeout(resolve, start - now);
     return promise;

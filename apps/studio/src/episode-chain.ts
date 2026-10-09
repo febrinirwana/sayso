@@ -19,6 +19,7 @@ import {
   isStudioSyncSendError,
   studioRpc,
   studioSendTiming,
+  urgentReads,
 } from "./rpc.ts";
 import {
   type Command,
@@ -121,7 +122,7 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
     }
   }
   const releaseByHash = new Map<Hex, () => void>();
-  return {
+  const adapter: EpisodeChain = {
     async prepare(command: Command) {
       const previous = tail;
       const gate = Promise.withResolvers<void>();
@@ -299,4 +300,8 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
       return { state: word.state };
     },
   };
+  // A flag's pre-sign reads must not queue behind paced reads; writes are never delayed.
+  const prepare = adapter.prepare.bind(adapter);
+  adapter.prepare = (command) => urgentReads(() => prepare(command));
+  return adapter;
 }

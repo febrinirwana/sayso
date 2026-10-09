@@ -8,6 +8,7 @@ import {
   expireStudioChainId,
   invalidateStudioReads,
   studioRpc,
+  urgentReads,
 } from "./rpc.ts";
 
 it("preserves dependency bytecode verification across receipts", async () => {
@@ -127,6 +128,33 @@ it("leaves reads unpaced unless a rate is configured", async () => {
     );
     starts.sort((a, b) => a - b);
     expect(starts[19]! - starts[0]!).toBeLessThan(200);
+  } finally {
+    server.stop(true);
+  }
+});
+it("lets a write's preparation reads skip the queue that paced reads wait in", async () => {
+  // VPS episodes 19/20: paced at 20/s, the first house pull's pre-sign reads queued behind maker
+  // reads, so the pull left 1.9-2.4 s late and landed after its flag.
+  const seen: string[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const { id, params } = (await request.json()) as { id: number; params: [string] };
+      seen.push(params[0]);
+      return Response.json({ jsonrpc: "2.0", id, result: "0x1" });
+    },
+  });
+  try {
+    const url = server.url.toString();
+    configureStudioRpc(url, { readsPerSecond: 2 });
+    const client = createPublicClient({ transport: studioRpc(url) });
+    const at = (n: number) => `0x${n.toString(16).padStart(40, "0")}` as const;
+    const queued = Array.from({ length: 4 }, (_, i) => client.getBalance({ address: at(i + 1) }));
+    await urgentReads(() => client.getBalance({ address: at(99) }));
+    // Rate 2/s admits one read at once; the other paced reads are still waiting 0.5 s apart.
+    expect(seen).toContain(at(99));
+    expect(seen.length).toBeLessThan(5);
+    await Promise.all(queued);
   } finally {
     server.stop(true);
   }

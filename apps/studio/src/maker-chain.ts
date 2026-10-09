@@ -32,6 +32,7 @@ import {
   isStudioSyncSendError,
   studioRpc,
   studioSendTiming,
+  urgentReads,
 } from "./rpc.ts";
 import { PRESIGN_MS } from "./runner.ts";
 
@@ -529,5 +530,8 @@ export function createMakerChain(config: StudioConfig): MakerChain {
       return settled(transaction.hash);
     },
   };
+  // A pull's pre-sign reads must not queue behind paced maker reads (VPS episodes 19/20: 1.9-2.4 s).
+  const prepare = adapter.prepare.bind(adapter);
+  adapter.prepare = (command, guard) => urgentReads(() => prepare(command, guard));
   return adapter;
 }
