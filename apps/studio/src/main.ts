@@ -14,10 +14,13 @@ import { loadClipLibrary } from "./library.ts";
 import { HouseMaker } from "./maker.ts";
 import { createMakerChain } from "./maker-chain.ts";
 import { operatorFailure } from "./operator-log.ts";
+import { configureStudioRpc } from "./rpc.ts";
 import { EpisodeRunner } from "./runner.ts";
 
 try {
   const config = parseConfig(Bun.env);
+  if (config.rpcReadsPerSecond)
+    configureStudioRpc(config.rpcUrl, { readsPerSecond: config.rpcReadsPerSecond });
   const clipDirectory = join(config.dataDir, "clips");
   await mkdir(clipDirectory, { recursive: true });
   const db = openDatabase(join(config.dataDir, "studio.sqlite"));

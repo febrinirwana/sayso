@@ -73,6 +73,13 @@ const shared = new Map<
     expireHead(): void;
   }
 >();
+const readRates = new Map<string, number>();
+/** Opt-in upstream read pacing for `url`; set before the first `studioRpc(url)`. Unset = unpaced. */
+export function configureStudioRpc(url: string, options: { readsPerSecond: number }) {
+  if (!Number.isInteger(options.readsPerSecond) || options.readsPerSecond < 1)
+    throw new Error("Studio RPC read rate must be a positive integer");
+  readRates.set(url, options.readsPerSecond);
+}
 export function studioRpc(url: string): Transport {
   const existing = shared.get(url);
   if (existing) return existing.transport;
@@ -87,6 +94,24 @@ export function studioRpc(url: string): Transport {
     delay = 0;
   let lastError: unknown;
   let latestHead: { until: number; number: string } | undefined;
+  // Opt-in token bucket (GCRA): bursts up to half the rate leave at once (a flag's pre-sign round is
+  // never queued), sustained reads are spaced at the rate. Concurrent clock/maker/CRE bursts otherwise
+  // trip the provider's per-second limit, and one 429 blocks every read for up to 30 s.
+  const rate = readRates.get(url);
+  const intervalMs = rate ? 1000 / rate : 0;
+  const toleranceMs = rate ? (Math.max(1, Math.floor(rate / 2)) - 1) * intervalMs : 0;
+  let theoreticalMs = 0;
+  function readSlot(): Promise<void> {
+    if (!rate) return Promise.resolve();
+    const now = Date.now();
+    const base = Math.max(theoreticalMs, now);
+    const start = Math.max(now, base - toleranceMs);
+    theoreticalMs = base + intervalMs;
+    if (start <= now) return Promise.resolve();
+    const { promise, resolve } = Promise.withResolvers<void>();
+    setTimeout(resolve, start - now);
+    return promise;
+  }
   const transport = custom(
     {
       async request({ method, params }) {
@@ -182,9 +207,13 @@ export function studioRpc(url: string): Transport {
         // Writes are never auto-retried, delayed or cached. Unknown outcomes stay in journals.
         const read = method !== "eth_sendRawTransaction" && method !== "eth_sendRawTransactionSync";
         if (read && Date.now() < blockedUntil) throw lastError;
-        counter.requests++;
-        const work = upstream
-          .request({ method, params } as never)
+        // The slot wait lives inside `work`, so identical concurrent reads still share one request.
+        const work = (read ? readSlot() : Promise.resolve())
+          .then(() => {
+            if (read && Date.now() < blockedUntil) throw lastError;
+            counter.requests++;
+            return upstream.request({ method, params } as never);
+          })
           .then((result) => {
             if (method === "eth_getTransactionReceipt" && result) {
               const timing = timings.get(args?.[0] as Hex);

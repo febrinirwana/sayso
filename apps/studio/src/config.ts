@@ -32,6 +32,7 @@ const webOrigins = z
   );
 const envSchema = z.object({
   RPC_URL: z.url(),
+  RPC_READS_PER_SECOND: optionalValue(z.coerce.number().int().min(1)),
   CHAIN_ID: z.coerce.number().refine((value) => value === 10143),
   SAYSO_MARKETS: optionalValue(z.string().regex(/^0x[0-9a-fA-F]{40}$/)),
   STUDIO_DATA_DIR: z.string().min(1),
@@ -70,6 +71,7 @@ export class StudioConfig {
   readonly creCliPath: string;
   readonly creResolverWasm: string | undefined;
   readonly dripMaxPerIpHour: number;
+  readonly rpcReadsPerSecond: number | undefined;
   #dripSalt: string | undefined;
   readonly keyAddresses: { role: KeyRole; address: Address }[];
   #keys: Partial<Record<KeyRole, Hex>> = {};
@@ -90,6 +92,7 @@ export class StudioConfig {
     this.creCliPath = env.CRE_CLI_PATH;
     this.creResolverWasm = env.CRE_RESOLVER_WASM as string | undefined;
     this.dripMaxPerIpHour = env.DRIP_MAX_PER_IP_HOUR;
+    this.rpcReadsPerSecond = env.RPC_READS_PER_SECOND as number | undefined;
     this.#dripSalt = env.DRIP_IP_SALT as string | undefined;
     this.keyAddresses = [];
     for (const [role, value] of [

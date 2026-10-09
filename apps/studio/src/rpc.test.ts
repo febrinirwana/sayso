@@ -3,7 +3,12 @@ import { createPublicClient, encodeFunctionData, HttpRequestError, keccak256 } f
 import { privateKeyToAccount } from "viem/accounts";
 import { expect, it, vi } from "vitest";
 import { failureCode, operatorFailure } from "./operator-log.ts";
-import { expireStudioChainId, invalidateStudioReads, studioRpc } from "./rpc.ts";
+import {
+  configureStudioRpc,
+  expireStudioChainId,
+  invalidateStudioReads,
+  studioRpc,
+} from "./rpc.ts";
 
 it("preserves dependency bytecode verification across receipts", async () => {
   let calls = 0;
@@ -70,6 +75,59 @@ it("backs rate-limited reads off exponentially without viem retries", async () =
     expect(calls).toBe(3);
   } finally {
     clock.mockRestore();
+    server.stop(true);
+  }
+});
+it("lets a short burst through, then paces sustained reads at the configured rate", async () => {
+  // VPS 2026-10-10: concurrent clock/maker/CRE reads burst past QuickNode's 50/s, and each 429 then
+  // blocked every read (including CRE preflight) for up to 30 s.
+  const starts: number[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      starts.push(performance.now());
+      const { id } = (await request.json()) as { id: number };
+      return Response.json({ jsonrpc: "2.0", id, result: "0x1" });
+    },
+  });
+  try {
+    const url = server.url.toString();
+    configureStudioRpc(url, { readsPerSecond: 20 });
+    const client = createPublicClient({ transport: studioRpc(url) });
+    const addresses = Array.from(
+      { length: 30 },
+      (_, i) => `0x${(i + 1).toString(16).padStart(40, "0")}` as const,
+    );
+    await Promise.all(addresses.map((address) => client.getBalance({ address })));
+    starts.sort((a, b) => a - b);
+    expect(starts).toHaveLength(30);
+    // Burst of rate/2 = 10 leaves at once; the other 20 follow 50 ms apart (~1 s).
+    expect(starts[9]! - starts[0]!).toBeLessThan(200);
+    expect(starts[29]! - starts[0]!).toBeGreaterThanOrEqual(900);
+  } finally {
+    server.stop(true);
+  }
+});
+it("leaves reads unpaced unless a rate is configured", async () => {
+  const starts: number[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      starts.push(performance.now());
+      const { id } = (await request.json()) as { id: number };
+      return Response.json({ jsonrpc: "2.0", id, result: "0x1" });
+    },
+  });
+  try {
+    const client = createPublicClient({ transport: studioRpc(server.url.toString()) });
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        client.getBalance({ address: `0x${(i + 1).toString(16).padStart(40, "0")}` }),
+      ),
+    );
+    starts.sort((a, b) => a - b);
+    expect(starts[19]! - starts[0]!).toBeLessThan(200);
+  } finally {
     server.stop(true);
   }
 });
