@@ -11,7 +11,7 @@ Rule: never commit an address without `cast code <address> --rpc-url <rpc>` retu
 | Fact | Value | Label |
 |---|---|---|
 | Chain ID | 10143 | [V: [current facts](https://docs.monad.xyz/ai/current-facts.md)] |
-| RPC | `https://testnet-rpc.monad.xyz` | [V] |
+| RPC | `https://testnet-rpc.monad.xyz`. Per-IP limits: `eth_call` 15/s (HTTP 429, code -32011 "requests limited to 15/sec") and an overall 50/s (code -32007, QuickNode); 40 parallel `eth_getBalance`/`eth_chainId` passed. Batch balance reads into one Multicall3 `eth_call` | [V: burst probe 2026-10-09] |
 | Block time / finality | 300 ms blocks, 600 ms finality | [V: current facts] |
 | Gas | Charged on the gas limit, not gas used; always pass explicit `gas` | [V: [gas pricing](https://docs.monad.xyz/developer-essentials/gas-pricing)] |
 | Reserve balance | Low-balance senders can be rejected for closely spaced spending; the emptying exception needs no other transaction from that sender in the prior 3 blocks | [V: [reserve balance](https://docs.monad.xyz/developer-essentials/reserve-balance)] |

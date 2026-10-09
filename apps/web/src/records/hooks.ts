@@ -13,30 +13,28 @@ export async function readHoldings(
   address: Address,
 ): Promise<Holding[]> {
   const blockNumber = await publicClient.getBlockNumber();
-  const holdings: Holding[] = [];
-  // Serialize RPC reads: the public endpoint shares a 25 request/s budget with the studio.
-  for (const episode of episodes) {
-    for (const word of episode.words) {
-      // This workspace targets ES2023; Promise.withResolvers is ES2024.
-      await new Promise<void>((resolve) => setTimeout(resolve, 400));
-      const yes = await publicClient.readContract({
-        address: word.yes,
+  const words = episodes.flatMap((episode) => episode.words.map((word) => ({ episode, word })));
+  // One eth_call for every balance at one block: the public RPC limits each IP to
+  // 15 requests/s, and a per-word read loop made redemption fail on that limit.
+  const values = await publicClient.multicall({
+    contracts: words.flatMap(({ word }) =>
+      [word.yes, word.no].map((token) => ({
+        address: token,
         abi: outcomeTokenAbi,
-        functionName: "balanceOf",
-        args: [address],
-        blockNumber,
-      });
-      const no = await publicClient.readContract({
-        address: word.no,
-        abi: outcomeTokenAbi,
-        functionName: "balanceOf",
-        args: [address],
-        blockNumber,
-      });
-      holdings.push({ episode, word, yes, no });
-    }
-  }
-  return holdings;
+        functionName: "balanceOf" as const,
+        args: [address] as const,
+      })),
+    ),
+    allowFailure: false,
+    deployless: true,
+    blockNumber,
+  });
+  return words.map(({ episode, word }, i) => ({
+    episode,
+    word,
+    yes: values[i * 2] as bigint,
+    no: values[i * 2 + 1] as bigint,
+  }));
 }
 export function useEpisodeHoldings(episode: ChainEpisode | undefined, address: Address | null) {
   return useQuery({
