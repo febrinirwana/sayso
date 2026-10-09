@@ -93,6 +93,7 @@ try {
       runner,
       drip,
       ip: (request) => ips.get(request) ?? "unknown",
+      webOrigins: config.webOrigins,
     });
     const server = Bun.serve({
       port: config.port,

@@ -69,3 +69,30 @@ it("requires an explicit boolean opt-in before accepting same-host proxy identit
     expect(() => parseConfig({ ...base, STUDIO_BEHIND_CADDY: value })).toThrow();
   }
 });
+
+it("parses comma-separated exact web origins and rejects non-origin allowlist entries", () => {
+  expect(parseConfig(base).webOrigins).toEqual([
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5181",
+    "http://127.0.0.1:5181",
+  ]);
+  expect(
+    parseConfig({
+      ...base,
+      STUDIO_WEB_ORIGINS: " https://sayso.vercel.app , https://preview.vercel.app ",
+    }).webOrigins,
+  ).toEqual(["https://sayso.vercel.app", "https://preview.vercel.app"]);
+  expect(parseConfig({ ...base, STUDIO_WEB_ORIGINS: "" }).webOrigins).toEqual([]);
+  for (const value of [
+    "*",
+    "null",
+    "https://*.vercel.app",
+    "https://sayso.vercel.app/",
+    "https://sayso.vercel.app/path",
+    "https://user:password@sayso.vercel.app",
+    "https://sayso.vercel.app,,https://preview.vercel.app",
+  ]) {
+    expect(() => parseConfig({ ...base, STUDIO_WEB_ORIGINS: value })).toThrow("STUDIO_WEB_ORIGINS");
+  }
+});

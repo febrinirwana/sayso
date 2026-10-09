@@ -345,8 +345,13 @@ it("serves an SSE schedule without including any future transcript-derived flags
       },
     },
     runner,
+    webOrigins: ["https://sayso.vercel.app"],
   });
-  const response = await app.request("/v1/episodes/1/stream");
+  const response = await app.request("/v1/episodes/1/stream", {
+    headers: { Origin: "https://sayso.vercel.app" },
+  });
+  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://sayso.vercel.app");
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
   expect(response.headers.get("content-type")).toContain("text/event-stream");
   const reader = response.body!.getReader();
   const initial = new TextDecoder().decode((await reader.read()).value);

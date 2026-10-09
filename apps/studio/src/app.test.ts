@@ -126,3 +126,59 @@ it("reports the latest CRE mode and degraded status without exposing stored CRE 
     db.close();
   }
 });
+
+it("allows exact configured web origins and JSON POST preflights without credentials", async () => {
+  const db = openDatabase(":memory:");
+  try {
+    const app = createApp({
+      db,
+      now: () => 100_000,
+      chain: healthyChain,
+      webOrigins: ["https://sayso.vercel.app", "https://sayso-preview.vercel.app"],
+    });
+    for (const origin of ["https://sayso.vercel.app", "https://sayso-preview.vercel.app"]) {
+      const response = await app.request("/v1/time", { headers: { Origin: origin } });
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+      expect(response.headers.get("Vary")).toContain("Origin");
+      expect(response.headers.get("Access-Control-Allow-Credentials")).toBeNull();
+      const preflight = await app.request("/v1/episodes", {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      });
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+      expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain("POST");
+      expect(preflight.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type");
+    }
+    for (const origin of [
+      "https://sayso.vercel.app.attacker.example",
+      "http://sayso.vercel.app",
+      "https://other.vercel.app",
+      "null",
+    ]) {
+      const response = await app.request("/v1/time", { headers: { Origin: origin } });
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    }
+    expect((await app.request("/v1/time")).headers.get("Access-Control-Allow-Origin")).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+it("keeps localhost development access by default and supports disabling browser access", async () => {
+  const db = openDatabase(":memory:");
+  try {
+    const deps = { db, now: () => 100_000, chain: healthyChain };
+    const headers = { Origin: "http://localhost:5173" };
+    const dev = await createApp(deps).request("/v1/time", { headers });
+    expect(dev.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:5173");
+    const denied = await createApp({ ...deps, webOrigins: [] }).request("/v1/time", { headers });
+    expect(denied.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  } finally {
+    db.close();
+  }
+});

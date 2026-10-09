@@ -1,0 +1,37 @@
+name: sayso-studio
+services:
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Host loopback preserves studio's existing trusted-proxy contract.
+    # Caddyfile binds ONLY the Docker bridge gateway, never 0.0.0.0.
+    network_mode: host
+    user: "65534:65534"
+    read_only: true
+    mem_limit: 64m
+    memswap_limit: 64m
+    cpus: 0.10
+    pids_limit: 32
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      SAYSO_GATEWAY_BIND: ${SAYSO_GATEWAY_BIND:-172.18.0.1}
+      SAYSO_CADDY_IP: ${SAYSO_CADDY_IP:-172.18.0.4}
+    volumes:
+      - type: bind
+        source: ./studio.gateway.Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - type: bind
+        source: ${SAYSO_MEDIA_DIR:-/srv/sayso/media}
+        target: /media
+        read_only: true
+    tmpfs:
+      - /config:size=8m,uid=65534,gid=65534
+      - /data:size=8m,uid=65534,gid=65534
+      - /tmp:size=8m,uid=65534,gid=65534
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

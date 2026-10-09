@@ -1,0 +1,35 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:13001 {
+	bind {$SAYSO_GATEWAY_BIND:172.18.0.1}
+	# Only the inspected shared Caddy peer may supply trusted client identity.
+	@untrusted not remote_ip {$SAYSO_CADDY_IP:172.18.0.4}
+	respond @untrusted 403
+
+	handle /v1/* {
+		header Cache-Control "no-store"
+		reverse_proxy 127.0.0.1:3001 {
+			# The outer Caddy OVERWRITES this header with its real remote client IP.
+			header_up X-Sayso-Client-IP {http.request.header.X-Sayso-Client-IP}
+			header_up X-Forwarded-For {http.request.header.X-Sayso-Client-IP}
+			flush_interval -1
+		}
+	}
+
+	@clip path_regexp clip ^/media/0x[0-9a-f]{64}\.mp4$
+	handle @clip {
+		root * /media
+		uri strip_prefix /media
+		header Cache-Control "public, max-age=86400, immutable"
+		header X-Content-Type-Options "nosniff"
+		file_server
+	}
+
+	handle {
+		respond 404
+	}
+}

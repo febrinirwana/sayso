@@ -1,29 +1,23 @@
-{$SAYSO_DOMAIN} {
+# Append the rendered site block to the EXISTING shared Caddyfile; never replace it.
+# Render SAYSO_STUDIO_HOST before insertion: the running container has no SAYSO env.
+{$SAYSO_STUDIO_HOST} {
 	encode zstd gzip
 
 	handle /v1/* {
 		header Cache-Control "no-store"
-		reverse_proxy 127.0.0.1:3001 {
+		reverse_proxy 172.18.0.1:13001 {
+			# Overwrite client-supplied identity at the public trust boundary.
 			header_up X-Sayso-Client-IP {http.request.remote.host}
+			header_up X-Forwarded-For {http.request.remote.host}
 			flush_interval -1
 		}
 	}
 
 	handle /media/* {
-		@clip path_regexp clip ^/media/0x[0-9a-f]{64}\.mp4$
-		handle @clip {
-			root * /srv/sayso/media
-			uri strip_prefix /media
-			file_server
-		}
-		handle {
-			respond 404
-		}
+		reverse_proxy 172.18.0.1:13001
 	}
 
 	handle {
-		root * /srv/sayso/web
-		try_files {path} /index.html
-		file_server
+		respond 404
 	}
 }

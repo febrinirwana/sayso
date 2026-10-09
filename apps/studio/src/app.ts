@@ -1,8 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import type { Address } from "viem";
+import { DEFAULT_WEB_ORIGINS } from "./config.ts";
 import { DripError, type DripService } from "./drip.ts";
 import { EpisodeError, type EpisodeRunner } from "./runner.ts";
 
@@ -18,6 +20,7 @@ export type AppDeps = {
   chain: ChainReader;
   runner?: EpisodeRunner | undefined;
   drip?: DripService | undefined;
+  webOrigins?: readonly string[] | undefined;
   ip?(request: Request): string;
 };
 type CreRun = {
@@ -44,8 +47,24 @@ type RevealRow = {
   proof_json: string;
 };
 
-export function createApp({ db, now, chain, runner, drip, ip }: AppDeps) {
+export function createApp({
+  db,
+  now,
+  chain,
+  runner,
+  drip,
+  ip,
+  webOrigins = DEFAULT_WEB_ORIGINS,
+}: AppDeps) {
   const app = new Hono<{ Variables: { clientIp: string } }>();
+  app.use(
+    "/v1/*",
+    cors({
+      origin: (origin) => (webOrigins.includes(origin) ? origin : undefined),
+      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowHeaders: ["Content-Type"],
+    }),
+  );
   app.post(
     "/v1/drips",
     (context, next) => {
@@ -104,8 +123,7 @@ export function createApp({ db, now, chain, runner, drip, ip }: AppDeps) {
       !db.query("SELECT id FROM episodes WHERE id = ?").get(id)
     )
       return context.body(null, 404);
-    context.header("Cache-Control", "no-store");
-    return streamSSE(context, async (stream) => {
+    const response = streamSSE(context, async (stream) => {
       const aborted = Promise.withResolvers<void>();
       let writes: Promise<unknown> = Promise.resolve();
       const unsubscribe = runner.subscribe(id, (event) => {
@@ -117,6 +135,11 @@ export function createApp({ db, now, chain, runner, drip, ip }: AppDeps) {
       await aborted.promise;
       unsubscribe?.();
     });
+    // Finalize through Hono before overriding streamSSE's no-cache default.
+    // CORS creates a context response whose headers otherwise win during merging.
+    context.res = response;
+    context.header("Cache-Control", "no-store");
+    return context.res;
   });
   app.get("/v1/time", (context) => context.json({ serverMs: now() }));
   app.get("/v1/health", async (context) => {

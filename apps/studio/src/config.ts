@@ -5,6 +5,31 @@ import { z } from "zod";
 const optionalValue = (schema: z.ZodType) =>
   z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
 const key = z.string().regex(/^0x[0-9a-fA-F]{64}$/);
+export const DEFAULT_WEB_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5181",
+  "http://127.0.0.1:5181",
+] as const;
+const webOrigins = z
+  .string()
+  .default(DEFAULT_WEB_ORIGINS.join(","))
+  .transform((value) =>
+    value.trim() === "" ? [] : value.split(",").map((origin) => origin.trim()),
+  )
+  .pipe(
+    z.array(
+      z.url().refine((origin) => {
+        try {
+          const url = new URL(origin);
+          const isHttp = url.protocol === "http:" || url.protocol === "https:";
+          return isHttp && url.origin === origin && !origin.includes("*");
+        } catch {
+          return false;
+        }
+      }),
+    ),
+  );
 const envSchema = z.object({
   RPC_URL: z.url(),
   CHAIN_ID: z.coerce.number().refine((value) => value === 10143),
@@ -12,6 +37,7 @@ const envSchema = z.object({
   STUDIO_DATA_DIR: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   STUDIO_BEHIND_CADDY: z.enum(["true", "false"]).default("false"),
+  STUDIO_WEB_ORIGINS: webOrigins,
   OPERATOR_PK: optionalValue(key),
   BOT_PK: optionalValue(key),
   DRIP_PK: optionalValue(key),
@@ -32,6 +58,7 @@ export class StudioConfig {
   readonly dataDir: string;
   readonly port: number;
   readonly behindCaddy: boolean;
+  readonly webOrigins: readonly string[];
   readonly revealApiBaseUrl: string | undefined;
   readonly startBlock: bigint | undefined;
   readonly creMode: "simulation" | "don";
@@ -47,6 +74,7 @@ export class StudioConfig {
     this.dataDir = env.STUDIO_DATA_DIR;
     this.port = env.PORT;
     this.behindCaddy = env.STUDIO_BEHIND_CADDY === "true";
+    this.webOrigins = env.STUDIO_WEB_ORIGINS;
     this.revealApiBaseUrl = env.STUDIO_REVEAL_URL as string | undefined;
     this.startBlock =
       env.SAYSO_START_BLOCK === undefined ? undefined : BigInt(env.SAYSO_START_BLOCK as string);
