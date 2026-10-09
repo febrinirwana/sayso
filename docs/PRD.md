@@ -57,7 +57,7 @@ flowchart LR
 Rules:
 - Six words per episode. Curators pick a mix of spoken words and decoys; the ratio is never shown per episode.
 - Every episode commits two transcript Merkle roots before the first trade (section 7 of ARCHITECTURE). The words that will be said are fixed and provable before anyone trades.
-- A judge can start an on-demand episode from the lobby when none is running. A scheduled episode also starts every hour so the leaderboard stays alive.
+- A judge can start an on-demand episode from the lobby when none is running. A scheduled episode also starts every hour so the leaderboard stays alive. The judging deployment runs on-demand episodes only to fit the testnet MON budget ([BLOCKERS B15](BLOCKERS.md)).
 - Opening prices are 0.50 for every word. The house never quotes from transcript knowledge; its only informed actions are pulling quotes at the flag and the 0.98 cash-out bid, both disclosed on screen.
 
 ### 5.1 What counts as "said"

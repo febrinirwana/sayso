@@ -76,6 +76,21 @@ it("requires an explicit boolean opt-in before accepting same-host proxy identit
   }
 });
 
+it("enables hourly episodes by default", () => {
+  expect(parseConfig(base).hourlyEpisodes).toBe(true);
+  expect(parseConfig({ ...base, STUDIO_HOURLY_EPISODES: "true" }).hourlyEpisodes).toBe(true);
+});
+
+it("disables hourly episodes with an explicit false value", () => {
+  expect(parseConfig({ ...base, STUDIO_HOURLY_EPISODES: "false" }).hourlyEpisodes).toBe(false);
+});
+
+it("rejects invalid hourly episode settings", () => {
+  expect(() => parseConfig({ ...base, STUDIO_HOURLY_EPISODES: "no" })).toThrow(
+    "STUDIO_HOURLY_EPISODES",
+  );
+});
+
 it("parses comma-separated exact web origins and rejects non-origin allowlist entries", () => {
   expect(parseConfig(base).webOrigins).toEqual([
     "http://localhost:5173",

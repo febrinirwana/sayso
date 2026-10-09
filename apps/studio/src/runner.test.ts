@@ -384,6 +384,23 @@ it("starts the hourly slot only once and refuses to overlap an unsettled episode
   expect(chain.commands.filter((c) => c.kind === "createEpisode")).toHaveLength(1);
 });
 
+it("skips hourly creation when disabled but still admits an on-demand episode", async () => {
+  now = 3_599_999;
+  runner = new EpisodeRunner({ db, now: () => now, chain, seed, hourly: false, log: () => {} });
+  await runner.tick();
+  now = 3_600_000;
+  await runner.tick();
+  now = 7_200_000;
+  await runner.tick();
+  expect(db.query("SELECT id FROM episodes").all()).toEqual([]);
+  expect(db.query("SELECT id FROM episode_requests").all()).toEqual([]);
+  expect(chain.commands.filter((command) => command.kind === "createEpisode")).toHaveLength(0);
+
+  await expect(runner.request("on_demand", "judge")).resolves.toBe(1);
+  expect(db.query("SELECT origin FROM episodes").get()).toEqual({ origin: "on_demand" });
+  expect(chain.commands.filter((command) => command.kind === "createEpisode")).toHaveLength(1);
+});
+
 it("chooses a never-used ingested clip ahead of the previous episode's clip", async () => {
   await runner.request("on_demand", "judge");
   chain.settled = true;

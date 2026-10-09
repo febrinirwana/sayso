@@ -118,6 +118,7 @@ export type RunnerDeps = {
     block?: number;
   }): void;
   seed?: SeedHook;
+  hourly?: boolean;
   onReceipt?(action: { episodeId: number; kind: ActionKind; receipt: Receipt }): Promise<void>;
   onBackgroundError?(source: "maker" | "receipt", error: unknown): void;
 };
@@ -289,7 +290,7 @@ export class EpisodeRunner {
       await this.runDue();
     });
     if (this.#stopped) return;
-    if (this.deps.now() >= this.#nextHour) {
+    if (this.deps.hourly !== false && this.deps.now() >= this.#nextHour) {
       this.#nextHour = (Math.floor(this.deps.now() / 3_600_000) + 1) * 3_600_000;
       try {
         await this.request("hourly");

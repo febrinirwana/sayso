@@ -85,6 +85,7 @@ try {
             chain: createEpisodeChain(config),
             log: (entry) => console.log(JSON.stringify({ event: "flag_latency", ...entry })),
             seed: maker,
+            hourly: config.hourlyEpisodes,
             onReceipt: cre.onReceipt,
             onBackgroundError: operatorFailure,
           })

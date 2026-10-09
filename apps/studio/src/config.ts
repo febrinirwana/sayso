@@ -37,6 +37,7 @@ const envSchema = z.object({
   STUDIO_DATA_DIR: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   STUDIO_BEHIND_CADDY: z.enum(["true", "false"]).default("false"),
+  STUDIO_HOURLY_EPISODES: z.enum(["true", "false"]).default("true"),
   STUDIO_WEB_ORIGINS: webOrigins,
   OPERATOR_PK: optionalValue(key),
   BOT_PK: optionalValue(key),
@@ -59,6 +60,7 @@ export class StudioConfig {
   readonly dataDir: string;
   readonly port: number;
   readonly behindCaddy: boolean;
+  readonly hourlyEpisodes: boolean;
   readonly webOrigins: readonly string[];
   readonly revealApiBaseUrl: string | undefined;
   readonly startBlock: bigint | undefined;
@@ -76,6 +78,7 @@ export class StudioConfig {
     this.dataDir = env.STUDIO_DATA_DIR;
     this.port = env.PORT;
     this.behindCaddy = env.STUDIO_BEHIND_CADDY === "true";
+    this.hourlyEpisodes = env.STUDIO_HOURLY_EPISODES === "true";
     this.webOrigins = env.STUDIO_WEB_ORIGINS;
     this.revealApiBaseUrl = env.STUDIO_REVEAL_URL as string | undefined;
     this.startBlock =
