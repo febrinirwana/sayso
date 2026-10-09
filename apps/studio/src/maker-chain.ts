@@ -26,7 +26,13 @@ import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import type { StudioConfig } from "./config.ts";
 import type { HouseOrder, MakerChain, MakerCommand, MakerReceipt } from "./maker.ts";
-import { expireStudioChainId, expireStudioHead, studioRpc } from "./rpc.ts";
+import {
+  expireStudioChainId,
+  expireStudioHead,
+  isStudioSyncSendError,
+  studioRpc,
+  studioSendTiming,
+} from "./rpc.ts";
 import { PRESIGN_MS } from "./runner.ts";
 
 function pause(ms: number): Promise<void> {
@@ -118,8 +124,8 @@ export function createMakerChain(config: StudioConfig): MakerChain {
   }
   async function settled(hash: Hex): Promise<MakerReceipt> {
     const deadline = Date.now() + 30_000;
-    // Inclusion needs a later 400 ms block; polling sooner only spends request budget.
-    await pause(300);
+    // Cancel pulls may already have their inclusion receipt from the synchronous RPC.
+    if (studioSendTiming(hash)?.receiptObservedMs === undefined) await pause(300);
     for (;;) {
       const mined = await receipt(hash);
       if (mined) return mined;
@@ -516,6 +522,7 @@ export function createMakerChain(config: StudioConfig): MakerChain {
       try {
         await client.sendRawTransaction({ serializedTransaction: transaction.raw });
       } catch (error) {
+        if (isStudioSyncSendError(error)) throw error;
         if (!(await client.getTransaction({ hash: transaction.hash }).catch(() => null)))
           throw error;
       }

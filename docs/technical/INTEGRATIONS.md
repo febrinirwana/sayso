@@ -17,6 +17,7 @@ Rule: never commit an address without `cast code <address> --rpc-url <rpc>` retu
 | Reserve balance | Low-balance senders can be rejected for closely spaced spending; the emptying exception needs no other transaction from that sender in the prior 3 blocks | [V: [reserve balance](https://docs.monad.xyz/developer-essentials/reserve-balance)] |
 | Local network | Monad Solonet runs real Monad nodes locally | [V: [Solonet](https://docs.monad.xyz/tooling-and-infra/toolkits/monad-solonet.md)] |
 | Explorers | MonadVision, Monadscan | [V: [explorers](https://docs.monad.xyz/tooling-and-infra/block-explorers.md)] |
+| Synchronous submission | `eth_sendRawTransactionSync(raw, timeoutMs)` returns the receipt (EIP-7966). The configured studio RPC recognizes it: invalid inputs `0x00`/`0x` with timeout 1000 return code 5 "The transaction is not ready to be processed", not method-not-found. Funded inclusion latency through it is unproved until a live episode | [V: [Monad JSON-RPC](https://docs.monad.xyz/reference/json-rpc/api#eth_sendrawtransactionsync), [EIP-7966](https://eips.ethereum.org/EIPS/eip-7966), direct probe 2026-10-09] |
 
 Consequence: the web app sequences a player's transactions by block number, never by a wall-clock sleep, and the studio keeps its three keys above the reserve.
 

@@ -12,7 +12,14 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import type { KeyRole, StudioConfig } from "./config.ts";
-import { expireStudioChainId, expireStudioHead, invalidateStudioReads, studioRpc } from "./rpc.ts";
+import {
+  expireStudioChainId,
+  expireStudioHead,
+  invalidateStudioReads,
+  isStudioSyncSendError,
+  studioRpc,
+  studioSendTiming,
+} from "./rpc.ts";
 import {
   type Command,
   type EpisodeChain,
@@ -56,7 +63,7 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
   const client = createPublicClient({ chain: monadTestnet, transport: studioRpc(config.rpcUrl) });
   let tail = Promise.resolve();
   let unresolved: Hex | undefined;
-  let signed: { hash: Hex; nonce: number } | undefined;
+  let signed: { hash: Hex; nonce: number; readyMs: number } | undefined;
   // A lagging node behind the public load balancer must not hand back a used nonce.
   let nextNonce = 0;
   let lastBlock = 0n;
@@ -69,7 +76,16 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
   }
   async function find(hash: Hex): Promise<Receipt | null> {
     try {
-      return recordReceipt(await client.getTransactionReceipt({ hash }));
+      const receipt = await client.getTransactionReceipt({ hash });
+      const decoded = recordReceipt(receipt);
+      const timing = studioSendTiming(hash);
+      if (timing?.receiptObservedMs !== undefined)
+        decoded.timing = {
+          ...timing,
+          receiptObservedMs: timing.receiptObservedMs,
+          ...(signed?.hash === hash ? { signedReadyMs: signed.readyMs } : {}),
+        };
+      return decoded;
     } catch (error) {
       if (
         error &&
@@ -95,8 +111,8 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
   }
   async function settled(hash: Hex): Promise<Receipt> {
     const deadline = Date.now() + 30_000;
-    // Inclusion needs a later 400 ms block; polling sooner only spends request budget.
-    await pause(300);
+    // A sync receipt already proves inclusion; do not add a poll round or a timer.
+    if (studioSendTiming(hash)?.receiptObservedMs === undefined) await pause(300);
     for (;;) {
       const mined = await find(hash);
       if (mined) return mined;
@@ -207,7 +223,7 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
         });
         const hash = keccak256(raw);
         unresolved = hash;
-        signed = { hash, nonce };
+        signed = { hash, nonce, readyMs: Date.now() };
         releaseByHash.set(hash, gate.resolve);
         return { hash, raw };
       } catch (error) {
@@ -233,6 +249,7 @@ export function createEpisodeChain(config: StudioConfig, role: KeyRole = "operat
         await client
           .sendRawTransaction({ serializedTransaction: transaction.raw })
           .catch(async (error) => {
+            if (isStudioSyncSendError(error)) throw error;
             if (!(await client.getTransaction({ hash: transaction.hash }).catch(() => null)))
               throw error;
           });

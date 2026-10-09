@@ -35,6 +35,13 @@ export type Receipt = {
   block: number;
   success: boolean;
   created?: { id: number; words: number[] } | undefined;
+  timing?: {
+    signedReadyMs?: number;
+    rpcSendStartMs: number;
+    rpcSendAckMs: number;
+    receiptObservedMs: number;
+    sendMethod: "sync" | "async";
+  };
 };
 export type EpisodeChain = {
   prepare(command: Command): Promise<Prepared>;
@@ -107,6 +114,8 @@ export type RunnerDeps = {
     receiptMs: number;
     latencyMs: number;
     txHash: Hex;
+    timing?: Receipt["timing"];
+    block?: number;
   }): void;
   seed?: SeedHook;
   onReceipt?(action: { episodeId: number; kind: ActionKind; receipt: Receipt }): Promise<void>;
@@ -587,7 +596,7 @@ export class EpisodeRunner {
       if (action.kind === "flag") {
         // The word is SAID onchain: its cash-out bid must not wait for this tick to finish.
         this.kickMaker();
-        const receiptMs = now();
+        const receiptMs = receipt.timing?.receiptObservedMs ?? now();
         this.deps.log({
           episodeId: action.episode_id,
           wordId: action.word_id!,
@@ -595,6 +604,8 @@ export class EpisodeRunner {
           receiptMs,
           latencyMs: receiptMs - action.scheduled_ms,
           txHash: receipt.hash,
+          ...(receipt.timing ? { timing: receipt.timing } : {}),
+          block: receipt.block,
         });
         this.emitFlag({ ...action, tx_hash: receipt.hash });
       }

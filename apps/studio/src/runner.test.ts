@@ -12,6 +12,7 @@ import {
   FLAG_LEAD_MS,
   PULL_LEAD_MS,
   type Receipt,
+  type RunnerDeps,
 } from "./runner.ts";
 
 const hash = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as Hex;
@@ -212,6 +213,50 @@ it("wakes one lead before a flag and signs it exactly at its spoken time", async
   expect(db.query("SELECT sent_ms FROM actions WHERE kind='flag' AND word_id=2").get()).toEqual({
     sent_ms: 167090,
   });
+});
+it("logs flag phases using receipt observation rather than later runner work", async () => {
+  const entries: Parameters<RunnerDeps["log"]>[0][] = [];
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    seed,
+    log: (entry) => entries.push(entry),
+  });
+  const broadcast = chain.broadcast.bind(chain);
+  chain.broadcast = async (tx) => {
+    const receipt = await broadcast(tx);
+    if (chain.prepared.get(tx.hash)?.kind !== "flagSaid") return receipt;
+    now = 168500;
+    return {
+      ...receipt,
+      timing: {
+        signedReadyMs: 167100,
+        rpcSendStartMs: 167150,
+        rpcSendAckMs: 167500,
+        receiptObservedMs: 167500,
+        sendMethod: "sync" as const,
+      },
+    };
+  };
+  await runner.request("on_demand", "judge");
+  now = 167090;
+  await runner.tick();
+  expect(entries).toEqual([
+    expect.objectContaining({
+      scheduledMs: 167090,
+      receiptMs: 167500,
+      latencyMs: 410,
+      timing: {
+        signedReadyMs: 167100,
+        rpcSendStartMs: 167150,
+        rpcSendAckMs: 167500,
+        receiptObservedMs: 167500,
+        sendMethod: "sync",
+      },
+      block: expect.any(Number),
+    }),
+  ]);
 });
 it("never broadcasts a second operator transaction before the first receipt", async () => {
   chain.hold = Promise.withResolvers<void>();

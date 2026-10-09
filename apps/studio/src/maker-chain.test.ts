@@ -42,7 +42,7 @@ const botKey = `0x${"2".repeat(64)}` as Hex;
 // fake RPC that answers after a fixed delay: requests that overlap in flight share a round.
 // Real timers on purpose: rounds only exist as overlapping HTTP requests on the platform
 // clock, and the adapter's receipt pause, successor poll and send-time sleep are measured.
-function fakeRpc(answer?: (name: string, args: readonly unknown[]) => unknown) {
+function fakeRpc(answer?: (name: string, args: readonly unknown[]) => unknown, sync = false) {
   const genesis = Date.now();
   // 100 ms fake blocks keep the test short; receipts become visible once their block is head.
   const head = () => 1000 + Math.floor((Date.now() - genesis) / 100);
@@ -173,6 +173,30 @@ function fakeRpc(answer?: (name: string, args: readonly unknown[]) => unknown) {
         case "eth_getTransaction":
           result = null;
           break;
+        case "eth_sendRawTransactionSync": {
+          if (!sync) break;
+          const hash = keccak256(hex.parse(first));
+          rpc.sends.push({ requests: rpc.requests, rounds: rpc.rounds, at: Date.now() });
+          rpc.mined.set(hash, block);
+          rpc.nonce++;
+          result = {
+            transactionHash: hash,
+            blockHash: zero,
+            blockNumber: numberToHex(block),
+            transactionIndex: "0x0",
+            from: markets,
+            to: markets,
+            cumulativeGasUsed: "0x1",
+            gasUsed: "0x1",
+            effectiveGasPrice: "0x1",
+            contractAddress: null,
+            logs: [],
+            logsBloom: `0x${"0".repeat(512)}`,
+            status: "0x1",
+            type: "0x2",
+          };
+          break;
+        }
         case "eth_sendRawTransaction": {
           const hash = keccak256(hex.parse(first));
           rpc.sends.push({ requests: rpc.requests, rounds: rpc.rounds, at: Date.now() });
@@ -361,3 +385,23 @@ it("returns zero outstanding YES when all supply is house inventory after pull",
     server.stop(true);
   }
 });
+
+it.each([false, true])(
+  "confirms a synchronous house cancel (flip=%s) without an inclusion sleep",
+  async (flip) => {
+    const { rpc, server, config } = fakeRpc(undefined, true);
+    try {
+      const chain = createMakerChain(config);
+      const tx = await chain.prepare({ kind: "cancel", market: book, ids: [1], flip });
+      const sentAt = Date.now();
+      expect(await chain.broadcast(tx)).toMatchObject({ hash: tx.hash, success: true });
+      // Deliberate platform-clock integration: catches the adapter's obsolete 300 ms sleep.
+      expect(Date.now() - sentAt).toBeLessThan(250);
+      expect(rpc.reads.filter((r) => r.method === "eth_sendRawTransactionSync")).toHaveLength(1);
+      expect(rpc.reads.some((r) => r.method === "eth_sendRawTransaction")).toBe(false);
+      expect(rpc.reads.some((r) => r.method === "eth_getTransactionReceipt")).toBe(false);
+    } finally {
+      server.stop(true);
+    }
+  },
+);

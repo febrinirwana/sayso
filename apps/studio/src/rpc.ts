@@ -1,5 +1,14 @@
 import { orderBookAbi, routerAbi, saysoMarketsAbi } from "@sayso/core";
-import { custom, http, type Transport, toFunctionSelector } from "viem";
+import {
+  BaseError,
+  custom,
+  type Hex,
+  http,
+  keccak256,
+  parseTransaction,
+  type Transport,
+  toFunctionSelector,
+} from "viem";
 import { failureCode } from "./operator-log.ts";
 
 // Immutable contract readers are process-cached; chain id and bytecode live five minutes
@@ -21,6 +30,38 @@ const mutable = new Set(
       .map((f) => toFunctionSelector(f as never)),
   ),
 );
+const timedSelectors: Partial<Record<Hex, true>> = Object.fromEntries(
+  [...saysoMarketsAbi, ...orderBookAbi]
+    .filter(
+      (f) =>
+        f.type === "function" &&
+        ["flagSaid", "batchCancelOrders", "batchCancelFlipOrders"].includes(f.name),
+    )
+    .map((f) => [toFunctionSelector(f as never), true]),
+);
+export type SendTiming = {
+  rpcSendStartMs: number;
+  rpcSendAckMs: number;
+  receiptObservedMs?: number;
+  sendMethod: "sync" | "async";
+};
+const timings = new Map<Hex, SendTiming>();
+export function studioSendTiming(hash: Hex): SendTiming | undefined {
+  return timings.get(hash);
+}
+class StudioSyncSendError extends Error {
+  constructor(cause: unknown) {
+    super("Synchronous transaction submission failed; receipt recovery required", { cause });
+  }
+}
+// viem wraps transport failures. Preserve fail-closed sync semantics through those causes.
+export function isStudioSyncSendError(error: unknown): boolean {
+  return (
+    error instanceof StudioSyncSendError ||
+    (error instanceof BaseError &&
+      error.walk((cause) => cause instanceof StudioSyncSendError) instanceof StudioSyncSendError)
+  );
+}
 type Entry = { until: number; immutable: boolean; work: Promise<unknown> };
 const shared = new Map<
   string,
@@ -36,6 +77,10 @@ export function studioRpc(url: string): Transport {
   const existing = shared.get(url);
   if (existing) return existing.transport;
   const upstream = http(url, { retryCount: 0 })({ chain: undefined });
+  const syncUpstream = http(url, { retryCount: 0, timeout: 1500 })({ chain: undefined });
+  const receipts = new Map<Hex, unknown>();
+  // Shared per endpoint across OPERATOR/BOT adapters for the lifetime of this process.
+  let syncUnsupported = false;
   const cache = new Map<string, Entry>();
   const counter = { requests: 0 };
   let blockedUntil = 0,
@@ -46,6 +91,76 @@ export function studioRpc(url: string): Transport {
     {
       async request({ method, params }) {
         const args = params as readonly unknown[] | undefined;
+        if (method === "eth_getTransactionReceipt" && receipts.has(args?.[0] as Hex)) {
+          const hash = args?.[0] as Hex;
+          const receipt = receipts.get(hash);
+          receipts.delete(hash);
+          return receipt;
+        }
+        if (method === "eth_sendRawTransaction") {
+          const raw = args?.[0] as Hex;
+          if (timedSelectors[parseTransaction(raw).data?.slice(0, 10) as Hex]) {
+            const hash = keccak256(raw);
+            if (timings.size >= 128) {
+              const oldest = timings.keys().next().value;
+              if (oldest !== undefined) timings.delete(oldest);
+            }
+            const timing: SendTiming = {
+              rpcSendStartMs: Date.now(),
+              rpcSendAckMs: 0,
+              sendMethod: syncUnsupported ? "async" : "sync",
+            };
+            timings.set(hash, timing);
+            if (!syncUnsupported) {
+              counter.requests++;
+              try {
+                const receipt = await syncUpstream.request({
+                  method: "eth_sendRawTransactionSync",
+                  params: [raw, 1000],
+                } as never);
+                timing.rpcSendAckMs = Date.now();
+                if (
+                  !receipt ||
+                  typeof receipt !== "object" ||
+                  !("transactionHash" in receipt) ||
+                  receipt.transactionHash !== hash ||
+                  !("blockNumber" in receipt) ||
+                  typeof receipt.blockNumber !== "string" ||
+                  !/^0x[0-9a-f]+$/i.test(receipt.blockNumber) ||
+                  !("status" in receipt) ||
+                  (receipt.status !== "0x1" && receipt.status !== "0x0") ||
+                  !("logs" in receipt) ||
+                  !Array.isArray(receipt.logs)
+                )
+                  throw new Error("Invalid synchronous transaction receipt");
+                timing.receiptObservedMs = timing.rpcSendAckMs;
+                if (receipts.size >= 128) {
+                  const oldest = receipts.keys().next().value;
+                  if (oldest !== undefined) receipts.delete(oldest);
+                }
+                receipts.set(hash, receipt);
+                return hash;
+              } catch (error) {
+                timing.rpcSendAckMs = Date.now();
+                // Only explicit unsupported-method codes prove no submission happened.
+                // EIP-7966 codes 4/5/6 and transport timeouts are failures, never a resend.
+                if (
+                  !error ||
+                  typeof error !== "object" ||
+                  !("code" in error) ||
+                  (error.code !== -32601 && error.code !== -32004)
+                )
+                  throw new StudioSyncSendError(error);
+                syncUnsupported = true;
+                timing.sendMethod = "async";
+              }
+            }
+            counter.requests++;
+            const result = await upstream.request({ method, params } as never);
+            timing.rpcSendAckMs = Date.now();
+            return result;
+          }
+        }
         const call = args?.[0] as { data?: string } | undefined;
         const selector = call?.data?.slice(0, 10) as `0x${string}` | undefined;
         const fixed = method === "eth_call" && selector !== undefined && immutable.has(selector);
@@ -65,12 +180,16 @@ export function studioRpc(url: string): Transport {
         if (method === "eth_blockNumber" && latestHead && latestHead.until > Date.now())
           return latestHead.number;
         // Writes are never auto-retried, delayed or cached. Unknown outcomes stay in journals.
-        const read = method !== "eth_sendRawTransaction";
+        const read = method !== "eth_sendRawTransaction" && method !== "eth_sendRawTransactionSync";
         if (read && Date.now() < blockedUntil) throw lastError;
         counter.requests++;
         const work = upstream
           .request({ method, params } as never)
           .then((result) => {
+            if (method === "eth_getTransactionReceipt" && result) {
+              const timing = timings.get(args?.[0] as Hex);
+              if (timing) timing.receiptObservedMs = Date.now();
+            }
             if (read) {
               delay = 0;
               blockedUntil = 0;

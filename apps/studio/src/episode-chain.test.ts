@@ -17,7 +17,9 @@ const hex = z.custom<Hex>((value) => typeof value === "string" && value.startsWi
 
 // Real timers on purpose, as in maker-chain.test.ts: a round is a set of HTTP requests in
 // flight together on the platform clock, and the adapter's send-time sleep is what is tested.
-function fakeRpc() {
+function fakeRpc(
+  sync: "supported" | "unsupported" | "rejected" | "timeout" | "empty" = "unsupported",
+) {
   const genesis = Date.now();
   // 100 ms fake blocks; a sent transaction is mined in the next one.
   const head = () => 1000 + Math.floor((Date.now() - genesis) / 100);
@@ -26,7 +28,7 @@ function fakeRpc() {
   let rounds = 0,
     inflight = 0,
     nonce = 0;
-  const rpc = { chainId: "0x279f", code: "0x01" };
+  const rpc = { chainId: "0x279f", code: "0x01", knownTransaction: false, unsupportedCode: -32601 };
   const server = Bun.serve({
     port: 0,
     async fetch(request) {
@@ -65,8 +67,50 @@ function fakeRpc() {
           result = numberToHex(nonce);
           break;
         case "eth_getTransaction":
-          result = null;
+          result = rpc.knownTransaction ? { hash: zero } : null;
           break;
+        case "eth_sendRawTransactionSync": {
+          if (sync === "unsupported")
+            return Response.json({
+              jsonrpc: "2.0",
+              id: body.id,
+              error: { code: rpc.unsupportedCode, message: "Method not supported" },
+            });
+          if (sync === "rejected" || sync === "timeout")
+            return Response.json({
+              jsonrpc: "2.0",
+              id: body.id,
+              error: {
+                code: sync === "timeout" ? 4 : 5,
+                message: sync === "timeout" ? "Receipt wait timed out" : "Transaction not ready",
+              },
+            });
+          if (sync === "empty") {
+            result = null;
+            break;
+          }
+          const hash = keccak256(hex.parse(first));
+          mined.set(hash, block + 1);
+          nonce++;
+          await Bun.sleep(110);
+          result = {
+            transactionHash: hash,
+            blockHash: zero,
+            blockNumber: numberToHex(block + 1),
+            transactionIndex: "0x0",
+            from: markets,
+            to: markets,
+            cumulativeGasUsed: "0x1",
+            gasUsed: "0x1",
+            effectiveGasPrice: "0x1",
+            contractAddress: null,
+            logs: [],
+            logsBloom: `0x${"0".repeat(512)}`,
+            status: "0x1",
+            type: "0x2",
+          };
+          break;
+        }
         case "eth_sendRawTransaction": {
           const hash = keccak256(hex.parse(first));
           mined.set(hash, block + 1);
@@ -134,7 +178,8 @@ it("signs a flag at its spoken time after one pre-sign round and re-checks the c
     const receipt = await chain.broadcast(tx);
     // No receipt lookup for bytes never sent, but the endpoint must still be testnet.
     expect(log[presign.length]?.method).toBe("eth_chainId");
-    expect(log[presign.length + 1]?.method).toBe("eth_sendRawTransaction");
+    expect(log[presign.length + 1]?.method).toBe("eth_sendRawTransactionSync");
+    expect(log[presign.length + 2]?.method).toBe("eth_sendRawTransaction");
     expect(receipt).toMatchObject({ hash: tx.hash, success: true });
   } finally {
     server.stop(true);
@@ -195,3 +240,65 @@ it("rejects an empty bytecode result before signing", async () => {
     server.stop(true);
   }
 });
+
+it("consumes a synchronous flag receipt without polling or an inclusion sleep", async () => {
+  const { server, config, log } = fakeRpc("supported");
+  try {
+    const chain = createEpisodeChain(config);
+    const scheduledMs = Date.now() + 600;
+    const tx = await chain.prepare({ ...flag, notBeforeMs: scheduledMs });
+    const receipt = await chain.broadcast(tx);
+    expect(receipt).toMatchObject({ hash: tx.hash, success: true });
+    const methods = log.map((r) => r.method);
+    expect(methods.filter((m) => m === "eth_sendRawTransactionSync")).toHaveLength(1);
+    expect(methods).not.toContain("eth_sendRawTransaction");
+    expect(methods).not.toContain("eth_getTransactionReceipt");
+    const timing = receipt.timing;
+    if (!timing || timing.signedReadyMs === undefined) throw new Error("Missing flag timing");
+    expect(timing.receiptObservedMs - scheduledMs).toBeLessThan(300);
+    expect(timing.signedReadyMs).toBeGreaterThanOrEqual(scheduledMs);
+    expect(timing.rpcSendStartMs).toBeGreaterThanOrEqual(timing.signedReadyMs);
+    expect(timing.rpcSendAckMs).toBe(timing.receiptObservedMs);
+  } finally {
+    server.stop(true);
+  }
+});
+
+it.each([-32601, -32004])(
+  "caches unsupported sync code %i and polls fallback receipts",
+  async (code) => {
+    const { server, config, log, rpc } = fakeRpc();
+    rpc.unsupportedCode = code;
+    try {
+      const chain = createEpisodeChain(config);
+      for (let i = 0; i < 2; i++) {
+        const tx = await chain.prepare(flag);
+        expect(await chain.broadcast(tx)).toMatchObject({ hash: tx.hash, success: true });
+      }
+      expect(log.filter((r) => r.method === "eth_sendRawTransactionSync")).toHaveLength(1);
+      expect(log.filter((r) => r.method === "eth_sendRawTransaction")).toHaveLength(2);
+      expect(log.some((r) => r.method === "eth_getTransactionReceipt")).toBe(true);
+    } finally {
+      server.stop(true);
+    }
+  },
+);
+
+it.each(["rejected", "timeout", "empty"] as const)(
+  "surfaces a %s sync send without fallback or masking it with a transaction lookup",
+  async (mode) => {
+    const { server, config, log, rpc } = fakeRpc(mode);
+    rpc.knownTransaction = true;
+    try {
+      const chain = createEpisodeChain(config);
+      const tx = await chain.prepare(flag);
+      await expect(chain.broadcast(tx)).rejects.toThrow();
+      expect(log.filter((r) => r.method === "eth_sendRawTransactionSync")).toHaveLength(1);
+      expect(log.some((r) => r.method === "eth_sendRawTransaction")).toBe(false);
+      expect(log.some((r) => r.method === "eth_getTransaction")).toBe(false);
+      await expect(chain.prepare(flag)).rejects.toThrow("requires recovery");
+    } finally {
+      server.stop(true);
+    }
+  },
+);

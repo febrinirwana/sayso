@@ -1,4 +1,6 @@
-import { createPublicClient, HttpRequestError } from "viem";
+import { orderBookAbi } from "@sayso/core";
+import { createPublicClient, encodeFunctionData, HttpRequestError, keccak256 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { expect, it, vi } from "vitest";
 import { failureCode, operatorFailure } from "./operator-log.ts";
 import { expireStudioChainId, invalidateStudioReads, studioRpc } from "./rpc.ts";
@@ -106,3 +108,72 @@ it("maps 429 through viem causes and logs only a closed schema", () => {
     log.mockRestore();
   }
 });
+
+it.each(["batchCancelOrders", "batchCancelFlipOrders"] as const)(
+  "uses sync inclusion for the house's %s without a receipt RPC",
+  async (functionName) => {
+    const raw = await privateKeyToAccount(`0x${"2".repeat(64)}`).signTransaction({
+      chainId: 10143,
+      type: "eip1559",
+      to: "0x0000000000000000000000000000000000000001",
+      data: encodeFunctionData({ abi: orderBookAbi, functionName, args: [[1, 2]] }),
+      gas: 120000n,
+      nonce: 0,
+      maxFeePerGas: 122000000000n,
+      maxPriorityFeePerGas: 2000000000n,
+    });
+    const hash = keccak256(raw);
+    const requests: { method: string; params: unknown[] }[] = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const body = (await request.json()) as { id: number; method: string; params: unknown[] };
+        requests.push(body);
+        if (body.method !== "eth_sendRawTransactionSync")
+          return Response.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: { code: -32601, message: "unexpected RPC" },
+          });
+        return Response.json({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: {
+            transactionHash: hash,
+            blockHash: `0x${"0".repeat(64)}`,
+            blockNumber: "0x2",
+            transactionIndex: "0x0",
+            from: "0x0000000000000000000000000000000000000001",
+            to: "0x0000000000000000000000000000000000000001",
+            cumulativeGasUsed: "0x1",
+            gasUsed: "0x1",
+            effectiveGasPrice: "0x1",
+            contractAddress: null,
+            logs: [],
+            logsBloom: `0x${"0".repeat(512)}`,
+            status: "0x1",
+            type: "0x2",
+          },
+        });
+      },
+    });
+    try {
+      const client = createPublicClient({ transport: studioRpc(server.url.toString()) });
+      expect(await client.sendRawTransaction({ serializedTransaction: raw })).toBe(hash);
+      expect(await client.getTransactionReceipt({ hash })).toMatchObject({
+        transactionHash: hash,
+        status: "success",
+      });
+      expect(requests).toEqual([
+        {
+          id: expect.any(Number),
+          jsonrpc: "2.0",
+          method: "eth_sendRawTransactionSync",
+          params: [raw, 1000],
+        },
+      ]);
+    } finally {
+      server.stop(true);
+    }
+  },
+);
