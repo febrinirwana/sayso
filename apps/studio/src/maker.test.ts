@@ -2,14 +2,14 @@ import { Database } from "bun:sqlite";
 import { ONE, quoteCost } from "@sayso/core";
 import type { Address, Hex } from "viem";
 import { describe, expect, it } from "vitest";
+import { HouseMaker, type MakerChain, type MakerCommand, type MakerReceipt } from "./maker.ts";
 import {
-  createPositionsReader,
-  HouseMaker,
-  type MakerChain,
-  type MakerCommand,
-  type MakerReceipt,
-} from "./maker.ts";
-import { type Command, type EpisodeChain, EpisodeRunner, type Receipt } from "./runner.ts";
+  type Command,
+  type EpisodeChain,
+  EpisodeRunner,
+  PULL_LEAD_MS,
+  type Receipt,
+} from "./runner.ts";
 
 const house = "0x0000000000000000000000000000000000000001" as Address;
 const yes = "0x0000000000000000000000000000000000000002" as Address;
@@ -46,7 +46,10 @@ function fixture() {
   }[] = [];
   let dropAfterMining = false,
     nonce = 0,
-    mints = 0;
+    mints = 0,
+    // Non-house YES on chain; chain truth replaces the Envio read model for bid sizing.
+    outstanding = 50n * ONE;
+  const outstandingFrom: number[] = [];
   const chain: MakerChain = {
     house,
     ausd,
@@ -73,8 +76,14 @@ function fixture() {
     async orders() {
       return { block, orders: orders.map((o) => ({ ...o, market })) };
     },
+    async outstandingYes(_word, minimumBlock) {
+      outstandingFrom.push(minimumBlock);
+      return outstanding;
+    },
     async prepare(command, guard) {
       await guard?.();
+      // The real adapter sleeps until notBeforeMs before signing; the fake advances the clock.
+      if (command.notBeforeMs !== undefined && now < command.notBeforeMs) now = command.notBeforeMs;
       const hash = `0x${(++nonce).toString(16).padStart(64, "0")}` as Hex;
       prepared.set(hash, command);
       return { hash, raw: hash };
@@ -155,17 +164,7 @@ function fixture() {
       return receipt;
     },
   };
-  const maker = () =>
-    new HouseMaker({
-      db,
-      now: () => now,
-      chain,
-      positions: {
-        async outstandingYes() {
-          return 50n * ONE;
-        },
-      },
-    });
+  const maker = () => new HouseMaker({ db, now: () => now, chain });
   return {
     db,
     chain,
@@ -187,6 +186,10 @@ function fixture() {
       dropAfterMining = true;
     },
     mints: () => mints,
+    setOutstanding: (amount: bigint) => {
+      outstanding = amount;
+    },
+    outstandingFrom: () => outstandingFrom,
   };
 }
 describe("house economic lifecycle", () => {
@@ -400,87 +403,102 @@ describe("house economic lifecycle", () => {
     expect(f.balances.get(ausd)).toBe(before + 20n * ONE);
     expect(f.balances.get(no)).toBe(20n * ONE);
   });
-  it("leaves bids pending when Envio cannot prove fresh outstanding positions", async () => {
+  it("sizes the cash-out bid from chain YES outside the house at the pull receipt, without Envio", async () => {
     const f = fixture();
-    const m = new HouseMaker({
-      db: f.db,
-      now: () => 5000,
-      chain: f.chain,
-      positions: {
-        async outstandingYes() {
-          return null;
-        },
-      },
-    });
+    const m = f.maker();
     await m.seed(1);
+    f.setNow(4600);
+    await m.tick();
+    const pull = f.db
+      .query<{ block: number }, []>("SELECT block FROM actions WHERE kind='pull'")
+      .get();
+    // One player bought 1 AUSD of YES at 51¢. Envio counted the house's YES in the Kuru margin
+    // account as a player and bid 20 YES on episodes 9 and 10, even on a word nobody held.
+    f.setOutstanding(1_960_784n);
     f.setState(1);
+    f.setNow(5000);
+    await m.tick();
+    expect(f.orders).toEqual([
+      expect.objectContaining({ price: 9800, size: 1_960_784n, buy: true, flip: false }),
+    ]);
+    expect(f.outstandingFrom()).toEqual([pull?.block]);
+  });
+  it("finishes a SAID word's bid without an order when no player holds YES", async () => {
+    const f = fixture();
+    const m = f.maker();
+    await m.seed(1);
+    f.setNow(4600);
+    await m.tick();
+    f.setOutstanding(0n);
+    f.setState(1);
+    f.setNow(5000);
     await m.tick();
     expect(f.orders).toHaveLength(0);
-    expect(
-      f.db.query<{ status: string }, []>("SELECT status FROM actions WHERE kind='bid'").get()!
-        .status,
-    ).toBe("pending");
-  });
-});
-
-describe("indexed position boundaries", () => {
-  it("excludes house holdings and refuses unindexed pull or stale head", async () => {
-    let progressBlock = 100;
-    const server = Bun.serve({
-      port: 0,
-      fetch: () =>
-        Response.json({
-          data: {
-            _meta: [{ progressBlock, isReady: true }],
-            Position: [
-              { id: "a", player_id: house, yes: "999999999" },
-              { id: "b", player_id: yes, yes: "4000001" },
-            ],
-          },
-        }),
+    expect(f.db.query("SELECT status FROM actions WHERE kind='bid'").get()).toEqual({
+      status: "confirmed",
     });
-    try {
-      const reader = createPositionsReader(server.url.toString(), {
-        houseAddress: house,
-        now: Date.now,
-      });
-      expect(await reader.outstandingYes(1, 100, 105)).toBe(4000001n);
-      expect(await reader.outstandingYes(1, 101, 105)).toBeNull();
-      expect(await reader.outstandingYes(1, 100, 111)).toBeNull();
-      progressBlock = 111;
-      expect(await reader.outstandingYes(1, 101, 111)).toBe(4000001n);
-    } finally {
-      server.stop(true);
-    }
   });
-  it("refuses a changed pagination snapshot rather than double-counting", async () => {
-    let page = 0;
-    const server = Bun.serve({
-      port: 0,
-      fetch: () =>
-        Response.json({
-          data: {
-            _meta: [{ progressBlock: 100 + page++, isReady: true }],
-            Position:
-              page === 1
-                ? Array.from({ length: 500 }, (_, i) => ({
-                    id: String(i).padStart(5, "0"),
-                    player_id: yes,
-                    yes: "1000000",
-                  }))
-                : [{ id: "99999", player_id: yes, yes: "1000000" }],
-          },
-        }),
+  it("prepares a pull inside its lead and never signs it before t − 400 ms", async () => {
+    const f = fixture();
+    const m = f.maker();
+    await m.seed(1);
+    // Before: the pull was picked only once due, then read the book serially (0.55–2.0 s late).
+    f.setNow(4600 - PULL_LEAD_MS);
+    await m.tick();
+    expect([...f.prepared.values()].find((c) => c.kind === "cancel")?.notBeforeMs).toBe(4600);
+    expect(f.db.query("SELECT status,sent_ms FROM actions WHERE kind='pull'").get()).toEqual({
+      status: "confirmed",
+      sent_ms: 4600,
     });
-    try {
-      const reader = createPositionsReader(server.url.toString(), {
-        houseAddress: house,
-        now: Date.now,
-      });
-      expect(await reader.outstandingYes(1, 100, 105)).toBeNull();
-    } finally {
-      server.stop(true);
-    }
+    expect(f.orders).toHaveLength(0);
+  });
+  it("sends a due bid before the episode's per-word housekeeping reads", async () => {
+    const f = fixture();
+    const m = f.maker();
+    await m.seed(1);
+    f.setNow(4600);
+    await m.tick();
+    f.setOutstanding(5n * ONE);
+    f.setState(1);
+    f.setNow(5000);
+    // Before: every BOT run first read all six words (two RTTs) before any due bid or pull.
+    const calls: string[] = [];
+    const words = f.chain.words;
+    f.chain.words = (id) => {
+      calls.push("words");
+      return words(id);
+    };
+    const prepare = f.chain.prepare;
+    f.chain.prepare = async (command, guard) => {
+      calls.push(command.kind);
+      return prepare(command, guard);
+    };
+    await m.tick();
+    expect(calls).toEqual(["bid", "words"]);
+    expect(f.orders).toEqual([expect.objectContaining({ price: 9800, buy: true })]);
+  });
+  it("does not scan a newly posted bid before preparing the next timed pull", async () => {
+    const f = fixture();
+    const m = f.maker();
+    await m.seed(1);
+    f.setNow(4600);
+    await m.tick();
+    f.setOutstanding(1_960_784n);
+    f.setState(1);
+    f.setNow(5000);
+    const scan = f.chain.orders;
+    f.chain.orders = async (...args) => {
+      if (f.orders.some((order) => order.price === 9800))
+        throw new Error("post-bid scan occupies the next pull window");
+      return scan(...args);
+    };
+    await m.tick();
+    expect(f.orders).toEqual([
+      expect.objectContaining({ price: 9800, size: 1_960_784n, buy: true }),
+    ]);
+    expect(f.db.query("SELECT status FROM actions WHERE kind='bid'").get()).toEqual({
+      status: "confirmed",
+    });
   });
 });
 
@@ -501,6 +519,7 @@ it("keeps timed OPERATOR flags independent from unresolved BOT and receipt callb
     .run('{"t":5000,"chunkA":0,"chunkB":0}', '{"t":6000,"chunkA":0,"chunkB":0}');
   const chain: EpisodeChain = {
     async prepare(command) {
+      if (command.notBeforeMs !== undefined && now < command.notBeforeMs) now = command.notBeforeMs;
       const hash = `0x${(++nonce).toString(16).padStart(64, "0")}` as Hex;
       commands.set(hash, command);
       return { hash, raw: hash };

@@ -165,16 +165,7 @@ it.skipIf(!Bun.env.STUDIO_FORK_URL)(
         BOT_PK: botKey,
       });
       const makerChain = createMakerChain(config);
-      maker = new HouseMaker({
-        db,
-        now: Date.now,
-        chain: makerChain,
-        positions: {
-          async outstandingYes() {
-            return 0n;
-          },
-        },
-      });
+      maker = new HouseMaker({ db, now: Date.now, chain: makerChain });
       runner = new EpisodeRunner({
         db,
         now: Date.now,
@@ -226,6 +217,7 @@ it.skipIf(!Bun.env.STUDIO_FORK_URL)(
           .get(id)!.status !== "confirmed"
       ) {
         await runner.tick();
+        await runner.tickMaker();
         await Bun.sleep(50);
       }
       const seedDurationMs = Date.now() - seedAt;
@@ -250,6 +242,8 @@ it.skipIf(!Bun.env.STUDIO_FORK_URL)(
       let nextCre = liveAt;
       while (Date.now() - liveAt < 60_000) {
         await runner.tick();
+        // main.ts runs the BOT on its own clock; a kick here never blocks the OPERATOR.
+        void runner.tickMaker();
         if (Date.now() >= nextCre) {
           void cre.tick();
           nextCre = Date.now() + 2000;

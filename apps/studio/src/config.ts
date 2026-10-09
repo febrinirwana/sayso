@@ -17,7 +17,6 @@ const envSchema = z.object({
   DRIP_PK: optionalValue(key),
   REPORTER_PK: optionalValue(key),
   DRIP_IP_SALT: optionalValue(z.string().min(32)),
-  INDEXER_URL: optionalValue(z.url()),
   STUDIO_REVEAL_URL: optionalValue(z.url()),
   SAYSO_START_BLOCK: optionalValue(z.string().regex(/^(0|[1-9]\d*)$/)),
   CRE_MODE: z.enum(["simulation", "don"]).default("simulation"),
@@ -33,7 +32,6 @@ export class StudioConfig {
   readonly dataDir: string;
   readonly port: number;
   readonly behindCaddy: boolean;
-  readonly indexerUrl: string | undefined;
   readonly revealApiBaseUrl: string | undefined;
   readonly startBlock: bigint | undefined;
   readonly creMode: "simulation" | "don";
@@ -49,7 +47,6 @@ export class StudioConfig {
     this.dataDir = env.STUDIO_DATA_DIR;
     this.port = env.PORT;
     this.behindCaddy = env.STUDIO_BEHIND_CADDY === "true";
-    this.indexerUrl = env.INDEXER_URL as string | undefined;
     this.revealApiBaseUrl = env.STUDIO_REVEAL_URL as string | undefined;
     this.startBlock =
       env.SAYSO_START_BLOCK === undefined ? undefined : BigInt(env.SAYSO_START_BLOCK as string);

@@ -11,7 +11,7 @@ import { DripService } from "./drip.ts";
 import { createDripChain } from "./drip-chain.ts";
 import { createEpisodeChain } from "./episode-chain.ts";
 import { loadClipLibrary } from "./library.ts";
-import { createPositionsReader, HouseMaker } from "./maker.ts";
+import { HouseMaker } from "./maker.ts";
 import { createMakerChain } from "./maker-chain.ts";
 import { operatorFailure } from "./operator-log.ts";
 import { EpisodeRunner } from "./runner.ts";
@@ -24,23 +24,8 @@ try {
   try {
     await loadClipLibrary(db, clipDirectory, Date.now);
     const makerChain =
-      config.saysoMarkets && config.privateKey("bot") && config.indexerUrl
-        ? createMakerChain(config)
-        : undefined;
-    const maker =
-      makerChain && config.indexerUrl
-        ? new HouseMaker({
-            db,
-            now: Date.now,
-            chain: makerChain,
-            positions: createPositionsReader(config.indexerUrl, {
-              houseAddress: makerChain.house,
-              now: Date.now,
-              maxLagMs: 5000,
-              maxLagBlocks: 10,
-            }),
-          })
-        : undefined;
+      config.saysoMarkets && config.privateKey("bot") ? createMakerChain(config) : undefined;
+    const maker = makerChain ? new HouseMaker({ db, now: Date.now, chain: makerChain }) : undefined;
     const salt = config.dripIpSalt();
     const drip =
       salt && config.privateKey("drip")
@@ -124,6 +109,7 @@ try {
     cre?.start();
     let stopping = false;
     let clock: Timer | undefined;
+    let botClock: Timer | undefined;
     const tick = async () => {
       try {
         await runner?.tick();
@@ -133,11 +119,20 @@ try {
         if (!stopping && runner) clock = setTimeout(tick, runner.nextWakeMs());
       }
     };
-    if (runner) clock = setTimeout(tick, runner.nextWakeMs());
+    // The BOT runs on its own clock so a pull never waits for an OPERATOR receipt.
+    const botTick = async () => {
+      await runner?.tickMaker();
+      if (!stopping && runner) botClock = setTimeout(botTick, runner.nextMakerWakeMs());
+    };
+    if (runner) {
+      clock = setTimeout(tick, runner.nextWakeMs());
+      botClock = setTimeout(botTick, runner.nextMakerWakeMs());
+    }
     const shutdown = async () => {
       if (stopping) return;
       stopping = true;
       clearTimeout(clock);
+      clearTimeout(botClock);
       server.stop(true);
       await runner?.stop();
       await Promise.all([maker?.stop(), cre?.stop(), drip?.stop()]);

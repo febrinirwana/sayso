@@ -27,17 +27,16 @@ import { monadTestnet } from "viem/chains";
 import type { StudioConfig } from "./config.ts";
 import type { HouseOrder, MakerChain, MakerCommand, MakerReceipt } from "./maker.ts";
 import { expireStudioChainId, expireStudioHead, studioRpc } from "./rpc.ts";
+import { PRESIGN_MS } from "./runner.ts";
 
 function pause(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
   const { promise, resolve } = Promise.withResolvers<void>();
   setTimeout(resolve, ms);
   return promise;
 }
 
-export function createMakerChain(
-  config: StudioConfig,
-  options: { minimumMon?: bigint } = {},
-): MakerChain {
+export function createMakerChain(config: StudioConfig): MakerChain {
   const key = config.privateKey("bot");
   const markets = config.saysoMarkets;
   if (!key || !markets) throw new Error("BOT configuration missing");
@@ -47,8 +46,6 @@ export function createMakerChain(
     margin = addresses.kuruMarginAccount;
   let pending: Hex | undefined,
     lastBlock = 0n,
-    // Signed here and never sent: the bytes cannot be mined, so no receipt pre-check is due.
-    unsent: Hex | undefined,
     signed: { hash: Hex; nonce: number } | undefined,
     // A lagging node behind the public load balancer must not hand back a used nonce.
     nextNonce = 0,
@@ -160,11 +157,7 @@ export function createMakerChain(
           20n * ONE +
           quoteCost(10n * ONE, priceToKuru("0.49")) +
           quoteCost(10n * ONE, priceToKuru("0.48"));
-        return (
-          !pending &&
-          cash >= BigInt(wordCount) * perWord &&
-          mon >= (options.minimumMon ?? 10n ** 18n)
-        );
+        return !pending && cash >= BigInt(wordCount) * perWord && mon >= 10n ** 18n;
       } catch {
         return false;
       }
@@ -254,16 +247,59 @@ export function createMakerChain(
             args: [account.address],
           });
     },
+    // Chain is truth: every YES not held by the house (wallet or Kuru margin) or parked in
+    // SaysoMarkets or the book can still sell into the cash-out bid. One block-pinned round
+    // at or after the pull receipt keeps supply and holdings from different heights apart.
+    async outstandingYes(word, minimumBlock) {
+      const floor = BigInt(minimumBlock) > lastBlock ? BigInt(minimumBlock) : lastBlock;
+      const blockNumber = await headAtLeast(floor);
+      const held = (holder: Address) =>
+        client.readContract({
+          address: word.yes,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [holder],
+          blockNumber,
+        });
+      const [supply, wallet, deposited, custody, book] = await Promise.all([
+        client.readContract({
+          address: word.yes,
+          abi: erc20Abi,
+          functionName: "totalSupply",
+          blockNumber,
+        }),
+        held(account.address),
+        client.readContract({
+          address: margin,
+          abi: marginAccountAbi,
+          functionName: "getBalance",
+          args: [account.address, word.yes],
+          blockNumber,
+        }),
+        held(markets),
+        held(word.market),
+      ]);
+      const outstanding = supply - wallet - deposited - custody - book;
+      if (outstanding < 0n) throw new Error("Inconsistent YES supply");
+      return outstanding;
+    },
     async orders(market, fromBlock) {
       // Snapshot no earlier than this sender's last receipt, e.g. the cancel it just confirmed.
       const [, end] = await Promise.all([verify([market]), headAtLeast(lastBlock)]);
       const scan = scans.get(market) ?? { ids: new Set<number>(), next: BigInt(fromBlock) };
       const ids = scan.ids;
       // Replacement IDs are emitted by FlippedOrderCreated, not the original seed receipt.
-      // Bounded RPC ranges avoid providers silently truncating long log requests.
-      for (let start = scan.next; start <= end; start += 100n) {
-        const to = start + 99n < end ? start + 99n : end;
-        const logs = await client.getLogs({ address: market, fromBlock: start, toBlock: to });
+      // Bounded RPC ranges avoid providers silently truncating long log requests; the ranges
+      // are fetched in one parallel round so a first scan since seeding costs one RTT.
+      const ranges: [bigint, bigint][] = [];
+      for (let start = scan.next; start <= end; start += 100n)
+        ranges.push([start, start + 99n < end ? start + 99n : end]);
+      const pages = await Promise.all(
+        ranges.map(([fromBlock, toBlock]) =>
+          client.getLogs({ address: market, fromBlock, toBlock }),
+        ),
+      );
+      for (const logs of pages)
         for (const log of parseEventLogs({ abi: orderBookAbi, logs, strict: true })) {
           if (
             log.eventName === "OrderCreated" ||
@@ -276,7 +312,6 @@ export function createMakerChain(
               ids.add(Number(log.args.flippedId));
           }
         }
-      }
       scan.next = end + 1n;
       scans.set(market, scan);
       const orders: HouseOrder[] = [];
@@ -409,6 +444,10 @@ export function createMakerChain(
           gas = gasLimit("redeem");
           break;
       }
+      // A timed pull is prepared early; its reads start one block before its send time so the
+      // gas estimate (a dry run of the cancel) reflects the book it will meet.
+      if (command.notBeforeMs !== undefined)
+        await pause(command.notBeforeMs - PRESIGN_MS - Date.now());
       // One parallel round: chain id, successor block, fees, nonce, balance, gas and the
       // caller's window guard. A failed guard wins over read errors; nothing is signed.
       const stopped = (guard?.() ?? Promise.resolve()).then(
@@ -417,9 +456,6 @@ export function createMakerChain(
       );
       const reads = Promise.all([
         verify(extra, true),
-        // Receipt/block gating, never a sleep-based nonce policy: sign only once the head is
-        // past the previous BOT receipt's block.
-        lastBlock > 0n ? headAtLeast(lastBlock + 1n) : undefined,
         client.getBlock({ blockTag: "latest" }),
         client.estimateMaxPriorityFeePerGas(),
         client.getTransactionCount({ address: account.address, blockTag: "pending" }),
@@ -431,13 +467,19 @@ export function createMakerChain(
         reads.catch(() => {});
         throw stop.error;
       }
-      const [, , block, maxPriorityFeePerGas, count, mon, limit] = await reads;
+      const [, block, maxPriorityFeePerGas, count, mon, limit] = await reads;
+      // The fee block already proves the successor gate in the common case. Poll only
+      // if it trails our receipt; do not spend another request for the same head.
+      if (lastBlock > 0n && block.number <= lastBlock) await headAtLeast(lastBlock + 1n);
       if (limit <= 0n || limit > 30000000n)
         throw new Error("BOT gas exceeds Monad transaction limit");
       if (block.baseFeePerGas === null) throw new Error("BOT fee market unavailable");
       // viem's estimateFeesPerGas default: base fee x 1.2 plus the RPC's priority fee.
       const maxFeePerGas = (block.baseFeePerGas * 12n) / 10n + maxPriorityFeePerGas;
       if (mon < limit * maxFeePerGas) throw new Error("Insufficient BOT MON");
+      // Never sign a timed step before its send time: a pull earlier than t − 400 ms leaks.
+      if (command.notBeforeMs !== undefined)
+        while (Date.now() < command.notBeforeMs) await pause(command.notBeforeMs - Date.now());
       // Estimation/config reads may have outlived playback; never sign an obsolete timed step.
       if (command.notAfterMs !== undefined && Date.now() >= command.notAfterMs)
         throw new Error("BOT clip window elapsed before signing");
@@ -454,7 +496,6 @@ export function createMakerChain(
       });
       const hash = keccak256(raw);
       pending = hash;
-      unsent = hash;
       signed = { hash, nonce };
       return { raw, hash };
     },
@@ -462,16 +503,15 @@ export function createMakerChain(
     async broadcast(transaction) {
       if (keccak256(transaction.raw) !== transaction.hash)
         throw new Error("BOT journal hash mismatch");
-      // prepare() just re-checked the chain id for bytes that never left this process.
-      const fresh = unsent === transaction.hash;
-      unsent = undefined;
+      if (pending && pending !== transaction.hash)
+        throw new Error("BOT sender has another unresolved hash");
+      const fresh = signed?.hash === transaction.hash && pending === transaction.hash;
+      pending = transaction.hash;
+      // Re-check the endpoint at broadcast as well as during signing.
+      await verify([], true);
       if (!fresh) {
         const mined = await receipt(transaction.hash);
         if (mined) return mined;
-        if (pending && pending !== transaction.hash)
-          throw new Error("BOT sender has another unresolved hash");
-        pending = transaction.hash;
-        await verify([], true);
       }
       try {
         await client.sendRawTransaction({ serializedTransaction: transaction.raw });

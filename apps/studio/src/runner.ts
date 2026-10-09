@@ -15,7 +15,20 @@ export const ActionKind = {
   Redeem: "redeem",
 } as const;
 export type ActionKind = (typeof ActionKind)[keyof typeof ActionKind];
-export type Command = { kind: GasKind; args: readonly unknown[]; gas: bigint };
+// Timed sends. The OPERATOR picks a flag FLAG_LEAD_MS early and the BOT a pull PULL_LEAD_MS
+// early, so gating and book reads finish before the send time. Each adapter starts its one
+// parallel pre-sign round PRESIGN_MS (one block) before notBeforeMs and never signs before it.
+export const FLAG_LEAD_MS = 1000;
+export const PULL_LEAD_MS = 1500;
+export const PRESIGN_MS = 400;
+// notBeforeMs: the adapter signs no earlier than this, e.g. a flag at its spoken time.
+export type Command = {
+  kind: GasKind;
+  args: readonly unknown[];
+  gas: bigint;
+  notBeforeMs?: number;
+  notAfterMs?: number;
+};
 export type Prepared = { hash: Hex; raw: Hex };
 export type Receipt = {
   hash: Hex;
@@ -106,6 +119,7 @@ export class EpisodeRunner {
   #announced = new Set<number>();
   #nextHour: number;
   #makerWork: Promise<void> | undefined;
+  #makerAgain = false;
   #nextMaker = 0;
   #stopped = false;
   #receiptWork = new Set<Promise<void>>();
@@ -130,23 +144,59 @@ export class EpisodeRunner {
     await this.#makerWork;
     await Promise.all(this.#receiptWork);
   }
-  private kickMaker() {
-    if (this.#stopped || !this.deps.seed?.tick || this.#makerWork) return;
-    const due = this.deps.db
+  private botDue(now: number): boolean {
+    return !!this.deps.db
       .query(
-        "SELECT id FROM actions WHERE kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? LIMIT 1",
+        "SELECT id FROM actions WHERE kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND (scheduled_ms<=? OR (kind='pull' AND scheduled_ms<=?)) LIMIT 1",
       )
-      .get(this.deps.now());
-    if (!due && this.deps.now() < this.#nextMaker) return;
-    this.#nextMaker = this.deps.now() + 5000;
-    this.#makerWork = this.deps.seed
-      .tick()
-      .catch((error) => {
-        this.deps.onBackgroundError?.("maker", error);
-      })
-      .finally(() => {
+      .get(now, now + PULL_LEAD_MS);
+  }
+  // BOT work never runs inside the OPERATOR receipt stream: it runs on its own clock
+  // (tickMaker), after a request and on every flag receipt. A kick during a run repeats the
+  // run as soon as it ends, so a SAID word's bid never waits for the next clock wake.
+  kickMaker() {
+    const seed = this.deps.seed;
+    if (this.#stopped || !seed?.tick) return;
+    if (this.#makerWork) {
+      this.#makerAgain = true;
+      return;
+    }
+    const now = this.deps.now();
+    if (!this.botDue(now) && now < this.#nextMaker) return;
+    this.#nextMaker = now + 5000;
+    this.#makerWork = (async () => {
+      try {
+        do {
+          this.#makerAgain = false;
+          try {
+            await seed.tick?.();
+          } catch (error) {
+            this.deps.onBackgroundError?.("maker", error);
+          }
+        } while (this.#makerAgain && !this.#stopped);
+      } finally {
         this.#makerWork = undefined;
-      });
+      }
+    })();
+  }
+  async tickMaker(): Promise<void> {
+    this.kickMaker();
+    await this.#makerWork;
+  }
+  // BOT clock: a pull PULL_LEAD_MS early, due or in-flight BOT work per block, otherwise the
+  // five-second housekeeping run.
+  nextMakerWakeMs(): number {
+    const now = this.deps.now();
+    if (this.botDue(now)) return 400;
+    const next = this.deps.db
+      .query<{ at: number | null }, [number]>(
+        "SELECT MIN(CASE kind WHEN 'pull' THEN scheduled_ms-? ELSE scheduled_ms END) AS at FROM actions WHERE kind IN ('seed','pull','bid') AND status='pending'",
+      )
+      .get(PULL_LEAD_MS)?.at;
+    return Math.max(
+      1,
+      Math.min(this.#nextMaker - now, next === null || next === undefined ? Infinity : next - now),
+    );
   }
   constructor(private readonly deps: RunnerDeps) {
     this.#nextHour = Math.ceil(deps.now() / 3_600_000) * 3_600_000;
@@ -199,24 +249,29 @@ export class EpisodeRunner {
       return id;
     });
   }
-  // Sleep to the next scheduled action (capped at 1 s for state refresh); retry due or
-  // in-flight work at Monad block cadence, e.g. a flag waiting for chain time to reach startsAt.
+  // Sleep to the next OPERATOR action (a flag FLAG_LEAD_MS early), capped at 1 s for state
+  // refresh; retry due or in-flight work at Monad block cadence, e.g. a flag waiting for chain
+  // time to reach startsAt. BOT actions wake the BOT clock instead.
   nextWakeMs(): number {
     const now = this.deps.now();
+    const wake = `SELECT CASE kind WHEN 'flag' THEN scheduled_ms-${FLAG_LEAD_MS} ELSE scheduled_ms END AS at, status FROM actions WHERE ${this.operatorKinds()}`;
     const next = this.deps.db
       .query<{ at: number | null }, [number]>(
-        "SELECT MIN(scheduled_ms) AS at FROM actions WHERE status='pending' AND scheduled_ms>?",
+        `SELECT MIN(at) AS at FROM (${wake}) WHERE status='pending' AND at>?`,
       )
       .get(now)?.at;
     const due = this.deps.db
-      .query(
-        "SELECT id FROM actions WHERE status='sent' OR (status='pending' AND scheduled_ms<=?) LIMIT 1",
-      )
+      .query(`SELECT 1 FROM (${wake}) WHERE status='sent' OR (status='pending' AND at<=?) LIMIT 1`)
       .get(now);
     return Math.max(
       1,
       Math.min(due ? 400 : 1000, next === null || next === undefined ? Infinity : next - now),
     );
+  }
+  private operatorKinds(): string {
+    return this.deps.seed?.tick
+      ? "kind IN ('list','flag','evidence','close')"
+      : "kind IN ('list','seed','flag','evidence','close')";
   }
   async tick(): Promise<void> {
     await this.exclusive(async () => {
@@ -225,7 +280,6 @@ export class EpisodeRunner {
       await this.runDue();
     });
     if (this.#stopped) return;
-    this.kickMaker();
     if (this.deps.now() >= this.#nextHour) {
       this.#nextHour = (Math.floor(this.deps.now() / 3_600_000) + 1) * 3_600_000;
       try {
@@ -384,24 +438,15 @@ export class EpisodeRunner {
   }
   private async runDue() {
     const { db, now, chain } = this.deps;
+    // A flag is picked FLAG_LEAD_MS early (the adapter still signs it at its time) and before
+    // evidence batches, which no one waits on: a due batch must not hold the sender at t.
     const actions = db
-      .query<Action, [number]>(
-        "SELECT * FROM actions WHERE status='sent' OR (status='pending' AND scheduled_ms <= ?) ORDER BY CASE WHEN status='sent' THEN 0 ELSE 1 END, scheduled_ms, id",
+      .query<Action, [number, number]>(
+        "SELECT * FROM actions WHERE status='sent' OR (status='pending' AND (scheduled_ms <= ? OR (kind='flag' AND scheduled_ms <= ?))) ORDER BY CASE WHEN status='sent' THEN 0 WHEN kind='evidence' THEN 2 ELSE 1 END, scheduled_ms, id",
       )
-      .all(now());
-    // Notify all due spoken words before waiting on any chain receipt; nothing future escapes.
-    for (const action of actions)
-      if (
-        action.kind === "flag" &&
-        !this.#announced.has(action.id) &&
-        now() <
-          db
-            .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
-            .get(action.episode_id)!.ends_at_ms
-      ) {
-        this.#announced.add(action.id);
-        this.emitFlag(action);
-      }
+      .all(now(), now() + FLAG_LEAD_MS);
+    // Notify all due spoken words before waiting on any chain receipt.
+    for (const action of actions) this.announce(action);
     for (const action of actions) {
       // BOT transactions never occupy the timed OPERATOR receipt stream.
       if (
@@ -436,15 +481,16 @@ export class EpisodeRunner {
         }
       }
       if (!receipt) {
-        const episode = await chain.episode(action.episode_id);
+        const [episode, word] = await Promise.all([
+          chain.episode(action.episode_id),
+          action.kind === "flag" ? chain.word(action.word_id!) : undefined,
+        ]);
         const already =
           action.kind === "list"
             ? episode.listed
             : action.kind === "close"
               ? episode.closed
-              : action.kind === "flag"
-                ? (await chain.word(action.word_id!)).state !== 0
-                : false;
+              : word !== undefined && word.state !== 0;
         if (already) {
           db.query("UPDATE actions SET status = 'observed' WHERE id = ?").run(action.id);
           continue;
@@ -477,6 +523,10 @@ export class EpisodeRunner {
             kind: "flagSaid",
             args: [BigInt(action.word_id!), payload.chunkA!, payload.chunkB!, payload.t!],
             gas: gasLimit("flagSaid"),
+            notBeforeMs: action.scheduled_ms,
+            notAfterMs: db
+              .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
+              .get(action.episode_id)!.ends_at_ms,
           };
         else if (action.kind === "evidence") {
           const ids: number[] = [];
@@ -500,6 +550,11 @@ export class EpisodeRunner {
         else continue; // Maker owns pull/bid/redeem execution through its hook.
         await this.restoreSender();
         const prepared = await chain.prepare(command);
+        if (action.kind === "flag") {
+          // The adapter signs at the spoken time; never persist, stream or send one before it.
+          if (now() < action.scheduled_ms) throw new EpisodeError(503);
+          this.announce(action);
+        }
         db.query(
           "UPDATE actions SET tx_hash = ?, sent_ms = ?, status = 'sent', payload_json = ? WHERE id = ?",
         ).run(prepared.hash, now(), JSON.stringify({ ...payload, raw: prepared.raw }), action.id);
@@ -530,6 +585,8 @@ export class EpisodeRunner {
       );
       if (!receipt.success) throw new EpisodeError(503);
       if (action.kind === "flag") {
+        // The word is SAID onchain: its cash-out bid must not wait for this tick to finish.
+        this.kickMaker();
         const receiptMs = now();
         this.deps.log({
           episodeId: action.episode_id,
@@ -558,6 +615,22 @@ export class EpisodeRunner {
         this.#receiptWork.add(work);
       }
     }
+  }
+  // Each spoken word streams once, at or after its scheduled time and only within the clip.
+  private announce(action: Action) {
+    const { db, now } = this.deps;
+    if (
+      action.kind !== "flag" ||
+      this.#announced.has(action.id) ||
+      now() < action.scheduled_ms ||
+      now() >=
+        db
+          .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
+          .get(action.episode_id)!.ends_at_ms
+    )
+      return;
+    this.#announced.add(action.id);
+    this.emitFlag(action);
   }
   private emitFlag(action: Action) {
     if (this.deps.now() < action.scheduled_ms) return;

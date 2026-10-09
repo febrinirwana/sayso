@@ -5,7 +5,14 @@ import type { Hex } from "viem";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import { openDatabase } from "./db.ts";
-import { type Command, type EpisodeChain, EpisodeRunner, type Receipt } from "./runner.ts";
+import {
+  type Command,
+  type EpisodeChain,
+  EpisodeRunner,
+  FLAG_LEAD_MS,
+  PULL_LEAD_MS,
+  type Receipt,
+} from "./runner.ts";
 
 const hash = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as Hex;
 let db: Database;
@@ -34,6 +41,8 @@ class FakeChain implements EpisodeChain {
   hold: { promise: Promise<void>; resolve(): void } | undefined;
   broadcasting = Promise.withResolvers<void>();
   async prepare(command: Command) {
+    // The real adapter sleeps until notBeforeMs before signing; the fake advances the clock.
+    if (command.notBeforeMs !== undefined && now < command.notBeforeMs) now = command.notBeforeMs;
     const tx = hash(this.prepared.size + 1);
     this.prepared.set(tx, command);
     return { hash: tx, raw: tx };
@@ -182,13 +191,14 @@ it("persists fixture flag times, reveal batches, and a seconds-safe close margin
     );
 });
 
-it("wakes exactly at the next flag instead of rounding it to a polling interval", async () => {
+it("wakes one lead before a flag and signs it exactly at its spoken time", async () => {
   await runner.request("on_demand", "judge");
   // Nothing due in a Live window: sleep a full second instead of polling every block.
-  now = 166000;
+  now = 165000;
   expect(runner.nextWakeMs()).toBe(1000);
-  now = 167000;
-  expect(runner.nextWakeMs()).toBe(90);
+  // Before: the clock woke at t itself and only then began seven serial pre-sign reads.
+  now = 166000;
+  expect(runner.nextWakeMs()).toBe(167090 - FLAG_LEAD_MS - 166000);
   const sendTimes: number[] = [];
   const broadcast = chain.broadcast.bind(chain);
   chain.broadcast = async (tx) => {
@@ -197,7 +207,11 @@ it("wakes exactly at the next flag instead of rounding it to a polling interval"
   };
   now += runner.nextWakeMs();
   await runner.tick();
+  expect(chain.prepared.get(hash(3))).toMatchObject({ kind: "flagSaid", notBeforeMs: 167090 });
   expect(sendTimes).toEqual([167090]);
+  expect(db.query("SELECT sent_ms FROM actions WHERE kind='flag' AND word_id=2").get()).toEqual({
+    sent_ms: 167090,
+  });
 });
 it("never broadcasts a second operator transaction before the first receipt", async () => {
   chain.hold = Promise.withResolvers<void>();
@@ -224,17 +238,19 @@ it("reconciles chain flags after restart without double sending", async () => {
   await runner.tick();
   expect(chain.flagged).toEqual(new Set([1, 2]));
 });
-it("streams only due flags and replays only already-fired flags on reconnect", async () => {
+it("streams a flag only once its spoken time arrives and never a future one", async () => {
   await runner.request("on_demand", "judge");
-  const events: { event: string; data: unknown }[] = [];
-  const unsubscribe = runner.subscribe(1, (event) => events.push(event));
+  const events: { event: string; data: unknown; at: number }[] = [];
+  const unsubscribe = runner.subscribe(1, (event) => events.push({ ...event, at: now }));
   expect(JSON.stringify(events)).not.toContain("7090");
-  now = 167089;
+  now = 166000;
   await runner.tick();
   expect(events.filter((e) => e.event === "flag")).toEqual([]);
-  now++;
+  // Picked inside its lead at 167089, the flag streams when the adapter signs it at 167090.
+  now = 167089;
   await runner.tick();
   const flags = events.filter((e) => e.event === "flag");
+  expect(flags.map((e) => e.at)).toEqual([167090, 167090]);
   expect(flags[0]?.data).toMatchObject({ wordId: 2, t: 7090, scheduledMs: 167090 });
   expect(JSON.stringify(events)).not.toContain("10860");
   unsubscribe?.();
@@ -529,3 +545,102 @@ it.each(["flag", "create"] as const)(
     expect(chain.prepared.size).toBeGreaterThan(signatures);
   },
 );
+
+it("kicks the BOT on a flag receipt while later OPERATOR work in the same tick is pending", async () => {
+  const kicks: number[] = [];
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    log: () => {},
+    seed: {
+      ...seed,
+      async tick() {
+        kicks.push(now);
+      },
+    },
+  });
+  await runner.request("on_demand", "judge");
+  await runner.tickMaker();
+  kicks.length = 0;
+  const evidence = Promise.withResolvers<void>();
+  const sending = Promise.withResolvers<void>();
+  const broadcast = chain.broadcast.bind(chain);
+  chain.broadcast = async (tx) => {
+    if (chain.prepared.get(tx.hash)?.kind === "markEvidence") {
+      sending.resolve();
+      await evidence.promise;
+    }
+    return broadcast(tx);
+  };
+  now = 172000;
+  const ticking = runner.tick();
+  await sending.promise;
+  // Both words are SAID and their bids due. Before, the BOT ran only after the whole tick.
+  expect(kicks).not.toEqual([]);
+  evidence.resolve();
+  await ticking;
+});
+
+it("runs the BOT clock for a pull lead while an OPERATOR flag receipt is pending", async () => {
+  let runs = 0;
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    log: () => {},
+    seed: {
+      ...seed,
+      async tick() {
+        runs++;
+      },
+    },
+  });
+  await runner.request("on_demand", "judge");
+  db.query("UPDATE actions SET status='confirmed' WHERE kind='seed'").run();
+  now = 165000;
+  await runner.tickMaker();
+  // Word 2's pull is at 166690 (t − 400 ms); the BOT clock wakes PULL_LEAD_MS before it.
+  expect(runner.nextMakerWakeMs()).toBe(166690 - PULL_LEAD_MS - 165000);
+  chain.hold = Promise.withResolvers<void>();
+  chain.broadcasting = Promise.withResolvers<void>();
+  now = 167090;
+  const ticking = runner.tick();
+  await chain.broadcasting.promise;
+  runs = 0;
+  // Word 1's pull lead begins while word 2's flag receipt is still outstanding.
+  now = 170460 - PULL_LEAD_MS;
+  await runner.tickMaker();
+  expect(runs).toBe(1);
+  const release = chain.hold;
+  chain.hold = undefined;
+  release.resolve();
+  await ticking;
+});
+
+it("reports a rejected BOT tick and keeps its clock available for the next run", async () => {
+  const errors: string[] = [];
+  let attempts = 0;
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    log: () => {},
+    seed: {
+      ...seed,
+      async tick() {
+        if (++attempts === 1) throw new Error("BOT read unavailable");
+      },
+    },
+    onBackgroundError(source) {
+      errors.push(source);
+    },
+  });
+  await runner.tickMaker();
+  expect(errors).toEqual(["maker"]);
+  expect(runner.nextMakerWakeMs()).toBe(5000);
+  now += runner.nextMakerWakeMs();
+  await runner.tickMaker();
+  expect(attempts).toBe(2);
+  await runner.stop();
+});

@@ -9,8 +9,7 @@ import {
   quoteCost,
 } from "@sayso/core";
 import type { Address, Hex } from "viem";
-import { z } from "zod";
-import type { Prepared, SeedHook } from "./runner.ts";
+import { type Prepared, PULL_LEAD_MS, type SeedHook } from "./runner.ts";
 
 export type MakerCommand = {
   kind: "approve" | "mint" | "deposit" | "ladder" | "cancel" | "bid" | "withdraw" | "redeem";
@@ -24,6 +23,8 @@ export type MakerCommand = {
   tokens?: Address[];
   side?: 0 | 1;
   notAfterMs?: number;
+  // Timed pull send time (t − 400 ms): the adapter never signs before it.
+  notBeforeMs?: number;
 };
 export type MakerReceipt = { hash: Hex; block: number; success: boolean };
 export type MakerWord = { id: number; yes: Address; no: Address; market: Address; state: number };
@@ -50,13 +51,12 @@ export type MakerChain = {
   balance(token: Address, margin?: boolean): Promise<bigint>;
   allowance(token: Address, spender: Address): Promise<bigint>;
   orders(market: Address, fromBlock: number): Promise<{ block: number; orders: HouseOrder[] }>;
+  // Non-house YES at a head no earlier than minimumBlock (the pull receipt).
+  outstandingYes(word: MakerWord, minimumBlock: number): Promise<bigint>;
   // guard runs alongside the pre-sign reads and must resolve before anything is signed.
   prepare(command: MakerCommand, guard?: () => Promise<void>): Promise<Prepared>;
   broadcast(transaction: Prepared): Promise<MakerReceipt>;
   receipt(hash: Hex): Promise<MakerReceipt | null>;
-};
-export type PositionsReader = {
-  outstandingYes(wordId: number, minimumBlock: number, headBlock?: number): Promise<bigint | null>;
 };
 type Step = {
   key: string;
@@ -72,29 +72,10 @@ type Action = {
   episode_id: number;
   word_id: number | null;
   kind: string;
+  scheduled_ms: number;
   status: string;
   payload_json: string;
 };
-const positionsResponse = z.object({
-  errors: z.unknown().optional(),
-  data: z
-    .object({
-      _meta: z.array(
-        z.object({
-          progressBlock: z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-          isReady: z.boolean(),
-        }),
-      ),
-      Position: z.array(
-        z.object({
-          id: z.string(),
-          player_id: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
-          yes: z.string().regex(/^\d+$/),
-        }),
-      ),
-    })
-    .optional(),
-});
 class ClipWindowElapsed extends Error {}
 class StepSkipped extends Error {}
 
@@ -113,7 +94,6 @@ export class HouseMaker implements SeedHook {
       db: Database;
       now(): number;
       chain: MakerChain;
-      positions: PositionsReader;
     },
   ) {}
   async ready(): Promise<boolean> {
@@ -154,9 +134,13 @@ export class HouseMaker implements SeedHook {
     if (list && list.status !== "confirmed") return;
     const journal: Journal = JSON.parse(action.payload_json);
     await this.recoverSteps(action, journal);
-    const [clock, ids] = await Promise.all([
+    // Shared AUSD allowances can be read with the clock/IDs: only this sender changes
+    // them, and no seed transaction runs before this round resolves.
+    const [clock, ids, toMarkets, toMargin] = await Promise.all([
       chain.clock(action.episode_id),
       chain.words(action.episode_id),
+      chain.allowance(chain.ausd, chain.markets),
+      chain.allowance(chain.ausd, chain.margin),
     ]);
     if (clock.closed || clock.timestamp >= clock.endsAt) {
       this.finish(action, "observed");
@@ -175,13 +159,6 @@ export class HouseMaker implements SeedHook {
         !journal.steps?.some((step) => step.key === `${word.id}:5` && step.status === "confirmed"),
     );
     const totalQuote = quote * BigInt(quoteWords.length);
-    // Only this sender's own approve/deposit of the same token moves these allowances, and
-    // each is checked before that token's first step, so one parallel read stays exact.
-    const [toMarkets, toMargin, yesToMargin] = await Promise.all([
-      open.length ? chain.allowance(chain.ausd, chain.markets) : 0n,
-      totalQuote > 0n ? chain.allowance(chain.ausd, chain.margin) : 0n,
-      Promise.all(open.map((word) => chain.allowance(word.yes, chain.margin))),
-    ]);
     try {
       if (open.length && toMarkets < sets * BigInt(open.length))
         await this.step(action, journal, "ausd:markets", {
@@ -204,20 +181,21 @@ export class HouseMaker implements SeedHook {
           amount: totalQuote.toString(),
         });
       }
-      for (const [i, word] of open.entries()) {
+      for (const word of open) {
         const id = word.id;
         await this.step(action, journal, `${id}:1`, {
           kind: "mint",
           wordId: id,
           amount: sets.toString(),
         });
-        if ((yesToMargin[i] ?? 0n) < sets)
-          await this.step(action, journal, `${id}:2`, {
-            kind: "approve",
-            token: word.yes,
-            spender: chain.margin,
-            amount: sets.toString(),
-          });
+        // Every word has a fresh token; this bounded approve is journal-idempotent,
+        // including recovery after the allowance was consumed by its deposit.
+        await this.step(action, journal, `${id}:2`, {
+          kind: "approve",
+          token: word.yes,
+          spender: chain.margin,
+          amount: sets.toString(),
+        });
         await this.step(action, journal, `${id}:3`, {
           kind: "deposit",
           token: word.yes,
@@ -267,10 +245,10 @@ export class HouseMaker implements SeedHook {
         const clock = await chain.clock(episode.id);
         const ended =
           clock.closed || clock.timestamp >= clock.endsAt || now() >= episode.ends_at_ms;
-        const words = await Promise.all(
-          (await chain.words(episode.id)).map((id) => chain.word(id)),
-        );
         if (ended) {
+          const words = await Promise.all(
+            (await chain.words(episode.id)).map((id) => chain.word(id)),
+          );
           db.query(
             "UPDATE actions SET status='observed', error='clip window elapsed' WHERE episode_id=? AND kind IN ('pull','bid','seed') AND status IN ('pending','sent')",
           ).run(episode.id);
@@ -280,29 +258,25 @@ export class HouseMaker implements SeedHook {
           }
           continue;
         }
-        for (const word of words) {
-          if (word.state >= 2 && word.state <= 4) {
-            await this.cancelWord(episode.id, word);
-            await this.recycleWord(episode.id, word);
-            db.query(
-              "UPDATE actions SET status='observed' WHERE episode_id=? AND word_id=? AND kind IN ('pull','bid') AND status IN ('pending','sent')",
-            ).run(episode.id, word.id);
-          }
-        }
-        // Re-pick after every action and run due pulls first: a pull that falls due while a
-        // bid is signing must not leave its asks resting on a word that is about to flip.
+        // Timed pulls and bids run before per-word housekeeping reads. Re-pick after every
+        // action and run pulls first, including one inside its lead: a pull that falls due
+        // while a bid is signing must not leave its asks resting on a word about to flip.
         const visited = new Set<number>();
         for (;;) {
+          const at = now();
           const action = db
-            .query<Action, [number, number]>(
-              "SELECT * FROM actions WHERE episode_id=? AND kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? ORDER BY CASE kind WHEN 'pull' THEN 0 ELSE 1 END,scheduled_ms,id",
+            .query<Action, [number, number, number]>(
+              "SELECT * FROM actions WHERE episode_id=? AND kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND (scheduled_ms<=? OR (kind='pull' AND scheduled_ms<=?)) ORDER BY CASE kind WHEN 'pull' THEN 0 ELSE 1 END,scheduled_ms,id",
             )
-            .all(episode.id, now())
+            .all(episode.id, at, at + PULL_LEAD_MS)
             .find((a) => !visited.has(a.id));
           if (!action) break;
           visited.add(action.id);
           try {
-            const currentWindow = await chain.clock(episode.id);
+            const [currentWindow, word] = await Promise.all([
+              chain.clock(episode.id),
+              action.kind === "seed" ? undefined : chain.word(action.word_id!),
+            ]);
             if (
               currentWindow.closed ||
               currentWindow.timestamp >= currentWindow.endsAt ||
@@ -311,76 +285,15 @@ export class HouseMaker implements SeedHook {
               this.finish(action, "observed");
               continue;
             }
-            if (action.kind === "seed") {
+            if (!word) {
               await this.seedAction(action);
               continue;
             }
-            const word = await chain.word(action.word_id!);
             const journal: Journal = JSON.parse(action.payload_json);
             if (action.kind === "pull") {
               await this.cancelOrders(action, journal, word, true);
               this.finish(action);
-            } else {
-              const pull = db
-                .query<{ status: string; block: number | null }, [number, number]>(
-                  "SELECT status,block FROM actions WHERE episode_id=? AND word_id=? AND kind='pull' ORDER BY id LIMIT 1",
-                )
-                .get(episode.id, word.id);
-              if (pull?.status !== "confirmed" || word.state !== 1) continue;
-              const latest = await chain.clock(episode.id);
-              const outstanding = await this.deps.positions.outstandingYes(
-                word.id,
-                pull.block ?? latest.block,
-                latest.block,
-              );
-              if (outstanding === null) continue;
-              if (outstanding < 0n) throw new Error("Invalid outstanding positions");
-              const marginCash = await chain.balance(chain.ausd, true);
-              const available = marginCash + (await chain.balance(chain.ausd));
-              const price = priceToKuru("0.98");
-              // Kuru rounds quote to QUOTE_UNIT. Floor the spendable budget first.
-              const affordable =
-                ((available / QUOTE_UNIT) * QUOTE_UNIT * BigInt(PRICE_PRECISION)) / BigInt(price);
-              const size = [outstanding, affordable, MAX_SIZE].reduce((a, b) => (a < b ? a : b));
-              if (size >= MIN_SIZE) {
-                const current = await chain.clock(episode.id);
-                if (
-                  current.closed ||
-                  current.timestamp >= current.endsAt ||
-                  now() >= episode.ends_at_ms
-                )
-                  continue;
-                const needed = quoteCost(size, price) - marginCash;
-                if (needed > 0n) {
-                  await this.step(action, journal, "bid:approve", {
-                    kind: "approve",
-                    token: chain.ausd,
-                    spender: chain.margin,
-                    amount: needed.toString(),
-                  });
-                  await this.step(action, journal, "bid:deposit", {
-                    kind: "deposit",
-                    token: chain.ausd,
-                    amount: needed.toString(),
-                  });
-                }
-                const fundedWindow = await chain.clock(episode.id);
-                if (
-                  fundedWindow.closed ||
-                  fundedWindow.timestamp >= fundedWindow.endsAt ||
-                  now() >= episode.ends_at_ms ||
-                  (await chain.word(word.id)).state !== 1
-                )
-                  continue;
-                await this.step(action, journal, "bid", {
-                  kind: "bid",
-                  market: word.market,
-                  amount: size.toString(),
-                });
-                await this.syncOrders(episode.id, word.market);
-              }
-              this.finish(action);
-            }
+            } else await this.bid(action, journal, word);
           } catch (error) {
             if (error instanceof ClipWindowElapsed) {
               this.finish(action, "observed");
@@ -391,8 +304,73 @@ export class HouseMaker implements SeedHook {
             throw error;
           }
         }
+        const words = await Promise.all(
+          (await chain.words(episode.id)).map((id) => chain.word(id)),
+        );
+        for (const word of words) {
+          if (word.state >= 2 && word.state <= 4) {
+            await this.cancelWord(episode.id, word);
+            await this.recycleWord(episode.id, word);
+            db.query(
+              "UPDATE actions SET status='observed' WHERE episode_id=? AND word_id=? AND kind IN ('pull','bid') AND status IN ('pending','sent')",
+            ).run(episode.id, word.id);
+          }
+        }
       }
     });
+  }
+  // The 0.98 cash-out bid: only after the pull receipt and chain SAID, sized from chain state
+  // in one round with the house's spendable AUSD. Leaves the bid pending until both hold.
+  private async bid(action: Action, journal: Journal, word: MakerWord) {
+    const { db, chain } = this.deps;
+    const pull = db
+      .query<{ status: string; block: number | null }, [number, number]>(
+        "SELECT status,block FROM actions WHERE episode_id=? AND word_id=? AND kind='pull' ORDER BY id LIMIT 1",
+      )
+      .get(action.episode_id, word.id);
+    if (pull?.status !== "confirmed" || word.state !== 1) return;
+    const [outstanding, marginCash, cash, allowance] = await Promise.all([
+      // A pull with nothing left to cancel has no receipt; any head then follows it.
+      chain.outstandingYes(word, pull.block ?? 0),
+      chain.balance(chain.ausd, true),
+      chain.balance(chain.ausd),
+      chain.allowance(chain.ausd, chain.margin),
+    ]);
+    const price = priceToKuru("0.98");
+    // Kuru rounds quote to QUOTE_UNIT. Floor the spendable budget first.
+    const affordable =
+      (((marginCash + cash) / QUOTE_UNIT) * QUOTE_UNIT * BigInt(PRICE_PRECISION)) / BigInt(price);
+    const size = [outstanding, affordable, MAX_SIZE].reduce((a, b) => (a < b ? a : b));
+    let placed = false;
+    if (size >= MIN_SIZE) {
+      // Each timed step re-reads the clip window inside its own signing round.
+      const needed = quoteCost(size, price) - marginCash;
+      if (needed > 0n) {
+        if (allowance < needed)
+          await this.step(action, journal, "bid:approve", {
+            kind: "approve",
+            token: chain.ausd,
+            spender: chain.margin,
+            amount: needed.toString(),
+          });
+        await this.step(action, journal, "bid:deposit", {
+          kind: "deposit",
+          token: chain.ausd,
+          amount: needed.toString(),
+        });
+      }
+      placed = await this.step(
+        action,
+        journal,
+        "bid",
+        { kind: "bid", market: word.market, amount: size.toString() },
+        async () => (await chain.word(word.id)).state === 1,
+      );
+      // No post-bid book scan in the timed sender stream: the API reads the live book,
+      // and close/recycle synchronize orders before cancellation. A scan here held the
+      // next pull behind receipt polling plus another log/storage round on episode 11.
+    }
+    this.finish(action, size < MIN_SIZE || placed ? "confirmed" : "observed");
   }
   private durable(episodeId: number, wordId: number, purpose: "cancel" | "recycle"): Action {
     const { db, now } = this.deps;
@@ -544,17 +522,18 @@ export class HouseMaker implements SeedHook {
     }
     this.#senderRestored = true;
   }
-  // `still` is re-checked inside the signing round; false drops the unsigned step.
+  // `still` is re-checked inside the signing round; false drops the unsigned step and returns
+  // false. True once the step's transaction is confirmed.
   private async step(
     action: Action,
     journal: Journal,
     key: string,
     command: MakerCommand,
     still?: () => Promise<boolean>,
-  ) {
+  ): Promise<boolean> {
     journal.steps ??= [];
     let step = journal.steps.find((s) => s.key === key);
-    if (step?.status === "confirmed") return;
+    if (step?.status === "confirmed") return true;
     if (step?.status === "failed") throw new Error("BOT transaction reverted");
     if (!step) {
       step = { key, command };
@@ -572,6 +551,8 @@ export class HouseMaker implements SeedHook {
           .get(action.episode_id)!;
         if (now() >= episode.ends_at_ms) throw new ClipWindowElapsed();
         step.command.notAfterMs = episode.ends_at_ms;
+        // A pull is picked up to PULL_LEAD_MS early; the adapter signs it at t − 400 ms.
+        if (action.kind === "pull") step.command.notBeforeMs = action.scheduled_ms;
       }
       let tx: Prepared;
       try {
@@ -588,7 +569,7 @@ export class HouseMaker implements SeedHook {
         if (!(error instanceof StepSkipped)) throw error;
         journal.steps.splice(journal.steps.indexOf(step), 1);
         this.persist(action, journal);
-        return;
+        return false;
       }
       step.hash = tx.hash;
       step.raw = tx.raw;
@@ -601,6 +582,7 @@ export class HouseMaker implements SeedHook {
       );
     }
     await this.confirm(action, journal, step, fresh);
+    return true;
   }
   // A step signed in this call has never left the process: skip the receipt pre-check.
   private async confirm(action: Action, journal: Journal, step: Step, fresh = false) {
@@ -620,70 +602,4 @@ export class HouseMaker implements SeedHook {
   private finish(action: Action, status = "confirmed") {
     this.deps.db.query("UPDATE actions SET status=?,error=NULL WHERE id=?").run(status, action.id);
   }
-}
-
-// Envio's official _meta.progressBlock is transactional with Position writes.
-// Require the cancellation receipt, bounded head lag, and stable pagination.
-export function createPositionsReader(
-  indexerUrl: string,
-  options: { houseAddress: Address; now(): number; maxLagMs?: number; maxLagBlocks?: number },
-): PositionsReader {
-  const maxLagMs = options.maxLagMs ?? 5000;
-  const maxLagBlocks = options.maxLagBlocks ?? 10;
-  return {
-    async outstandingYes(wordId, minimumBlock, headBlock = minimumBlock) {
-      const started = options.now();
-      let after = "";
-      let total = 0n;
-      let snapshot: number | undefined;
-      try {
-        for (;;) {
-          const response = await fetch(indexerUrl, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            signal: AbortSignal.timeout(maxLagMs),
-            body: JSON.stringify({
-              query: `query HousePositions($word:String!,$after:String!){ _meta(where:{chainId:{_eq:10143}}){progressBlock isReady} Position(where:{word_id:{_eq:$word},id:{_gt:$after}},order_by:{id:asc},limit:500){id player_id yes}}`,
-              variables: { word: String(wordId), after },
-            }),
-          });
-          if (!response.ok) return null;
-          const parsed = positionsResponse.safeParse(await response.json());
-          if (!parsed.success) return null;
-          const body = parsed.data;
-          const meta = body.data?._meta;
-          if (
-            body.errors ||
-            !meta ||
-            meta.length !== 1 ||
-            !meta[0]!.isReady ||
-            !Number.isSafeInteger(meta[0]!.progressBlock) ||
-            meta[0]!.progressBlock < minimumBlock ||
-            headBlock - meta[0]!.progressBlock > maxLagBlocks ||
-            options.now() - started > maxLagMs
-          )
-            return null;
-          if (snapshot !== undefined && snapshot !== meta[0]!.progressBlock) return null;
-          snapshot = meta[0]!.progressBlock;
-          const rows = body.data!.Position;
-          if (!Array.isArray(rows)) return null;
-          for (const row of rows) {
-            if (
-              typeof row.id !== "string" ||
-              row.id <= after ||
-              !/^0x[0-9a-fA-F]{40}$/.test(row.player_id) ||
-              !/^\d+$/.test(row.yes)
-            )
-              return null;
-            after = row.id;
-            if (row.player_id.toLowerCase() !== options.houseAddress.toLowerCase())
-              total += BigInt(row.yes);
-          }
-          if (rows.length < 500) return total;
-        }
-      } catch {
-        return null;
-      }
-    },
-  };
 }
