@@ -88,41 +88,69 @@ export async function readWord(id: bigint, blockNumber?: bigint): Promise<ChainW
   });
   return toChainWord(id, word);
 }
-export async function readEpisode(id: number): Promise<ChainEpisode> {
-  const block = await publicClient.getBlock();
-  const [episode, ids] = await Promise.all([
-    publicClient.readContract({
-      address: addresses.saysoMarkets,
-      abi: saysoMarketsAbi,
-      functionName: "episode",
-      args: [id],
-      blockNumber: block.number,
-    }),
-    publicClient.readContract({
-      address: addresses.saysoMarkets,
-      abi: saysoMarketsAbi,
-      functionName: "episodeWords",
-      args: [id],
-      blockNumber: block.number,
-    }),
-  ]);
-  const words = await Promise.all(ids.map((wordId) => readWord(wordId, block.number)));
-  const state: EpisodeState =
-    episode.resolvedCount === episode.wordCount && episode.wordCount > 0
-      ? "Settled"
-      : episode.closed
-        ? "Closed"
-        : block.timestamp >= episode.startsAt
-          ? "Live"
-          : "Scheduled";
-  return {
-    ...episode,
-    id,
-    state,
-    words,
+type RawEpisode = ReadContractReturnType<typeof saysoMarketsAbi, "episode">;
+/**
+ * Episodes and all their words at one block in three requests, however many episodes: a per-word
+ * read loop hit the public RPC's 15 requests/s limit once Portfolio covered 19 episodes.
+ */
+export async function readEpisodes(
+  ids: readonly number[],
+  client: Pick<typeof publicClient, "getBlock" | "multicall"> = publicClient,
+): Promise<ChainEpisode[]> {
+  if (!ids.length) return [];
+  const market = { address: addresses.saysoMarkets, abi: saysoMarketsAbi } as const;
+  const block = await client.getBlock();
+  const heads = await client.multicall({
+    contracts: ids.flatMap((id) => [
+      { ...market, functionName: "episode" as const, args: [id] as const },
+      { ...market, functionName: "episodeWords" as const, args: [id] as const },
+    ]),
+    allowFailure: false,
+    deployless: true,
     blockNumber: block.number,
-    blockTimestamp: block.timestamp,
-  };
+  });
+  const wordIds = ids.map((_, i) => heads[i * 2 + 1] as readonly bigint[]);
+  const flat = wordIds.flat();
+  const raw = flat.length
+    ? await client.multicall({
+        contracts: flat.map((id) => ({
+          ...market,
+          functionName: "word" as const,
+          args: [id] as const,
+        })),
+        allowFailure: false,
+        deployless: true,
+        blockNumber: block.number,
+      })
+    : [];
+  let next = 0;
+  return ids.map((id, i) => {
+    const episode = heads[i * 2] as RawEpisode;
+    const words = (wordIds[i] ?? []).map((wordId) =>
+      toChainWord(wordId, raw[next++] as RawChainWord),
+    );
+    const state: EpisodeState =
+      episode.resolvedCount === episode.wordCount && episode.wordCount > 0
+        ? "Settled"
+        : episode.closed
+          ? "Closed"
+          : block.timestamp >= episode.startsAt
+            ? "Live"
+            : "Scheduled";
+    return {
+      ...episode,
+      id,
+      state,
+      words,
+      blockNumber: block.number,
+      blockTimestamp: block.timestamp,
+    };
+  });
+}
+export async function readEpisode(id: number): Promise<ChainEpisode> {
+  const [episode] = await readEpisodes([id]);
+  if (!episode) throw new Error("Episode read returned nothing");
+  return episode;
 }
 export async function readLatestEpisode() {
   const nextEpisodeId = await publicClient.readContract({

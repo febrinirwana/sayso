@@ -7,7 +7,7 @@ import {
   type ChainEpisode,
   type ChainWord,
   type RawChainWord,
-  readEpisode,
+  readEpisodes,
   toChainWord,
 } from "@/data/chain";
 import { publicClient } from "@/lib/chain";
@@ -90,7 +90,6 @@ export function useEpisodeHoldings(episode: ChainEpisode | undefined, address: A
   });
 }
 export function usePortfolioHoldings(address: Address | null) {
-  const queries = useQueryClient();
   return useQuery({
     queryKey: ["records", "portfolio", address],
     queryFn: async () => {
@@ -99,21 +98,13 @@ export function usePortfolioHoldings(address: Address | null) {
         abi: saysoMarketsAbi,
         functionName: "nextEpisodeId",
       });
-      const episodes: ChainEpisode[] = [];
-      for (let id = 1; id < next; id++) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
-        episodes.push(
-          await queries.fetchQuery({
-            queryKey: ["chain", "episode", id],
-            queryFn: () => readEpisode(id),
-            staleTime: 30_000,
-          }),
-        );
-      }
-      return readHoldings(episodes, address as Address);
+      // Every episode in three requests, then balances in one: per-episode loops hit 429.
+      const ids = Array.from({ length: Math.max(0, Number(next) - 1) }, (_, i) => i + 1);
+      return readHoldings(await readEpisodes(ids), address as Address);
     },
     enabled: !!address,
-    retry: false,
+    // One transient 429 must not leave the honest "incomplete snapshot" error up for a minute.
+    retry: 2,
     staleTime: 5_000,
     refetchInterval: 60_000,
   });
