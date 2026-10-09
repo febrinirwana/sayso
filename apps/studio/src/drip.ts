@@ -135,6 +135,13 @@ export class DripService {
     try {
       return await this.#claim(address, ipHash);
     } catch (error) {
+      // Nothing signed yet: release the reservation so a transient failure cannot hold the
+      // sender gate and IP hour for every player. Signed legs stay for same-bytes recovery.
+      this.#deps.db
+        .query(
+          "DELETE FROM drips WHERE address=? AND tx_mon IS NULL AND tx_ausd IS NULL AND status='pending'",
+        )
+        .run(address);
       if (error instanceof DripError) throw error;
       // RPC errors can embed serialized transactions and URL credentials; never expose them.
       throw new DripError("unavailable", 503);
@@ -225,16 +232,8 @@ export class DripService {
     if (!row.tx_mon && !row.tx_ausd) {
       // Another recipient may have completed between the first balance read and
       // winning the durable sender gate. Re-budget before signing either leg.
-      try {
-        budget = await chain.inspect(address, signed);
-        this.#budget(row, budget);
-      } catch (error) {
-        if (error instanceof DripError && error.code === "low_balance")
-          db.query(
-            "DELETE FROM drips WHERE address=? AND tx_mon IS NULL AND tx_ausd IS NULL AND status='pending'",
-          ).run(row.address);
-        throw error;
-      }
+      budget = await chain.inspect(address, signed);
+      this.#budget(row, budget);
     }
     for (const leg of ["mon", "ausd"] as const) {
       row = this.#requiredRow(address);

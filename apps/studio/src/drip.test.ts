@@ -307,6 +307,18 @@ it("rechecks budget after winning the sender reservation before any transfer", a
   expect(chain.balances.get(a)).toBeUndefined();
   expect(service.status(a)).toBeNull();
 });
+it("an RPC failure before anything is signed releases the reservation for everyone", async () => {
+  // Live 2026-10-09: a transient RPC failure after reservation left an unsigned pending row
+  // that no retry advanced, holding the sender gate and the IP hour for every other player.
+  const prepare = chain.prepare.bind(chain);
+  chain.prepare = async () => {
+    throw new Error("RPC unavailable");
+  };
+  await expect(service.claim(a, "192.0.2.1")).rejects.toThrow();
+  expect(service.status(a)).toBeNull();
+  chain.prepare = prepare;
+  expect((await service.claim(b, "192.0.2.1")).status).toBe("completed");
+});
 
 it("shutdown refuses new claims and drains an admitted claim before the database closes", async () => {
   const hold = Promise.withResolvers<void>();

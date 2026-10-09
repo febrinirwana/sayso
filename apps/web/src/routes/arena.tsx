@@ -236,7 +236,10 @@ function Arena() {
           claim.reset();
           setPendingStartedAt(Date.now());
           void drip.refetch().then(({ data }) => {
-            if (account.address && data?.status === "unclaimed") claim.mutate(account.address);
+            // A pending claim re-posts too: the studio reconciles and rebroadcasts the same
+            // signed bytes, so a stalled transfer resumes instead of waiting forever.
+            if (account.address && (data?.status === "unclaimed" || data?.status === "pending"))
+              claim.mutate(account.address);
           });
         }}
       />

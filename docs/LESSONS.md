@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/09 — A reservation that nothing signed must not outlive its request
+
+- **Cause:** The starter drip reserves a row (sender gate plus the IP hour) before signing. A transient public-RPC failure between reservation and signing left an unsigned `pending` row; status reads kept answering `pending`, the web never re-posted, and the global "one unresolved sender nonce" gate then refused every other player's drip.
+- **Rule:** Release a durable reservation on any failure while nothing is signed; keep only signed legs, which recover by re-posting the same bytes. Every client path that shows "pending" must be able to re-post the idempotent claim.
+
 ### 2026/10/09 — A settlement retry budget must not strand the episode queue
 
 - **Cause:** The CRE runner gave every run five back-off retries (~13 min) and then marked it `failed`. While CRE login was missing, episode 11's close run failed permanently; an unsettled Closed episode blocks all later admission, so one outage would have stopped the product for the rest of judging. CRE QuickJS also lacks a global `URL`, so `z.url()` rejected every reveal URL only inside the real simulator.
