@@ -1,7 +1,7 @@
 import { kuruToCents, outcomeTokenAbi, priceToKuru } from "@sayso/core";
 import { useQuery } from "@tanstack/react-query";
 import { type Address, formatUnits } from "viem";
-import { type ChainWord, useBestBidAsk } from "@/data/chain";
+import { type ChainWord, readBooks } from "@/data/chain";
 import { graphql } from "@/data/indexer";
 import { publicClient } from "@/lib/chain";
 
@@ -45,20 +45,24 @@ export function bookCents(raw: bigint | undefined): number | null {
     return null;
   }
 }
-export function useEpisodeBooks(words: readonly ChainWord[]) {
-  // Fixed hook count supports the onchain 1–8 word bound and shares existing query keys.
-  const q0 = useBestBidAsk(words[0]?.market),
-    q1 = useBestBidAsk(words[1]?.market);
-  const q2 = useBestBidAsk(words[2]?.market),
-    q3 = useBestBidAsk(words[3]?.market);
-  const q4 = useBestBidAsk(words[4]?.market),
-    q5 = useBestBidAsk(words[5]?.market);
-  const q6 = useBestBidAsk(words[6]?.market),
-    q7 = useBestBidAsk(words[7]?.market);
-  return [q0, q1, q2, q3, q4, q5, q6, q7].slice(0, words.length).map((q) => ({
-    bid: q.isError ? null : bookCents(q.data?.bidRaw),
-    ask: q.isError ? null : bookCents(q.data?.askRaw),
-  }));
+/** A book read older than this is no price: the 1 s poll has missed two beats in a row. */
+const BOOK_MAX_AGE_MS = 3_000;
+export type BookQuote = { bid: number | null; ask: number | null };
+export function useEpisodeBooks(words: readonly ChainWord[]): BookQuote[] {
+  const markets = words.flatMap((word) => (word.market ? [word.market] : []));
+  const books = useQuery({
+    queryKey: ["chain", "books", markets],
+    queryFn: () => readBooks(markets),
+    enabled: markets.length > 0,
+    refetchInterval: 1_000,
+    // The next poll is the retry. Backoff retries held a failed book for up to 7 s, then blanked it.
+    retry: false,
+  });
+  const fresh = books.data !== undefined && Date.now() - books.dataUpdatedAt <= BOOK_MAX_AGE_MS;
+  return words.map((word) => {
+    const book = fresh && word.market ? books.data?.[markets.indexOf(word.market)] : undefined;
+    return { bid: bookCents(book?.bidRaw), ask: bookCents(book?.askRaw) };
+  });
 }
 type EpisodeTradeRow = {
   id: string;

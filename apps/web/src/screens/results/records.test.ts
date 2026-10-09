@@ -105,20 +105,36 @@ describe("record surfaces", () => {
     expect(html).toContain("Waiting for the final word");
     expect(html).not.toContain("Redeem AUSD");
   });
-  it("gives empty portfolios a route back to play", () => {
+  it("does not label a cash-out with zero holdings as a CRE redemption", () => {
     const html = renderToStaticMarkup(
       createElement(Portfolio, {
-        tab: "open",
+        tab: "history",
         onTabChange: () => {},
-        positions: [],
+        positions: [
+          {
+            id: "67",
+            episode: { id: "12", state: "Closed", label: "Episode 12" },
+            word: { id: "67", text: "block", state: "SaidPending" },
+            yes: 0n,
+            no: 0n,
+            cashIn: 1_921_500n,
+            cashOut: 1_000_000n,
+            redeemed: 0n,
+            averageYesPriceBps: 5100,
+            averageNoPriceBps: null,
+            currentYesPriceBps: null,
+          },
+        ],
         redeemable: 0n,
         redeemState: "idle",
         onRedeemAll: () => {},
         onPlay: () => {},
       }),
     );
-    expect(html).toContain("Your next good call starts here");
-    expect(html).toContain("Find an episode");
+    expect(html).toContain("Position closed");
+    expect(html).toContain("1.92");
+    expect(html).not.toContain("AUSD redeemed");
+    expect(html).not.toContain("Book value unavailable");
   });
   it("labels a pinned player even when they are outside the leading rows", () => {
     const html = renderToStaticMarkup(

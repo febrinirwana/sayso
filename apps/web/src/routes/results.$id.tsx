@@ -5,7 +5,7 @@ import type { Hex } from "viem";
 import { RequireAccount, useAccount } from "@/account";
 import { useBalances, useChainEpisode } from "@/data/chain";
 import { useIndexedEpisode, usePlayerPositions } from "@/data/indexer";
-import { profitFromTrades, redeemableAmount } from "@/records/adapters";
+import { profitFromPosition, profitFromTrades, redeemableAmount } from "@/records/adapters";
 import { useEpisodeHoldings, useRedeem } from "@/records/hooks";
 import { useRecordTrades } from "@/records/indexer";
 import { proofExcerpt, useRevealedProofs } from "@/records/proofs";
@@ -64,7 +64,7 @@ function ResultsPage() {
       text: word.text,
       state: word.state,
       profit: position
-        ? position.cashOut - position.cashIn + position.redeemed + redeemable
+        ? profitFromPosition(position, redeemable)
         : profitFromTrades(fills, 0n, redeemable),
       trades: fills,
       accountingUnavailable,

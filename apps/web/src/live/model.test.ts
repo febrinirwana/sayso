@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   allowanceApproval,
+  cardPrice,
   driftDecision,
   liveBuyQuote,
   minOutput,
@@ -8,6 +9,31 @@ import {
   scheduleFlip,
   tradeTransition,
 } from "./model";
+import { bookCents } from "./readers";
+
+describe("card price", () => {
+  // Episode 9, BLOCK (word 49): bestBidAsk after the house pull, then after its 0.98 bid
+  // (block 69,309,287). The player's own buy printed the last trade at 51¢.
+  const EMPTY_BID = (1n << 256n) - 1n;
+  const pulled = { bid: bookCents(EMPTY_BID), ask: bookCents(0n) };
+  const houseBid = { bid: bookCents(980_000_000_000_000_000n), ask: bookCents(0n) };
+
+  it("never shows a pre-flag trade on a SAID card, only the house cash-out bid", () => {
+    expect(cardPrice("said", pulled, 51)).toBeNull();
+    expect(cardPrice("said", houseBid, 51)).toBe(98);
+    expect(cardPrice("said", undefined, 51)).toBeNull();
+  });
+  it("prices an open card at the ask, then the bid, then the last trade", () => {
+    expect(cardPrice("open", { bid: 49, ask: 51 }, 40)).toBe(51);
+    expect(cardPrice("open", { bid: 49, ask: null }, 40)).toBe(49);
+    expect(cardPrice("open", pulled, 40)).toBe(40);
+  });
+  it("pays out settled words regardless of the book", () => {
+    expect(cardPrice("yes", houseBid, 51)).toBe(100);
+    expect(cardPrice("no", houseBid, 51)).toBe(0);
+    expect(cardPrice("void", houseBid, 51)).toBe(50);
+  });
+});
 
 describe("presentation clock", () => {
   it("never presents a flag before its delayed spoken timestamp", () => {
@@ -79,5 +105,10 @@ describe("IOC guards", () => {
     expect(tradeTransition("sending", "filled")).toBe("filled");
     expect(tradeTransition("sending", "failed")).toBe("failed");
     expect(tradeTransition("failed", "sending")).toBe("sending");
+  });
+  it("resets a completed buy for cash out without interrupting a pending receipt", () => {
+    expect(tradeTransition("filled", "idle")).toBe("idle");
+    expect(tradeTransition("failed", "idle")).toBe("idle");
+    expect(tradeTransition("sending", "idle")).toBe("sending");
   });
 });

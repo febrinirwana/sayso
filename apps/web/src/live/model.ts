@@ -3,6 +3,7 @@ import type { WordState as ChainState } from "@/data/chain";
 import { buyQuote, type Side } from "@/episode/quote";
 import type { TicketStatus } from "@/episode/Ticket";
 import type { WordState } from "@/episode/WordCard";
+import type { BookQuote } from "./readers";
 
 export const PRESENTATION_DELAY_MS = 1_500;
 export function presentationState(
@@ -19,6 +20,23 @@ export function presentationState(
     nowMs >= startsAtMs + offsetMs + PRESENTATION_DELAY_MS
     ? "said"
     : "open";
+}
+
+/**
+ * A card's YES price in cents, or null when there is no honest one. Settled words pay out; a SAID
+ * word is worth the house cash-out bid alone, never a trade from before the flag; an open word
+ * shows the ask, then the bid, then the last trade.
+ */
+export function cardPrice(
+  state: WordState,
+  book: BookQuote | undefined,
+  lastYes: number | null,
+): number | null {
+  if (state === "yes") return 100;
+  if (state === "no") return 0;
+  if (state === "void") return 50;
+  if (state === "said") return book?.bid ?? null;
+  return book?.ask ?? book?.bid ?? lastYes;
 }
 
 /** Re-check studio time when the timer wakes, including background-tab delays and offset changes. */

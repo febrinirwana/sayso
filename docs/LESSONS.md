@@ -9,10 +9,20 @@ Newest on top. Each entry: root cause, then the durable rule.
 - **Cause:** The test config replaced only an inline `address: ...` scalar. Testnet deployment changed it to a multiline list and a nonzero creation block, leaving all ten block-1 synthetic handler scenarios unrouted in a clean Linux verification.
 - **Rule:** The simulation fixture must replace either address form and reset its start block to zero, without changing production filters or handler assertions. Run the full economic handler suite from generated clean-checkout dependencies after deployment config changes.
 
+### 2026/10/09 — Match received/spent cashflows at the consumer boundary
+
+- **Cause:** The live episode 12 buy/cash-out receipts and Envio position agreed, but Results interpreted `cashIn` as spending, reversed the profit sign and added `redeemed` again. Portfolio treated any zero-token history row as redeemed, even though the player had sold into a bid and CRE had never settled the word.
+- **Rule:** Follow ERD: `cashIn` is received AUSD and already includes redemptions; `cashOut` is spent AUSD. Profit is received minus spent plus unredeemed winning value. Use actual redemption totals for redemption labels, and regress both a real cash-out and partial/full redemption without double counting.
+
 ### 2026/10/09 — Initial funding is not an unattended operating budget
 
 - **Cause:** The initial budget assigned market creation to DEPLOYER as a one-time expense, but OPERATOR creates and lists six new books every episode. Live episode 11 billed 1.229528808 OPERATOR and 1.294168146 BOT MON; repeated integration runs depleted role-specific gas reserves despite a well-funded DRIP.
 - **Rule:** Budget recurring create/list and seed/cleanup separately from deployment, drip and CRE. Deduplicate receipt hashes across top-level actions and journal steps, use declared gas billing, and project the actual hourly/on-demand workload. Closing initial funding never proves judging-period runway; do not transfer between roles or disable the schedule without authorization.
+
+### 2026/10/09 — Bound the browser action, not only the entire test
+
+- **Cause:** A SAID event opened the ticket automatically; the live test clicked the card underneath that modal and waited for its 20-minute test timeout. The timeout hid a successful buy/flip behind a long stalled run.
+- **Rule:** Reuse the visible ticket, bound individual interactions and receipt waits, and persist partial evidence in `finally`. A successful account test or chain cash-out does not replace the live browser cash-out path.
 
 ### 2026/10/08 — Fit the house seed inside the pre-roll
 

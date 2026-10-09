@@ -37,6 +37,13 @@ export function profitFromTrades(
     redeemed + remainingValue,
   );
 }
+/** Envio cashIn includes sells, burns and redemptions; redeemed is a subtotal, not extra cash. */
+export function profitFromPosition(
+  position: { cashIn: bigint; cashOut: bigint },
+  remainingValue: bigint,
+): bigint {
+  return position.cashIn - position.cashOut + remainingValue;
+}
 export function averagePrice(
   trades: readonly { side: number; tokenAmount: bigint; ausdAmount: bigint }[],
   side: 0 | 2,

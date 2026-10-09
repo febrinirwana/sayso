@@ -407,6 +407,14 @@ function CashOutBody({
   bidCents: number | null | undefined;
   disabledReason: string | undefined;
 }) {
+  // A successful sell consumes both the bid and the player's holding. Receipt feedback belongs
+  // to the submitted order, not to the next book/position snapshot (episode 12 live proof).
+  if (status === "sending" || status === "filled")
+    return (
+      <ActionButton status={status} disabled onPress={() => onCashOut?.()}>
+        Cash out
+      </ActionButton>
+    );
   if (bidCents !== SAID_BID_CENTS)
     return (
       <p className="text-[15px] leading-6 text-ink-soft">

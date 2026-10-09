@@ -196,7 +196,7 @@ export function WordCard({
   return (
     <div
       ref={cardRef}
-      className="relative h-full min-h-0 w-full"
+      className="@container relative h-full min-h-0 w-full"
       style={{ zIndex: burst.show ? 20 : undefined }}
     >
       {/* One element type whether or not the card is pressable, so gaining or losing `onPress`
@@ -280,7 +280,7 @@ export function WordCard({
       </motion.div>
       <HoldingChip position={position} state={shown} />
       {shown === "open" ? <PriceDelta delta={pulse.delta} pulseKey={pulse.key} /> : null}
-      <ReactionBurst word={word} burstKey={burst.key} show={burst.show} />
+      <ReactionBurst word={word} burstKey={burst.key} show={burst.show} wordPx={size} />
     </div>
   );
 }

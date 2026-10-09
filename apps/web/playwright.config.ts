@@ -12,6 +12,8 @@ export default defineConfig({
     baseURL: `http://localhost:${port}`,
     channel: "msedge",
     viewport: { width: 412, height: 915 },
+    // An action that cannot happen (a covered card, a missing button) fails instead of hanging.
+    actionTimeout: 30_000,
     reducedMotion: "reduce",
     trace: "retain-on-failure",
   },

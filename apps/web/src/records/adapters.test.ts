@@ -3,6 +3,7 @@ import type { Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import {
   leaderboardRows,
+  profitFromPosition,
   profitFromTrades,
   redeemableAmount,
   redemptionAmounts,
@@ -35,6 +36,20 @@ it("accounts for buys, cash-outs, past redemption and remaining winning value", 
   ];
   expect(profitFromTrades(trades, 500_000n, 2_000_000n)).toBe(1_400_000n);
   expect(profitFromTrades([], 0n, 0n)).toBe(0n);
+});
+describe("indexed position profit", () => {
+  it.each([
+    [1_921_500n, 1_000_000n, 0n, 0n, 921_500n],
+    [2_000_000n, 1_000_000n, 2_000_000n, 0n, 1_000_000n],
+    [1_000_000n, 1_000_000n, 1_000_000n, 1_000_000n, 1_000_000n],
+    [0n, 1_000_000n, 0n, 0n, -1_000_000n],
+  ])(
+    "counts cash received %s minus cash spent %s without adding redeemed %s twice",
+    (cashIn, cashOut, redeemed, remainingValue, expected) => {
+      const position = { cashIn, cashOut, redeemed };
+      expect(profitFromPosition(position, remainingValue)).toBe(expected);
+    },
+  );
 });
 describe("revealed proof verification", () => {
   const clipId = `0x${"ab".repeat(32)}` as Hex;

@@ -31,6 +31,16 @@ type Evidence = {
     flip?: { msAfterBuyReceipt: number; clipSeconds: number | null; clipDurationSeconds: number };
     cashOutReceiptMs?: number;
   };
+  cashOut?: { cardLabel: string; ticketText: string };
+  video?: {
+    src: string;
+    readyState: number;
+    currentTime: number;
+    width: number;
+    height: number;
+    paused: boolean;
+    error: number | null;
+  };
   screenshots: string[];
   redeem: string;
 };
@@ -40,21 +50,6 @@ test.describe("live episode on Monad testnet", () => {
     process.env.SAYSO_E2E_LIVE !== "1",
     "Live path needs a running studio, funded drip and testnet; set SAYSO_E2E_LIVE=1 to run it.",
   );
-
-  test.beforeAll(async () => {
-    let response: Response;
-    try {
-      response = await fetch(STUDIO_HEALTH_URL, { signal: AbortSignal.timeout(5_000) });
-    } catch (cause) {
-      throw new Error(
-        `Studio precondition failed: GET ${STUDIO_HEALTH_URL} is unreachable (${cause instanceof Error ? cause.message : String(cause)}). Start the studio (bun run --cwd apps/studio dev) before SAYSO_E2E_LIVE=1.`,
-      );
-    }
-    if (!response.ok)
-      throw new Error(
-        `Studio precondition failed: GET ${STUDIO_HEALTH_URL} answered HTTP ${response.status}.`,
-      );
-  });
 
   test("join, drip, buy YES, see SAID, cash out, results, restore", async ({ page }) => {
     test.setTimeout(20 * 60_000);
@@ -70,6 +65,18 @@ test.describe("live episode on Monad testnet", () => {
       evidence.screenshots.push(await screenshot(page, `live-${name}`));
     };
     try {
+      let response: Response;
+      try {
+        response = await fetch(STUDIO_HEALTH_URL, { signal: AbortSignal.timeout(5_000) });
+      } catch (cause) {
+        throw new Error(
+          `Studio precondition failed: GET ${STUDIO_HEALTH_URL} is unreachable (${cause instanceof Error ? cause.message : String(cause)}). Start the studio before SAYSO_E2E_LIVE=1.`,
+        );
+      }
+      if (!response.ok)
+        throw new Error(
+          `Studio precondition failed: GET ${STUDIO_HEALTH_URL} answered HTTP ${response.status}.`,
+        );
       await addAuthenticator(page, { hasPrf: true });
       await joinWithPasskey(page, "/account");
       evidence.address = await readAddress(page);
@@ -134,15 +141,38 @@ test.describe("live episode on Monad testnet", () => {
       await expect(card).toHaveAttribute("aria-label", /you hold/, { timeout: 60_000 });
       const flip = await awaitSaid(page, card);
       evidence.timings.flip = { msAfterBuyReceipt: Date.now() - buyReceipt, ...flip };
+      evidence.video = await page.locator("video").evaluate((video: HTMLVideoElement) => ({
+        src: video.currentSrc,
+        readyState: video.readyState,
+        currentTime: video.currentTime,
+        width: video.videoWidth,
+        height: video.videoHeight,
+        paused: video.paused,
+        error: video.error?.code ?? null,
+      }));
       await shot("04-said");
 
-      // Cash out at the house SAID bid.
-      await card.click();
+      // Cash out at the house SAID bid. The buy's ticket can still be open over the board (a phone
+      // sheet covers the card); use it rather than clicking the card underneath.
       const cashOutTicket = page.getByRole("dialog", { name: `Ticket: ${word}` });
+      if (!(await cashOutTicket.isVisible())) await card.click();
       const cashOut = cashOutTicket.getByRole("button", { name: /^Cash out ·/ });
       await expect(cashOut, "house SAID bid never reached the book").toBeEnabled({
         timeout: 60_000,
       });
+      await expect(card).toHaveAttribute(
+        "aria-label",
+        new RegExp(`^${escapeRegExp(word)}, 98¢, said`),
+      );
+      await expect(cashOutTicket.getByText(/YES × 98¢/)).toBeVisible();
+      evidence.cashOut = {
+        cardLabel: (await card.getAttribute("aria-label")) ?? "",
+        ticketText: await cashOutTicket.innerText(),
+      };
+      await shot("04b-cashout-ready-412");
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await shot("04c-cashout-ready-1440");
+      await page.setViewportSize({ width: 412, height: 915 });
       const cashOutStarted = Date.now();
       await cashOut.click();
       await awaitReceipt(cashOutTicket, "cash-out", evidence, started);

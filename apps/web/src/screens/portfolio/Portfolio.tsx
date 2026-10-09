@@ -48,7 +48,8 @@ export function Portfolio({
   const valueUnavailable = positions.some(
     (position) =>
       position.currentYesPriceBps === null &&
-      (position.word.state === "Open" || position.word.state === "SaidPending"),
+      (position.word.state === "Open" || position.word.state === "SaidPending") &&
+      (position.yes > 0n || position.no > 0n),
   );
   return (
     // Missing book prices stay unavailable rather than receiving a synthetic quote.
@@ -304,11 +305,12 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-headline text-xl">{word.text}</h3>
           <p className="text-sm text-ink-soft">
-            {amount(position.redeemed)} AUSD redeemed <b className="text-[9px]">TESTNET</b>
+            {amount(position.redeemed > 0n ? position.redeemed : position.cashIn)} AUSD{" "}
+            {position.redeemed > 0n ? "redeemed" : "received"} <b className="text-[9px]">TESTNET</b>
           </p>
           <span className="inline-flex items-center gap-1 text-xs font-bold text-gain">
             <CheckCircle2 size={16} />
-            Redeemed
+            {position.redeemed > 0n ? "Redeemed" : "Position closed"}
           </span>
         </div>
       )}

@@ -157,11 +157,19 @@ export async function readBestBidAsk(market: Address): Promise<BestBidAsk> {
   // Raw book units, not fabricated cents. A future ticket must apply this book's price precision.
   return { bidRaw, askRaw };
 }
-export function useBestBidAsk(market?: Address | null) {
-  return useQuery({
-    queryKey: ["chain", "best-bid-ask", market],
-    queryFn: () => readBestBidAsk(market as Address),
-    enabled: !!market,
-    refetchInterval: 1_000,
+/**
+ * Every book of an episode in one `eth_call`. Six separate 1 s polls, next to the studio and an
+ * RPC-sourced indexer on the same IP, trip the public RPC's 15 requests/s limit.
+ */
+export async function readBooks(markets: readonly Address[]): Promise<BestBidAsk[]> {
+  const books = await publicClient.multicall({
+    contracts: markets.map((address) => ({
+      address,
+      abi: orderBookAbi,
+      functionName: "bestBidAsk" as const,
+    })),
+    allowFailure: false,
+    deployless: true,
   });
+  return books.map(([bidRaw, askRaw]) => ({ bidRaw, askRaw }));
 }

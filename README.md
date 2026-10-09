@@ -5,24 +5,24 @@
 <h1 align="center">SAYSO</h1>
 
 <p align="center"><b>Bet on the words before they're spoken.</b><br/>
-Six words. One clip. Every word is its own market, and it flips to <b>SAID</b> within one Monad block of being spoken.</p>
+Six words. One clip. Every word is its own market, and a spoken word flips to <b>SAID</b> during playback.</p>
 
 <p align="center"><b>TESTNET ONLY</b> · Monad testnet 10143 · test AUSD · no real money</p>
 
 ---
 
-SAYSO runs word markets on replayed video clips. Before playback, the board shows six words that might be said. Each word trades between 0 and 1 AUSD on its own Kuru order book. When a word is spoken, its card flips to SAID within about one block, and the house bids 0.98 so you can cash out right away. When the clip ends, a Chainlink CRE workflow checks two transcripts that were committed onchain *before the first trade* and settles every word. Players join with a passkey through Mera: no wallet app, no seed phrase.
+SAYSO runs word markets on replayed video clips. Before playback, the board shows six words that might be said. Each word trades between 0 and 1 AUSD on its own Kuru order book. When a word is spoken, the studio flags it onchain and its card flips to SAID; the house then bids 0.98 for an immediate cash-out. The settlement workflow checks two transcripts committed onchain *before the first trade*. Only Chainlink CRE can finalize outcomes; authenticated live settlement is still pending, as shown below. Players join with a passkey through Mera: no wallet app, no seed phrase.
 
 ## Status
 
-The status as of 8 October 2026. [BUILD-PLAN](docs/technical/BUILD-PLAN.md) has the full task list, with the proof for each task.
+The status as of 9 October 2026. [BUILD-PLAN](docs/technical/BUILD-PLAN.md) has the full task list, with the proof for each task.
 
 | Area | State | Evidence |
 |---|---|---|
 | Contracts | Deployed on Monad testnet; the source is an exact match on Sourcify | [Addresses](#monad-testnet-addresses) |
-| Live episodes | The studio has created episodes 1–5 on testnet. Episodes 1 and 2 completed create, list, house seed, `flagSaid`, evidence and close | Transactions below |
+| Live episodes | Six books seed within pre-roll; episodes 11/12 paid 0.98 cash-outs. Episode 12 flags measured 1,065/669 ms, so the strict <1 s target missed once | [Live Kuru receipts](docs/technical/INTEGRATIONS.md#2-kuru-order-books); timing B14 and full browser path 7.7 remain open |
 | Passkey accounts | Join, clear all storage, then restore the same address. Proven in Edge with a PRF virtual authenticator | BUILD-PLAN 7.3 |
-| Web screens | Landing, Join, Arena, Episode, Ticket, Results, Portfolio, Leaderboard and Account all read the deployed contract and the indexer | BUILD-PLAN 7.1–7.6 |
+| Web screens | Live Arena start, buy, SAID and cash-out reached testnet in Edge. The full run failed afterward because consumed liquidity hid the receipt feedback. Feedback and cashflow fixes passed independent rendered/regression proof; the corrected combined run remains pending. Results/Portfolio redemption awaits CRE | BUILD-PLAN 7.1–7.7 |
 | CRE settlement | Workflow built and unit-tested. The simulation run is waiting on CRE CLI login | [BLOCKERS](docs/BLOCKERS.md) B02 |
 | Public URL | Waiting on the host and the domain | BLOCKERS B05, B06 |
 
@@ -40,11 +40,13 @@ sequenceDiagram
   Note over M: both transcript Merkle roots are fixed before any trade
   S->>K: house seeds a YES/AUSD ladder per word
   P->>M: buyYes / buyNo (immediate-or-cancel through Kuru)
-  Note over S: clip plays; the word is spoken at t
-  S->>M: flagSaid(word) at about t + one block
-  M-->>P: card flips to SAID at t + 1.5 s presentation delay
-  S->>K: pull quotes, bid 0.98
-  P->>K: cash out YES at 0.98
+  Note over S: clip plays; the word will be spoken at t
+  S->>K: pull quotes at t - 400 ms
+  S->>M: flagSaid(word) at t
+  M-->>P: card flips at t + 1.5 s presentation delay
+  S->>K: after pull receipt and chain SAID, bid 0.98
+  P->>M: sellYes (cash out)
+  M->>K: immediate-or-cancel sale into the 0.98 bid
   S->>M: markEvidence(flagged words) once their chunks are revealed
   M-->>C: EvidenceReady (log trigger)
   C->>S: fetch the revealed chunks from both engines
@@ -58,12 +60,12 @@ sequenceDiagram
 ```
 
 - **Nothing after the first trade can change an outcome.** Both transcripts are chunked, Merkle-committed and pinned onchain at `createEpisode`. The reveal API serves a chunk only after its end plus 1.5 s plus a margin, and CRE accepts only chunks whose leaf and proof match the committed roots.
-- **SAID is fast; YES is final.** The operator flags a word within about one block. Only the CRE forwarder can settle a word. The owner's only override is a void, allowed 24 hours after close if no report arrived.
+- **SAID is fast; YES is final.** Episode 12 flag receipts measured 1,065/669 ms; the strict <1 s target is not yet consistently met. Only the CRE forwarder can settle a word. The owner's only override is a void, allowed 24 hours after close if no report arrived.
 - **The house never quotes from the transcript.** It seeds the same ladder on every word before playback. When a word is spoken, it pulls that word's quotes and bids 0.98 for its YES. Players send immediate-or-cancel orders only.
 
 ## Why Monad
 
-- **A word flips in one block.** Blocks of about 400 ms let the onchain `WordFlagged` land inside the 1.5 s presentation delay. On testnet a SAID card is backed by a mined transaction, not by a server promise.
+- **Fast flags fit the playback delay.** Blocks of about 400 ms and a 1.5 s presentation delay leave room for a mined `WordFlagged` before its visible card flip. The episode 12 receipts arrived in 1,065/669 ms, not a guaranteed single block. On testnet a SAID card is backed by a mined transaction, not by a server promise.
 - **One order book per word, per episode.** Each episode lists six Kuru YES/AUSD markets. Cheap creation and matching make a market per spoken word practical.
 - **Sequenced senders.** Every transaction carries an explicit gas limit taken from a measured table ([`packages/core/src/gas.ts`](packages/core/src/gas.ts)), because Monad bills the gas limit. Each sender waits for a later block before it sends again.
 
@@ -144,9 +146,10 @@ bun --env-file=<studio.env> apps/studio/src/main.ts   # RPC_URL, CHAIN_ID=10143,
 
 ## Build provenance and AI disclosure
 
-- The whole codebase was written during the Metropolis window (first commit 5 October 2026). The history is in this repo.
-- **AI tools.** Code, tests and docs were written with AI coding agents: Anthropic Claude through the omp CLI, and OpenAI GPT executors. Every change was reviewed and committed by the author. Each commit message records the command that proved it.
+- SAYSO development commits begin on 5 October 2026. This is not a claim that every dependency, mesh or supplied artwork was created during the hackathon.
+- **AI tools.** Code, tests and docs were developed with Anthropic Claude and OpenAI GPT coding agents through omp. Commit messages record verification evidence; open acceptance criteria remain in BUILD-PLAN.
 - **Vendored code.** Chainlink `ReceiverTemplate`/`IReceiver` ([`contracts/src/vendor/chainlink`](contracts/src/vendor/chainlink)), OpenZeppelin and forge-std (pinned through Soldeer), and the Kuru interfaces/ABIs.
+- **Reused visuals.** The logo and voxel artwork were supplied by the developer. Decorative voxel mesh work was adapted from the existing bloop.tip reference. These assets are disclosed as reused, not original hackathon implementation.
 - **Sound effects** were generated on the ElevenLabs free plan. Sound effects: elevenlabs.io.
 - **Speech models**: whisper.cpp `ggml-base.en` and Vosk `vosk-model-en-us-0.22`, both run offline.
 

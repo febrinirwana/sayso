@@ -20,6 +20,7 @@ import type { TicketStatus } from "@/episode/Ticket";
 import { publicClient } from "@/lib/chain";
 import {
   allowanceApproval,
+  cardPrice,
   liveBuyQuote,
   minOutput,
   PRESENTATION_DELAY_MS,
@@ -116,14 +117,7 @@ export function useLiveEpisode(id: number) {
         /* Empty or endpoint execution prices have no tradable tick. */
       }
     }
-    const price =
-      state === "yes"
-        ? 100
-        : state === "no"
-          ? 0
-          : state === "void"
-            ? 50
-            : (books[i]?.ask ?? books[i]?.bid ?? lastYes);
+    const price = cardPrice(state, books[i], lastYes);
     const holding = positions.data?.find((p) => p.wordId === word.id);
     const position =
       holding && (holding.yes > 0n || holding.no > 0n)
@@ -152,6 +146,18 @@ export function useLiveEpisode(id: number) {
   const word = words[index];
   const book = books[index];
   const holding = positions.data?.find((p) => p.wordId === selected);
+  // A ticket left open across the SAID flip is a new ticket: the buy's "Filled!" must not stand in
+  // for, and disable, the Cash out button.
+  const ticketState = cards[index]?.state;
+  const [shownTicketState, setShownTicketState] = useState(ticketState);
+  if (!busy.current && ticketState !== shownTicketState) {
+    // If SAID arrived during signing, defer this reset until the receipt has completed.
+    // Consuming the state change while busy left the buy's Filled button on the cash-out ticket.
+    setShownTicketState(ticketState);
+    setStatus((s) => tradeTransition(s, "idle"));
+    setHash(undefined);
+    setError(undefined);
+  }
   const disabledReason = !word
     ? undefined
     : word.state === "Yes" ||
@@ -262,11 +268,10 @@ export function useLiveEpisode(id: number) {
       )
         throw new Error("The IOC order did not fill.");
       setStatus((s) => tradeTransition(s, "filled"));
-      await Promise.all(
-        ["chain", "live", "indexer"].map((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] }),
-        ),
-      );
+      // Refresh in the background: awaiting every read model here kept `busy` set, which swallowed
+      // the player's Close and left this ticket over the board.
+      for (const key of ["chain", "live", "indexer"])
+        void queryClient.invalidateQueries({ queryKey: [key] });
     } catch (cause) {
       if (cause instanceof TransactionRevertedError) setHash(cause.hash);
       setStatus((s) => tradeTransition(s, "failed"));

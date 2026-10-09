@@ -1,6 +1,6 @@
 import { Clock3 } from "lucide-react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { VoxelName } from "@/assets/voxels/names";
 import { useVideoSync, type VideoSync } from "@/live/useVideoSync";
 import { duck, play } from "@/sound";
@@ -46,6 +46,10 @@ export function VideoStage({
   sync,
 }: VideoStageProps) {
   const { video, muted, blocked, failed, setFailed, unmute } = useVideoSync(src, sync, live);
+  // The src whose first frame has decoded. Until then (slow network, a browser without the codec,
+  // a missing file) the stage shows its poster stand instead of an empty ink block.
+  const [framed, setFramed] = useState<string>();
+  const showsFrame = !!src && framed === src && !failed;
 
   const moment = useRef<StageMoment | null>(null);
   useEffect(() => {
@@ -61,27 +65,28 @@ export function VideoStage({
   return (
     <section
       aria-label="Clip"
-      className={`relative aspect-video w-full overflow-hidden border-b-2 border-ink md:rounded-card md:border-2 md:shadow-sticker-lg ${src || poster ? "bg-ink" : "bg-sky-tint"} ${className ?? ""}`}
+      className={`relative aspect-video w-full overflow-hidden border-b-2 border-ink md:rounded-card md:border-2 md:shadow-sticker-lg ${showsFrame || poster ? "bg-ink" : "bg-sky-tint"} ${className ?? ""}`}
     >
+      {showsFrame ? null : poster ? (
+        <img src={poster} alt="" className="absolute inset-0 size-full object-cover" />
+      ) : (
+        <PosterStand live={live && !failed} />
+      )}
       {src ? (
         // biome-ignore lint/a11y/useMediaCaption: a caption track is the transcript, served ahead of playback it leaks every outcome (CLAUDE.md rule 2).
         <video
           ref={video}
           src={src}
-          poster={poster}
           playsInline
           preload="auto"
-          className="absolute inset-0 size-full object-cover"
+          className={`absolute inset-0 size-full object-cover ${showsFrame ? "" : "opacity-0"}`}
+          onLoadedData={() => setFramed(src)}
           onPlay={() => duck(!video.current?.muted)}
           onPause={() => duck(false)}
           onEnded={() => duck(false)}
           onError={() => setFailed(true)}
         />
-      ) : poster ? (
-        <img src={poster} alt="" className="absolute inset-0 size-full object-cover" />
-      ) : (
-        <PosterStand live={live} />
-      )}
+      ) : null}
       {children}
       {src && (muted || blocked) && !ended ? (
         <button
