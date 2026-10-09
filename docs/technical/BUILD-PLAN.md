@@ -17,20 +17,20 @@ The live tracker for the build: every phase, every task, what proves it and wher
 |---|---|---|---|---|
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DONE | 10/10 | none | none |
-| Spikes | DOING | 3/6 | S2+S3 live buy and 0.98 cash-out proved on episode 11; next S4 | CRE login (B02); phones/domain (S5); hosting (S6) |
+| Spikes | DOING | 3/6 | S4 report path proved on episode 12 (only the owner's deploy-access request remains); next S5/S6 | phones/domain (S5); hosting (S6) |
 | 2 Contracts | DOING | 10/11 | 2.9 Monadscan verification (deployed, MonadVision verified) | Etherscan API key |
 | 3 Transcription | DOING | 2/3 | 3.3 original rights-cleared English clip library | B07; Indonesian/bilingual clips additionally B10 |
-| 4 CRE resolver | DOING | 2/3 | 4.3 authenticated staged simulation, then broadcast | CRE login (B02), reveal URL/report gas (B03) |
+| 4 CRE resolver | DONE | 3/3 | none; production reveal URL set at deploy | reveal URL waits on hosting (B03/B05) |
 | 5 Studio | DOING | 4/8 | Chain cash-out proved; fresh combined run missed <1 s flag target once (1,065 ms) | RPC timing (B14), CRE recycling (B02/B03), hosting (B05) |
 | 6 Indexer | DOING | 1/3 | Local RPC sync proved; tracked HyperSync and public hosting remain | HyperSync token (B13), hosting (B05/B09) |
-| 7 Web | DOING | 5/8 | Episode 12 bought and cashed out; receipt/accounting fixes independently verified, combined rerun pending | Full rerun needs OPERATOR refill (B15); redeem needs CRE (B02); domain (B06) |
+| 7 Web | DOING | 5/8 | Corrected full browser path, now including CRE settlement and redeem | domain (B06) for real-device passkeys |
 | 8 Ship | DOING | 0/5 | README draft committed; final links/media and deployment remain | VPS, domain, team registration, settled demo |
 
 **Never cut** (PRD section 10): a word is said → its card flips SAID → a player cashes out or holds → CRE settles → the player redeems AUSD, on camera, every transaction on the testnet explorer.
 
-**Implementation is not acceptance.** An open box can have committed code and passing local checks while its required live proof is still missing. Funding gates B01/B04 are closed; neither funded-wallet availability nor contract deployment is the current settlement blocker.
+**Implementation is not acceptance.** An open box can have committed code and passing local checks while its required live proof is still missing. Funding gates B01/B04 are closed. CRE settlement is live-proved in simulation mode (episode 12); DON deployment still needs deploy access.
 
-**Latest integrated source check:** WSL `bun run verify` passed all workspace typechecks and 648 tests (one opt-in fork test skipped), with zero lint errors and 71 warnings. Final web production build passed; Vite still reports the large decorative 3D chunk warning. These checks do not close the failed combined browser run, the <1 s timing target or authenticated CRE settlement.
+**Latest integrated source check:** WSL `bun run verify` passed all workspace typechecks and 648 tests (one opt-in fork test skipped), with zero lint errors and 71 warnings. Final web production build passed; Vite still reports the large decorative 3D chunk warning. These checks do not close the failed combined browser run or the <1 s timing target.
 
 ## Schedule (WIB)
 
@@ -85,10 +85,11 @@ Each spike answers one question with on-chain or on-device evidence, then writes
   - [x] fork probe drafted: `spikes\s3\test\KuruProbe.t.sol` (149 lines) deploys a token and its book via `Router.deployProxy(0, …)`
   - [x] probe compiles and the fork run is green, including `test_ausdQuote` — proof: `forge test --via-ir --fork-url https://testnet-rpc.monad.xyz -vv` → 2 passed (2026-10-05); findings in INTEGRATIONS section 2 · `Stack too deep` only without `--via-ir`
   - [x] live run from BOT: provision a flip ladder, contract-side `placeAndExecuteMarketBuy/Sell` with `isMargin = false` — proof: `3bd5d1c` seeded all six books in 27 s on episode 7; episode 11 buy `0x03d14b142f6f22f1dc25cdb65260e841debdff7bb0852a8f895968c34da3a499` (block 69,319,428, status 1) debited the player's wallet 1,000,000 AUSD base units and delivered 1,960,784 YES; sell `0x8327ccc2ba13368bdc6d13e2010c2948fa0cd07aa74c47397355f5f0ab461eb8` (block 69,319,623, status 1) sold those YES and paid the player's wallet 1,921,500 AUSD at the 0.98 bid after quote rounding. Both receipts include the live Kuru `Trade` topic and the contract `Traded` event; fresh receipt reads confirmed these amounts on 2026-10-09. This is cash-out, not CRE settlement.
-- [ ] **S4** CRE on Monad testnet · BLOCKED (CLI installed; account authentication pending)
-  - [ ] CRE CLI 1.36.0 installed; `cre login`; `cre account access` requested — proof: `cre version`, access request id
-  - [ ] `cre workflow supported-chains --output json` lists `monad-testnet`
-  - [ ] a minimal `ReceiverTemplate` consumer receives a report via `simulate --broadcast` — proof: report tx hash and decoded event
+- [ ] **S4** CRE on Monad testnet · report path PROVED; only the deploy-access request (owner action, not needed for simulation) remains
+  - [x] CRE CLI 1.36.0 installed; `cre login` — proof: `cre whoami` 2026-10-09 → org `org_YpkVpkPkyx9lDfpX`, Deploy Access "Not enabled"
+  - [ ] `cre account access` requested — proof: access request id (owner runs it in a local terminal)
+  - [x] `cre workflow supported-chains --output json` lists `monad-testnet` — selector 2183018362218727504, forwarder/mock match INTEGRATIONS section 3
+  - [x] the real `SaysoMarkets` receiver gets a report via `simulate --broadcast` — proof: `0x216b9f1434c1239ed03f68eb2cb6fc30d4c704c90b98712434c7b681195e2348` status 1, `WordResolved(12, 68, Yes)`
 - [ ] **S5** Mera PRF at the real domain on iOS Safari and Android Chrome (runs in Phase 7) — proof: create, sign, clear storage, restore the same address on both
 - [ ] **S6** Envio hosting choice (runs in Phase 6) — proof: GraphQL query answered from the chosen host
 - [x] **S7** Engine agreement — proof: `76f9a65` · three NASA clips, agreement 89–95 %, median skew 90–290 ms, p99 ≤ 1,220 ms; keep 1,500 ms [I]; Vosk pinned to 0.3.45 (0.3.50 has no wheel)
@@ -132,7 +133,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 - [x] **4.1** `cre/resolver` TypeScript workflow on SDK 1.23.0, `monad-testnet` target, strict config for the `SaysoMarkets` address, reveal API base URL and report gas — built by hand because `cre init` needs login — proof: `bun x --no-install cre-compile src/main.ts <tmp>.wasm` builds the WASM with no CRE auth, also from a clean `bun install --frozen-lockfile` (4,244,093 bytes, `\0asm` header); `cre workflow simulate` itself moves to 4.3
 - [x] **4.2** Handler 0 (`EvidenceReady`) and handler 1 (`EpisodeClosed`) exactly as the `cre-resolver` skill; any missing, malformed or tampered chunk aborts the whole report — proof: `bun run --cwd cre/resolver test` 19/19 on core-built fixtures (agree → Yes, false flag → No at close, one engine only → No, >1,500 ms apart → No, tampered token/leaf/root → no report, missing chunk → no report, wrong clip/episode rejected, report ABI decodes as `(uint32,uint256[],uint8[],bytes32)` with Yes = 2, No = 3); root `bun run verify` 215/215
-- [ ] **4.3** Simulation without broadcast, then `--broadcast` on a staged episode — proof: report tx hash, `WordResolved` events, latency from close to last resolution
+- [x] **4.3** Simulation without broadcast, then `--broadcast` on a staged episode — proof: episode 12 dry run, then evidence report `0x216b9f14…2348` and runner close report `0xc3d77d95…dba6` (both status 1) resolved 68/67 Yes and 69–72 No through the simulation forwarder; close → last resolution 63 min only because CRE login arrived late (runner run itself 33 s); tampered A/0 under the real CLI → no report. Details: INTEGRATIONS section 3
 
 **Acceptance:** a staged episode settles every word through the simulation forwarder; tampered data produces no report.
 

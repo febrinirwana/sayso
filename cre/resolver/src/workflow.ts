@@ -18,33 +18,17 @@ import {
 } from "@chainlink/cre-sdk";
 import { saysoMarketsAbi } from "@sayso/core";
 import {
-  type Address,
   decodeEventLog,
   decodeFunctionResult,
   encodeFunctionData,
   type Hex,
   hexToString,
-  isAddress,
   toEventSelector,
   zeroAddress,
 } from "viem";
-import { z } from "zod";
+import type { Config } from "./config.ts";
 import { chunkSchema, encodeReport } from "./decide.ts";
 import { type ResolverIO, resolve } from "./resolve.ts";
-
-export const configSchema = z.object({
-  chainSelectorName: z.literal("monad-testnet"),
-  saysoMarkets: z
-    .string()
-    .refine((value) => isAddress(value) && value.toLowerCase() !== zeroAddress)
-    .transform((value) => value as Address),
-  revealApiBaseUrl: z.url(),
-  reportGasLimit: z
-    .string()
-    .regex(/^[1-9]\d*$/)
-    .refine((value) => BigInt(value) <= 0xffff_ffff_ffff_ffffn),
-});
-export type Config = z.infer<typeof configSchema>;
 
 // Consensus operates on schema-normalized JSON, never on arbitrary response objects.
 const fetchChunk = (sender: HTTPSendRequester, url: string): string => {

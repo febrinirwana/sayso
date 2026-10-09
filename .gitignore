@@ -27,6 +27,7 @@ indexer/.envio/
 
 # cre
 cre/**/.cre_build_tmp/
+cre/**/.cre_build_tmp.js
 cre/**/tmp.wasm
 
 # studio runtime data
