@@ -17,10 +17,11 @@ ExecStart=/usr/bin/env STUDIO_BEHIND_CADDY=true PORT=3001 STUDIO_DATA_DIR=/var/l
 Restart=on-failure
 RestartSec=5
 KillSignal=SIGTERM
-# Includes CRE children; do not increase these on the shared VPS without a load proof.
-MemoryHigh=160M
-MemoryMax=192M
-MemorySwapMax=0
+# Includes CRE children. Measured 2026-10-09 (Windows working set, episode 13): studio 158 MiB +
+# CRE simulate 142 MiB = 272 MiB peak. Swap absorbs a brief spike instead of an OOM kill mid-report.
+MemoryHigh=288M
+MemoryMax=320M
+MemorySwapMax=256M
 CPUQuota=75%
 TasksMax=64
 TimeoutStopSec=180

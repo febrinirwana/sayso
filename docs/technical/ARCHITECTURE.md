@@ -231,7 +231,7 @@ No ethers: Kuru's published SDK depends on ethers v5, so only its ABIs are vendo
 | Piece | Where | Notes |
 |---|---|---|
 | `apps/web` | Vercel Hobby static build at a permanent `<project>.vercel.app` host (`apps/web/vercel.json`) | That host is the passkey relying-party ID and must never change after the first real passkey |
-| `apps/studio` | Bun under systemd on the shared VPS, `127.0.0.1:3001`, behind a SAYSO-only Caddy gateway and the VPS's existing HTTPS Caddy | Must run 24/7 through judging (14 to 27 Oct 2026); `MemoryMax=192M` including CRE children |
+| `apps/studio` | Bun under systemd on the shared VPS, `127.0.0.1:3001`, behind a SAYSO-only Caddy gateway and the VPS's existing HTTPS Caddy | Must run 24/7 through judging (14 to 27 Oct 2026); `MemoryMax=320M` including CRE children (measured peak 272 MiB) |
 | Clip media, manifests, transcripts | Private studio data in `/var/lib/sayso`; explicitly published MP4s in `/srv/sayso/media` | The gateway never mounts the studio tree; chunks public only through the reveal API |
 | Indexer | Envio hosted (Development tier) from `indexer/`; VPS compose fallback `deploy/indexer.compose.yaml` | Spike S6; hosted Development deployments last 30 days, so deploy on or after 12 Oct to cover judging |
 | CRE | Deployed DON workflow, else studio-run simulation | Deploy access requested with `cre account access` |
@@ -252,7 +252,7 @@ flowchart LR
   P[Phone] -->|HTTPS| V[Vercel: apps/web]
   P -->|HTTPS API, SSE, media| C[vps-caddy-1, shared]
   C -->|172.18.0.1:13001| G[SAYSO gateway Caddy, 64 MiB]
-  G -->|127.0.0.1:3001| S[studio systemd, 192 MiB]
+  G -->|127.0.0.1:3001| S[studio systemd, 320 MiB]
   G -->|file_server, ranges| M[/srv/sayso/media/]
   S --> D[(/var/lib/sayso: SQLite, clips, resolver)]
 ```
@@ -266,7 +266,7 @@ flowchart LR
 | `/var/lib/sayso/resolver` | Writable workflow copy with `deploy/studio.resolver.tsconfig.json` as `tsconfig.json`; `node_modules` symlinks into the release |
 | `/srv/sayso/media` | Published MP4s only, named `<0x-lowercase-64-hex-clip-id>.mp4`, each checked against its committed `media_sha256` |
 
-`deploy/sayso-studio.service` runs Bun as the dedicated `sayso` account with private state, read-only system/home, no capabilities, `MemoryMax=192M`, `CPUQuota=75%` and a 180-second shutdown drain. `deploy/studio.compose.yaml` runs the gateway (`deploy/studio.gateway.Caddyfile`) with host networking bound only to the Docker bridge address. `deploy/Caddyfile` is the one site block appended to the shared Caddyfile after `caddy validate` inside the running container; the studio hostname defaults to `sayso-studio.43-129-38-115.nip.io` (no domain purchase). `STUDIO_WEB_ORIGINS` lists the exact web origins allowed by CORS, including SSE.
+`deploy/sayso-studio.service` runs Bun as the dedicated `sayso` account with private state, read-only system/home, no capabilities, `MemoryMax=320M` (with up to 256 MiB swap for the CRE spike), `CPUQuota=75%` and a 180-second shutdown drain. `deploy/studio.compose.yaml` runs the gateway (`deploy/studio.gateway.Caddyfile`) with host networking bound only to the Docker bridge address. `deploy/Caddyfile` is the one site block appended to the shared Caddyfile after `caddy validate` inside the running container; the studio hostname defaults to `sayso-studio.43-129-38-115.nip.io` (no domain purchase). `STUDIO_WEB_ORIGINS` lists the exact web origins allowed by CORS, including SSE.
 
 **Proxy boundary:** direct mode ignores identity headers. `STUDIO_BEHIND_CADDY=true` binds Bun to `127.0.0.1` and requires one valid `X-Sayso-Client-IP` from a loopback peer; missing/malformed identity returns 400. The shared Caddy overwrites that header and `X-Forwarded-For` with its socket peer; the gateway admits only the shared Caddy's container IP and copies the sanitized header upstream, so arbitrary forwarding headers do not bypass IP limits. Recreating the shared Caddy can change its IP; the gateway then fails closed with 403 until `SAYSO_CADDY_IP` is updated. Do not add a CDN/remote proxy without revisiting the boundary. API, SSE and reveal responses are `no-store`; SSE flushes immediately. `/media/*` accepts only the exact opaque MP4 path; JSON/directories are 404.
 

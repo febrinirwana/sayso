@@ -24,13 +24,13 @@ Recommend `SAYSO_STUDIO_HOST=sayso-studio.43-129-38-115.nip.io`, rendered into t
 
 | Incremental allocation | Hard cap / reserve |
 |---|---:|
-| Studio plus ALL CRE/compiler descendants (systemd MemoryMax) | 192 MiB |
+| Studio plus ALL CRE/compiler descendants (systemd MemoryMax) | 320 MiB |
 | SAYSO gateway including tmpfs (Docker mem_limit) | 64 MiB |
 | Existing Caddy reload/certificate transient reserve [I] | 32 MiB |
-| Remaining conservative headroom | 207 MiB |
+| Remaining conservative headroom | 79 MiB |
 | Total | 495 MiB |
 
-No new swap allowance. Studio MemoryHigh is 160 MiB, CPU cap 75% of one CPU; gateway cap is 10%. Build/install Linux dependencies locally in WSL, not on the 2-vCPU shared host. Use hosted Envio; this table does NOT reserve for its VPS fallback. [U] A real CRE compile/simulation plus concurrent playback must fit the 192 MiB service cap; configuration arithmetic is not measured runtime proof. If OOM/throttling breaks settlement or flag latency, stop only SAYSO and move it to a larger host; do not raise caps or evict another project silently. Recheck free RAM/disk before starting, and defer when available RAM is below 495 MiB.
+Measured [V: 2026-10-09 local episode 13, Windows working set sampled every 250 ms]: the studio peaked at 158 MiB and a CRE simulate run (CLI plus its compile step) at 142 MiB, 272 MiB together; idle studio ≈ 110–160 MiB. Linux RSS may differ [I], so the cap is 320 MiB with `MemoryHigh=288M` and up to 256 MiB of the existing swap (`MemorySwapMax`), which absorbs the ~30–90 s CRE spike instead of an OOM kill mid-report. CPU cap is 75% of one CPU; gateway cap is 10%. Build/install Linux dependencies locally in WSL, not on the 2-vCPU shared host. Use hosted Envio; this table does NOT reserve for its VPS fallback. After deployment, read `systemctl show sayso-studio -p MemoryPeak` across one settled episode; if it nears the cap or flags slow down, stop only SAYSO and move it to a larger host; do not raise caps or evict another project silently. Recheck free RAM/disk before starting, and defer when available RAM is below 495 MiB.
 
 ## Ordered deployment
 
@@ -249,13 +249,13 @@ curl --fail --silent --show-error -D - -o /dev/null -H 'Range: bytes=0-1023' "ht
 for path in /media/clip.json /media/flag-plan.json /media/ /studio.sqlite /clips/ /resolver/; do curl --silent --output /dev/null --write-out '%{http_code}\n' "https://$SAYSO_STUDIO_HOST$path"; done
 ```
 
-Before sharing the URL with judges, select a real evidence trigger from the migrated studio/chain. Stop the writer only after its episode/CRE work drains. The smoke runs a temporary HTTP studio with all writer keys disabled and the real CLI together inside ONE 192 MiB transient cgroup; raw output is discarded. The transaction/log index is public, never a fabricated receipt.
+Before sharing the URL with judges, select a real evidence trigger from the migrated studio/chain. Stop the writer only after its episode/CRE work drains. The smoke runs a temporary HTTP studio with all writer keys disabled and the real CLI together inside ONE transient cgroup with the service's caps; raw output is discarded. The transaction/log index is public, never a fabricated receipt.
 
 ```sh
 TRIGGER_TX='REPLACE_WITH_REAL_TESTNET_EVIDENCE_TX'
 TRIGGER_LOG_INDEX='REPLACE_WITH_ITS_RECEIPT_LOG_INDEX'
 sudo systemctl stop sayso-studio
-sudo systemd-run --wait --collect --unit=sayso-cre-smoke -p User=sayso -p WorkingDirectory=/opt/sayso/current -p EnvironmentFile=/etc/sayso/studio.env -p Environment=HOME=/var/lib/sayso -p Environment=PATH=/opt/sayso/bin:/usr/local/bin:/usr/bin:/bin -p MemoryMax=192M -p MemorySwapMax=0 -p CPUQuota=75% -p StandardOutput=null -p StandardError=null /bin/bash -c '
+sudo systemd-run --wait --collect --unit=sayso-cre-smoke -p User=sayso -p WorkingDirectory=/opt/sayso/current -p EnvironmentFile=/etc/sayso/studio.env -p Environment=HOME=/var/lib/sayso -p Environment=PATH=/opt/sayso/bin:/usr/local/bin:/usr/bin:/bin -p MemoryHigh=288M -p MemoryMax=320M -p MemorySwapMax=256M -p CPUQuota=75% -p StandardOutput=null -p StandardError=null /bin/bash -c '
 set -euo pipefail
 export OPERATOR_PK= BOT_PK= DRIP_PK= REPORTER_PK=
 export STUDIO_BEHIND_CADDY=true PORT=3001 STUDIO_DATA_DIR=/var/lib/sayso
