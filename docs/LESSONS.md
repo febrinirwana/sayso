@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/09 — A settlement retry budget must not strand the episode queue
+
+- **Cause:** The CRE runner gave every run five back-off retries (~13 min) and then marked it `failed`. While CRE login was missing, episode 11's close run failed permanently; an unsettled Closed episode blocks all later admission, so one outage would have stopped the product for the rest of judging. CRE QuickJS also lacks a global `URL`, so `z.url()` rejected every reveal URL only inside the real simulator.
+- **Rule:** Terminal retry budgets belong only to work something else can redo (evidence runs; the close run re-decides every word). The run that unblocks admission keeps a capped back-off forever. Validate workflow config with pure checks, and prove a CRE workflow under the real CLI before trusting Node-hosted tests.
+
 ### 2026/10/09 — Isolate Envio simulation from deployed address and block filters
 
 - **Cause:** The test config replaced only an inline `address: ...` scalar. Testnet deployment changed it to a multiline list and a nonzero creation block, leaving all ten block-1 synthetic handler scenarios unrouted in a clean Linux verification.

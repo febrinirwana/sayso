@@ -617,6 +617,28 @@ it("backs off preflight failures and stops retrying rather than spending in a ti
   expect(row().attempts).toBe(0);
   expect(String(row().error)).not.toContain("private RPC");
 });
+it("keeps retrying a closed-episode settlement at the capped back-off instead of stranding admission", async () => {
+  // A Closed episode that never settles blocks every later episode, so its run must outlive a CRE outage.
+  const event = closed(1, 0);
+  logs.push(event);
+  receipts.set(hash(1), receipt(1, [event], outsider, receiver));
+  reportOrigin = outsider;
+  const r = make();
+  await r.tick();
+  for (const delay of [5000, 30000, 120000, 600000, 600000, 600000]) {
+    now += delay;
+    await r.tick();
+  }
+  expect(row().trigger).toBe("closed");
+  expect(row().status).toBe("pending");
+  expect(row().attempts).toBe(0);
+  const retries = row().retry_count;
+  await r.tick();
+  expect(row().retry_count).toBe(retries);
+  now += 600000;
+  await r.tick();
+  expect(row().retry_count).toBe(Number(retries) + 1);
+});
 it("blocks the whole reporter stream when an earlier execution is ambiguous", async () => {
   trigger();
   const r = make();

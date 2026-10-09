@@ -368,14 +368,17 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
   function defer(run: Run, reason: string) {
     const retries = run.retry_count + 1;
     const delay = retryDelays[Math.min(run.retry_count, retryDelays.length - 1)] ?? 600_000;
+    // Evidence runs may give up: the close run re-decides every unresolved word. A close run never
+    // does, because an unsettled Closed episode blocks all later admission.
+    const exhausted = run.trigger === "evidence" && retries > retryDelays.length;
     db.query(
       `UPDATE cre_runs SET status=?,retry_count=?,next_attempt_ms=?,error=?,finished_ms=? WHERE id=?`,
     ).run(
-      retries > retryDelays.length ? "failed" : "pending",
+      exhausted ? "failed" : "pending",
       retries,
       now() + delay,
       reason,
-      retries > retryDelays.length ? now() : null,
+      exhausted ? now() : null,
       run.id,
     );
   }
