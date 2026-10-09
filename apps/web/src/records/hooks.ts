@@ -36,6 +36,24 @@ export async function readHoldings(
     no: values[i * 2 + 1] as bigint,
   }));
 }
+/**
+ * What `holdings` can redeem right now. Word states are re-read with the balances: rows carry the
+ * episode as it was when they were fetched, which can predate settlement by a full refresh.
+ */
+export async function readRedeemable(
+  holdings: readonly Holding[],
+  address: Address,
+  read = { episode: readEpisode, holdings: readHoldings },
+): Promise<Holding[]> {
+  const ids = [...new Set(holdings.map((holding) => holding.episode.id))];
+  const episodes = await Promise.all(ids.map((id) => read.episode(id)));
+  const selected = new Set(holdings.map((holding) => holding.word.id));
+  return (await read.holdings(episodes, address)).filter(
+    (holding) =>
+      selected.has(holding.word.id) &&
+      redeemableAmount(holding.word.state, holding.yes, holding.no) > 0n,
+  );
+}
 export function useEpisodeHoldings(episode: ChainEpisode | undefined, address: Address | null) {
   return useQuery({
     queryKey: ["records", "holdings", episode?.id, address],
@@ -100,18 +118,11 @@ export function useRedeem(): Redemption {
     setError(null);
     setFailedTxUrl(null);
     try {
-      // Re-read balances, so retries/partial successes cannot reuse a burned balance.
-      const episodes = [
-        ...new Map(holdings.map((holding) => [holding.episode.id, holding.episode])).values(),
-      ];
-      const fresh = await readHoldings(episodes, account.address);
-      const selected = new Set(holdings.map((holding) => holding.word.id));
+      // Re-read states and balances, so a stale row or a retry cannot reuse a burned balance.
+      const fresh = await readRedeemable(holdings, account.address);
+      if (fresh.length === 0)
+        throw new Error("Nothing to redeem yet. Your words are still being confirmed.");
       for (const holding of fresh) {
-        if (
-          !selected.has(holding.word.id) ||
-          redeemableAmount(holding.word.state, holding.yes, holding.no) === 0n
-        )
-          continue;
         for (const amount of redemptionAmounts(holding.word.state, holding.yes, holding.no)) {
           const hash = await account.send({
             to: addresses.saysoMarkets,
