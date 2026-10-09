@@ -14,5 +14,8 @@ export const monadTestnet = defineChain({
 /** The one read client. Chain is truth; the indexer and studio are read models. */
 export const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(config.rpcUrl),
+  // The public RPC limits each IP per second (eth_call 15/s). viem retries 429 by default, but its
+  // 150 ms base lands every retry in the same window; 1 s, 2 s, 4 s reach fresh windows. Live run
+  // 2026-10-10: Portfolio's burst got 429 on all three default retries.
+  transport: http(config.rpcUrl, { retryCount: 3, retryDelay: 1_000 }),
 });
