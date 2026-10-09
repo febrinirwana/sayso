@@ -1,6 +1,13 @@
 import { addresses, orderBookAbi, saysoMarketsAbi } from "@sayso/core";
 import { useQuery } from "@tanstack/react-query";
-import { type Address, erc20Abi, type Hex, hexToString, zeroAddress } from "viem";
+import {
+  type Address,
+  erc20Abi,
+  type Hex,
+  hexToString,
+  type ReadContractReturnType,
+  zeroAddress,
+} from "viem";
 import { publicClient } from "@/lib/chain";
 import type { EpisodeState } from "./studio";
 
@@ -59,14 +66,8 @@ export type ChainEpisode = {
   blockNumber: bigint;
   blockTimestamp: bigint;
 };
-export async function readWord(id: bigint, blockNumber?: bigint): Promise<ChainWord> {
-  const word = await publicClient.readContract({
-    address: addresses.saysoMarkets,
-    abi: saysoMarketsAbi,
-    functionName: "word",
-    args: [id],
-    ...(blockNumber === undefined ? {} : { blockNumber }),
-  });
+export type RawChainWord = ReadContractReturnType<typeof saysoMarketsAbi, "word">;
+export function toChainWord(id: bigint, word: RawChainWord): ChainWord {
   const state = WORD_STATES[word.state];
   if (!state) throw new Error("Unknown chain word state");
   return {
@@ -76,6 +77,16 @@ export async function readWord(id: bigint, blockNumber?: bigint): Promise<ChainW
     text: hexToString(word.text, { size: 32 }).replace(/\0+$/, ""),
     market: word.market === zeroAddress ? null : word.market,
   };
+}
+export async function readWord(id: bigint, blockNumber?: bigint): Promise<ChainWord> {
+  const word = await publicClient.readContract({
+    address: addresses.saysoMarkets,
+    abi: saysoMarketsAbi,
+    functionName: "word",
+    args: [id],
+    ...(blockNumber === undefined ? {} : { blockNumber }),
+  });
+  return toChainWord(id, word);
 }
 export async function readEpisode(id: number): Promise<ChainEpisode> {
   const block = await publicClient.getBlock();

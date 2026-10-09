@@ -3,7 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { type Address, encodeFunctionData, type Hex } from "viem";
 import { TransactionRevertedError, useAccount } from "@/account";
-import { type ChainEpisode, type ChainWord, readEpisode } from "@/data/chain";
+import {
+  type ChainEpisode,
+  type ChainWord,
+  type RawChainWord,
+  readEpisode,
+  toChainWord,
+} from "@/data/chain";
 import { publicClient } from "@/lib/chain";
 import { redeemableAmount, redemptionAmounts } from "./adapters";
 
@@ -37,22 +43,41 @@ export async function readHoldings(
   }));
 }
 /**
- * What `holdings` can redeem right now. Word states are re-read with the balances: rows carry the
- * episode as it was when they were fetched, which can predate settlement by a full refresh.
+ * What `holdings` can redeem right now. Word states are re-read with the balances, in one eth_call at
+ * one block: rows carry the episode as it was fetched, which can predate settlement (episode 15), and
+ * separate state reads hit the public RPC's 15 requests/s limit (episode 16).
  */
 export async function readRedeemable(
   holdings: readonly Holding[],
   address: Address,
-  read = { episode: readEpisode, holdings: readHoldings },
+  client: Pick<typeof publicClient, "getBlockNumber" | "multicall"> = publicClient,
 ): Promise<Holding[]> {
-  const ids = [...new Set(holdings.map((holding) => holding.episode.id))];
-  const episodes = await Promise.all(ids.map((id) => read.episode(id)));
-  const selected = new Set(holdings.map((holding) => holding.word.id));
-  return (await read.holdings(episodes, address)).filter(
-    (holding) =>
-      selected.has(holding.word.id) &&
-      redeemableAmount(holding.word.state, holding.yes, holding.no) > 0n,
-  );
+  const blockNumber = await client.getBlockNumber();
+  const values = await client.multicall({
+    contracts: holdings.flatMap(({ word }) => [
+      {
+        address: addresses.saysoMarkets,
+        abi: saysoMarketsAbi,
+        functionName: "word" as const,
+        args: [word.id] as const,
+      },
+      ...[word.yes, word.no].map((token) => ({
+        address: token,
+        abi: outcomeTokenAbi,
+        functionName: "balanceOf" as const,
+        args: [address] as const,
+      })),
+    ]),
+    allowFailure: false,
+    deployless: true,
+    blockNumber,
+  });
+  return holdings.flatMap((holding, i) => {
+    const word = toChainWord(holding.word.id, values[i * 3] as RawChainWord);
+    const yes = values[i * 3 + 1] as bigint;
+    const no = values[i * 3 + 2] as bigint;
+    return redeemableAmount(word.state, yes, no) > 0n ? [{ ...holding, word, yes, no }] : [];
+  });
 }
 export function useEpisodeHoldings(episode: ChainEpisode | undefined, address: Address | null) {
   return useQuery({
