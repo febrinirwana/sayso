@@ -1,6 +1,13 @@
 # Shared-VPS studio and Vercel deployment
 
-Prepared configuration, not a live deployment. Execute only as the lead after source integration. Never restart/recreate the shared Caddy or another project's service. Commands below use Bash (WSL locally, Ubuntu on the VPS); keep shell tracing OFF. Never paste secrets or raw studio/CRE output into proof artifacts.
+Executed 2026-10-09 for release `31ef7a107e9f` (studio on systemd, gateway container, one appended site block at `https://sayso-studio.43-129-38-115.nip.io`). Never restart/recreate the shared Caddy or another project's service. Commands below use Bash (WSL locally, Ubuntu on the VPS); keep shell tracing OFF. Never paste secrets or raw studio/CRE output into proof artifacts.
+
+What the first execution changed or learned (folded into the steps below where it is source):
+- The archive must carry every workspace `package.json`; otherwise the frozen-lockfile install aborts with `Workspace not found`.
+- The gateway's caddy binary has `cap_net_bind_service=ep`, so `cap_drop: [ALL]` alone made exec fail; the compose file adds back only `NET_BIND_SERVICE`.
+- Caddy sorts `handle` before `respond`, so the peer check did not run first; the gateway now wraps its routes in `route { }` and a non-Caddy peer gets 403 on every path.
+- `/etc/sayso/studio.env` was written by streaming a locally assembled file into `sudo tee` over SSH (no editor, no CLI argument, nothing echoed). CRE authentication is the owner's CLI session copied to `/var/lib/sayso/.cre/cre.yaml` the same way; `cre login` needs the owner's email OTP, and the API-key panel offered no create control for this org. Do not use the laptop CRE CLI afterward: refresh-token rotation can revoke both copies.
+- The `tts-market` fixture commits the hash of its TTS WAV, while the browser plays a flat-colour MP4 transcode of that WAV, so the step-4 hash gate fails for it. That fixture was published as a documented exception; real clips (B07) must be transcribed from their final MP4 so the gate passes.
 
 ## Observed layout and chosen boundary
 
@@ -67,7 +74,8 @@ RELEASE="$(git rev-parse --short=12 HEAD)"
 STAGE="/tmp/sayso-release-$RELEASE"
 RUNTIME=/tmp/sayso-runtime
 mkdir -p "$STAGE" "$RUNTIME"
-git archive HEAD package.json bun.lock tsconfig.base.json apps/studio packages/core cre/resolver deploy/Caddyfile deploy/sayso-studio.service deploy/studio.compose.yaml deploy/studio.gateway.Caddyfile deploy/studio.resolver.tsconfig.json deploy/studio.env.example deploy/studio.runbook.md | tar -x -C "$STAGE"
+# Every workspace manifest must be present for the frozen lockfile; only the studio/resolver/core sources ship.
+git archive HEAD package.json bun.lock tsconfig.base.json apps/studio packages/core cre/resolver apps/web/package.json indexer/package.json tools/sfx/package.json tools/transcribe/package.json deploy/Caddyfile deploy/sayso-studio.service deploy/studio.compose.yaml deploy/studio.gateway.Caddyfile deploy/studio.resolver.tsconfig.json deploy/studio.env.example deploy/studio.runbook.md | tar -x -C "$STAGE"
 (cd "$STAGE" && bun install --frozen-lockfile --filter @sayso/studio --filter @sayso/resolver --filter @sayso/core)
 curl -fL https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-baseline.zip -o "$RUNTIME/bun.zip"
 printf '%s  %s\n' a063908ae08b7852ca10939bbdc6ceed3ddabce8fb9402dce83d65d73b36e6c7 "$RUNTIME/bun.zip" | sha256sum -c -

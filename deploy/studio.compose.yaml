@@ -13,6 +13,9 @@ services:
     cpus: 0.10
     pids_limit: 32
     cap_drop: [ALL]
+    # The image's /usr/bin/caddy carries cap_net_bind_service=ep; without it in the bounding set the
+    # kernel refuses exec ("operation not permitted"). Port 13001 does not need it; nothing else is added.
+    cap_add: [NET_BIND_SERVICE]
     security_opt: [no-new-privileges:true]
     environment:
       SAYSO_GATEWAY_BIND: ${SAYSO_GATEWAY_BIND:-172.18.0.1}
