@@ -12,6 +12,7 @@ Rule: never commit an address without `cast code <address> --rpc-url <rpc>` retu
 |---|---|---|
 | Chain ID | 10143 | [V: [current facts](https://docs.monad.xyz/ai/current-facts.md)] |
 | RPC | `https://testnet-rpc.monad.xyz`. Per-IP limits: `eth_call` 15/s (HTTP 429, code -32011 "requests limited to 15/sec") and an overall 50/s (code -32007, QuickNode); 40 parallel `eth_getBalance`/`eth_chainId` passed. Batch balance reads into one Multicall3 `eth_call` | [V: burst probe 2026-10-09] |
+| Studio RPC | Private QuickNode Monad testnet endpoint (Build plan, Metropolis perk); the URL embeds its key and lives only in the studio env. Probe: `eth_chainId` 0x279f, `web3_clientVersion` Monad/0.16.3, `eth_sendRawTransactionSync` recognized (invalid raw → code 5, not -32601), 40 parallel `eth_call` all answered without a limit error, `eth_getLogs` over 1,000 blocks answered | [V: probe 2026-10-09] |
 | Block time / finality | 300 ms blocks, 600 ms finality | [V: current facts] |
 | Gas | Charged on the gas limit, not gas used; always pass explicit `gas` | [V: [gas pricing](https://docs.monad.xyz/developer-essentials/gas-pricing)] |
 | Reserve balance | Low-balance senders can be rejected for closely spaced spending; the emptying exception needs no other transaction from that sender in the prior 3 blocks | [V: [reserve balance](https://docs.monad.xyz/developer-essentials/reserve-balance)] |

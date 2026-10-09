@@ -17,12 +17,12 @@ The live tracker for the build: every phase, every task, what proves it and wher
 |---|---|---|---|---|
 | 0 Workspace | DONE | 3/3 | none | none |
 | 1 Core (TDD) | DONE | 10/10 | none | none |
-| Spikes | DOING | 3/6 | S4 report path proved on episode 12 (only the owner's deploy-access request remains); next S5/S6 | phones/domain (S5); hosting (S6) |
+| Spikes | DOING | 4/6 | S4 report path proved on episode 12 (only the owner's deploy-access request remains); S6 hosted on Envio Cloud; next S5 | phones/domain (S5) |
 | 2 Contracts | DOING | 10/11 | 2.9 Monadscan verification (deployed, MonadVision verified) | Etherscan API key |
 | 3 Transcription | DOING | 2/3 | 3.3 original rights-cleared English clip library | B07; Indonesian/bilingual clips additionally B10 |
 | 4 CRE resolver | DONE | 3/3 | none; production reveal URL set at deploy | reveal URL waits on hosting (B03/B05) |
 | 5 Studio | DOING | 6/8 | Episode 12 settled by the studio CRE runner and recycled unattended; fresh combined run missed <1 s flag target once (1,065 ms) | RPC timing (B14), hosting (B05) |
-| 6 Indexer | DOING | 1/3 | Local RPC sync proved; tracked HyperSync and public hosting remain | HyperSync token (B13), hosting (B05/B09) |
+| 6 Indexer | DOING | 2/3 | Hosted on Envio Cloud (HyperSync, synced to head in 1 min); two-player profit check against receipts remains | none |
 | 7 Web | DOING | 5/8 | Corrected full browser path, now including CRE settlement and redeem | domain (B06) for real-device passkeys |
 | 8 Ship | DOING | 0/5 | README draft committed; final links/media and deployment remain | VPS, domain, team registration, settled demo |
 
@@ -91,7 +91,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
   - [x] `cre workflow supported-chains --output json` lists `monad-testnet` — selector 2183018362218727504, forwarder/mock match INTEGRATIONS section 3
   - [x] the real `SaysoMarkets` receiver gets a report via `simulate --broadcast` — proof: `0x216b9f1434c1239ed03f68eb2cb6fc30d4c704c90b98712434c7b681195e2348` status 1, `WordResolved(12, 68, Yes)`
 - [ ] **S5** Mera PRF at the real domain on iOS Safari and Android Chrome (runs in Phase 7) — proof: create, sign, clear storage, restore the same address on both
-- [ ] **S6** Envio hosting choice (runs in Phase 6) — proof: GraphQL query answered from the chosen host
+- [x] **S6** Envio hosting choice (runs in Phase 6) — proof: Envio Cloud Development deployment `d0ba019` (branch `envio`, directory `indexer`) answered `Episode`/`Player`/`chain_metadata` from `https://indexer.dev.hyperindex.xyz/0c56fbe/v1/graphql` at chain head (2026-10-09)
 - [x] **S7** Engine agreement — proof: `76f9a65` · three NASA clips, agreement 89–95 %, median skew 90–290 ms, p99 ≤ 1,220 ms; keep 1,500 ms [I]; Vosk pinned to 0.3.45 (0.3.50 has no wheel)
 
 ## Phase 2 — Contracts (Foundry, TDD) · DOING
@@ -162,7 +162,7 @@ Each spike answers one question with on-chain or on-device evidence, then writes
 
 - [ ] **6.1** Envio 3.12.1 config for chain 10143 + dynamic OutcomeToken registration, ERD schema and workspace landed; Linux/WSL codegen and typecheck pass with generated core ABI · DOING 2026-10-08: a WSL runtime copy synced from block 69,202,243 to head (progress 69,236,871 = source head) and served episodes 1–4 with words, markets and SAID flags over GraphQL; it used an untracked RPC source because the tracked HyperSync config needs `ENVIO_API_TOKEN` (BLOCKERS B13)
 - [x] **6.2** Event handlers, Transfer-only token balances, actual payer/recipient set cashflows, final-word-only profit and settled ranks — proof: Envio test-indexer helpers 10/10 under Linux/WSL, including gifted contract-caller mint/direct burn (not tx.origin), all four trades, sellNo YES dust, winner/No/Void redemption, unsettled exclusion and two-player hand calculation. Runtime handler pipeline discovered clones, indexed buy→resolution→redemption without profit double count; economic smoke: payer −3, holder +2, cash recipient +1 AUSD, origin unindexed. Full root `bun run verify` 270 tests passed under WSL (15 Biome non-null warnings, no errors)
-- [ ] **6.3** Spike S6 hosting decision and deployment; GraphQL URL documented — decision: Envio hosted Development tier, deployed on or after 12 Oct so its 30-day lifetime covers judging; VPS fallback `deploy/indexer.compose.yaml` (indexer 192 / Hasura 320 / Postgres 128 MiB caps, localhost ports) only if hosted fails. The repository is hosted-ready: standalone `indexer/` with committed literal config and ABIs (drift-checked), WSL codegen/typecheck/tests 19/19, and a fresh RPC-sourced `envio start` processed blocks 69,202,243–69,203,243 and answered a public `Episode` GraphQL query. Remaining: owner connects the public GitHub repository to Envio Cloud — proof: query answered from the host
+- [x] **6.3** Spike S6 hosting decision and deployment; GraphQL URL documented — proof: 2026-10-09 Envio Cloud Development deployment of commit `d0ba019` from the `envio` release branch synced 773 events through block 69,577,438 via HyperSync in about one minute; an unauthenticated public query to `https://indexer.dev.hyperindex.xyz/0c56fbe/v1/graphql` returned episodes 16/15/14 `Settled` and `latest_processed_block` equal to `block_height`. Development tier limits: 100 queries/minute, no static production endpoint (each deployment has its own URL, so `envio` is pushed only on purpose and `VITE_INDEXER_URL` follows it), 30-day life (until ≈ 8 Nov, covering judging). VPS fallback `deploy/indexer.compose.yaml` remains for an outage.
 
 **Acceptance:** after a full episode, `Player.profit` matches a hand calculation from receipts for two players.
 

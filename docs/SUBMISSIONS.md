@@ -155,7 +155,7 @@ No cross-track ruling or final submission receipt has been recorded here.
 
 Rules require public source throughout and after the event, accurate attribution and non-confidential review. Teams retain ownership; the organizer/sponsors receive promotional-use rights. Prize recipients may need KYC and are responsible for taxes; main prizes are USDC/equivalent within 30 days of the later of announcement or verification completion. Sponsor awards have separate terms. Testnet tokens have no real-money value.
 
-[Resources](https://hackathon.monad.xyz/resources) offers **one voucher per team per resource**: Quicknode Build 3 months (new accounts only), Tenderly Pro, Zerion API Builder 1 month, BlockVision Lite 2 months, Spectrum Business 2 months, Dwellir Developer 3 months. No voucher was claimed by this task. Winner services/rebates on Prizes are not extra cash; Envio's winner perk is two months Cloud hosting free and a third month at 50% off.
+[Resources](https://hackathon.monad.xyz/resources) offers **one voucher per team per resource**: Quicknode Build 3 months (new accounts only), Tenderly Pro, Zerion API Builder 1 month, BlockVision Lite 2 months, Spectrum Business 2 months, Dwellir Developer 3 months. The user claimed Quicknode Build on 2026-10-09; it serves only the studio's private `RPC_URL` (INTEGRATIONS §1). Winner services/rebates on Prizes are not extra cash; Envio's winner perk is two months Cloud hosting free and a third month at 50% off.
 
 ## 9. Official source index
 
