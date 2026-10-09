@@ -23,7 +23,7 @@ The status as of 9 October 2026. [BUILD-PLAN](docs/technical/BUILD-PLAN.md) has 
 | Live episodes | Six books seed within pre-roll; episodes 11/12 paid 0.98 cash-outs. Episode 12 flags measured 1,065/669 ms, so the strict <1 s target missed once | [Live Kuru receipts](docs/technical/INTEGRATIONS.md#2-kuru-order-books); timing B14 and full browser path 7.7 remain open |
 | Passkey accounts | Join, clear all storage, then restore the same address. Proven in Edge with a PRF virtual authenticator | BUILD-PLAN 7.3 |
 | Web screens | Live Arena start, buy, SAID and cash-out reached testnet in Edge. The full run failed afterward because consumed liquidity hid the receipt feedback. Feedback and cashflow fixes passed independent rendered/regression proof; the corrected combined run remains pending. Results/Portfolio redemption awaits CRE | BUILD-PLAN 7.1–7.7 |
-| CRE settlement | Workflow built and unit-tested. The simulation run is waiting on CRE CLI login | [BLOCKERS](docs/BLOCKERS.md) B02 |
+| CRE settlement | Settled episode 12 on Monad testnet through the real CRE simulator: the studio runner broadcast the close report and the house recycled every word unattended. DON deploy access is not enabled, so settlement runs in simulation mode | [INTEGRATIONS](docs/technical/INTEGRATIONS.md) §3, BLOCKERS B02 |
 | Public URL | Waiting on the host and the domain | BLOCKERS B05, B06 |
 
 ## How one episode works
