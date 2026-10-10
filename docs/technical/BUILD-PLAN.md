@@ -20,9 +20,9 @@ The live tracker for the build: every phase, every task, what proves it and wher
 | Spikes | DOING | 4/6 | S4 report path proved on episode 12 (only the owner's deploy-access request remains); S6 hosted on Envio Cloud; next S5 | phones/domain (S5) |
 | 2 Contracts | DONE | 11/11 | none | none |
 | 3 Transcription | DOING | 2/3 | 3.3 original rights-cleared English clip library | B07; Indonesian/bilingual clips additionally B10 |
-| 4 CRE resolver | DONE | 3/3 | none; production reveal URL set at deploy | reveal URL waits on hosting (B03/B05) |
-| 5 Studio | DOING | 8/8 | Phase review; re-measure pull-before-flag on the next VPS episode after the urgent-read fix | B14 (pull ordering) |
-| 6 Indexer | DOING | 2/3 | Hosted on Envio Cloud (HyperSync, synced to head in 1 min); two-player profit check against receipts remains | none |
+| 4 CRE resolver | DONE | 3/3 | none | none (reveal URL live on the VPS; B03 closed) |
+| 5 Studio | DOING | 8/8 | Phase review; prove on the next VPS episode that all six pre-play pulls confirm before playback and SAID cash-out still works | B14 (pre-play pull timing) |
+| 6 Indexer | DOING | 3/3 | Phase review | none |
 | 7 Web | DOING | 5/8 | Corrected full browser path, now including CRE settlement and redeem | domain (B06) for real-device passkeys |
 | 8 Ship | DOING | 0/5 | README draft committed; final links/media and deployment remain | VPS, domain, team registration, settled demo |
 

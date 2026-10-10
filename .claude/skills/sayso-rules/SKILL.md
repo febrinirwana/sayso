@@ -10,7 +10,7 @@ description: Use before starting or committing any SAYSO change - the project's 
 1. **Outcomes are committed before trading.** Both transcript roots go onchain in `createEpisode`. Nothing that changes an outcome may happen after.
 2. **Never leak an outcome early.** Chunks reveal at `chunk end + 1.5 s presentation delay + margin`. Manifests, transcripts and flag plans are studio data, never tracked files, never logged in plain text.
 3. **Only CRE finalizes.** The operator flags (display) and marks evidence (trigger); it never settles. The owner can only void after 24 h without a report.
-4. **The house never trades on hidden knowledge.** Its only informed actions are the quote pull one block before a flag and the 0.98 cash-out bid, both disclosed in the UI.
+4. **The house never trades on hidden knowledge.** It pulls every word's quotes before playback (the same for said words and decoys, so it reveals nothing), and its only informed action is the 0.98 cash-out bid at a flag, disclosed in the UI. New positions open only before playback; the video stays hidden until then.
 5. **Players never rest orders.** Immediate-or-cancel only, through SaysoMarkets.
 
 ## Scope

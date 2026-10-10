@@ -3,13 +3,7 @@ import { ONE, quoteCost } from "@sayso/core";
 import type { Address, Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import { HouseMaker, type MakerChain, type MakerCommand, type MakerReceipt } from "./maker.ts";
-import {
-  type Command,
-  type EpisodeChain,
-  EpisodeRunner,
-  PULL_LEAD_MS,
-  type Receipt,
-} from "./runner.ts";
+import { type Command, type EpisodeChain, EpisodeRunner, type Receipt } from "./runner.ts";
 
 const house = "0x0000000000000000000000000000000000000001" as Address;
 const yes = "0x0000000000000000000000000000000000000002" as Address;
@@ -20,10 +14,10 @@ const margin = "0x0000000000000000000000000000000000000006" as Address;
 const markets = "0x0000000000000000000000000000000000000007" as Address;
 function fixture() {
   const db = new Database(":memory:");
-  db.exec(`CREATE TABLE episodes(id INTEGER PRIMARY KEY,ends_at_ms INTEGER,state TEXT);
+  db.exec(`CREATE TABLE episodes(id INTEGER PRIMARY KEY,ends_at_ms INTEGER,state TEXT,starts_at_ms INTEGER DEFAULT 24600);
     CREATE TABLE actions(id INTEGER PRIMARY KEY,episode_id INTEGER,kind TEXT,word_id INTEGER,scheduled_ms INTEGER,sent_ms INTEGER,tx_hash TEXT,block INTEGER,status TEXT DEFAULT 'pending',error TEXT,payload_json TEXT DEFAULT '{}');
     CREATE TABLE house_orders(market TEXT,order_id INTEGER,episode_id INTEGER,side TEXT,price INTEGER,size TEXT,status TEXT,is_flip INTEGER,observed_block INTEGER,PRIMARY KEY(market,order_id));
-    INSERT INTO episodes VALUES(1,10000,'Live');
+    INSERT INTO episodes(id,ends_at_ms,state) VALUES(1,10000,'Live');
     INSERT INTO actions(episode_id,kind,scheduled_ms) VALUES(1,'seed',0);
     INSERT INTO actions(episode_id,kind,word_id,scheduled_ms) VALUES(1,'pull',1,4600),(1,'bid',1,5000);`);
   let now = 0,
@@ -82,8 +76,6 @@ function fixture() {
     },
     async prepare(command, guard) {
       await guard?.();
-      // The real adapter sleeps until notBeforeMs before signing; the fake advances the clock.
-      if (command.notBeforeMs !== undefined && now < command.notBeforeMs) now = command.notBeforeMs;
       const hash = `0x${(++nonce).toString(16).padStart(64, "0")}` as Hex;
       prepared.set(hash, command);
       return { hash, raw: hash };
@@ -199,7 +191,7 @@ describe("house economic lifecycle", () => {
     const commands = () => [...f.prepared.values()];
     expect(commands()).toHaveLength(7);
     f.db.exec(
-      "INSERT INTO episodes VALUES(2,10000,'Live'); INSERT INTO actions(episode_id,kind,scheduled_ms) VALUES(2,'seed',0);",
+      "INSERT INTO episodes(id,ends_at_ms,state) VALUES(2,10000,'Live'); INSERT INTO actions(episode_id,kind,scheduled_ms) VALUES(2,'seed',0);",
     );
     await f.maker().seed(2);
     expect(commands()).toHaveLength(12);
@@ -215,6 +207,78 @@ describe("house economic lifecycle", () => {
     expect(commands).toHaveLength(27);
     expect(commands.filter((c) => c.kind === "deposit" && c.token === ausd)).toHaveLength(1);
     expect(commands.filter((c) => c.kind === "mint")).toHaveLength(6);
+  });
+  it("retires an overdue seed at trading close before executing its pulls", async () => {
+    const f = fixture();
+    f.setNow(4600);
+    await f.maker().tick();
+    expect(f.mints()).toBe(0);
+    expect(f.orders).toHaveLength(0);
+    expect(f.db.query("SELECT status FROM actions WHERE kind IN ('seed','pull')").all()).toEqual([
+      { status: "observed" },
+      { status: "confirmed" },
+    ]);
+  });
+  it("never resumes a legacy pending seed after any pre-play pull has confirmed", async () => {
+    const f = fixture();
+    f.db.exec("UPDATE actions SET status='confirmed' WHERE kind='pull'");
+    await f.maker().seed(1);
+    expect(f.mints()).toBe(0);
+    expect(f.orders).toHaveLength(0);
+    expect(f.db.query("SELECT status FROM actions WHERE kind='seed'").get()).toEqual({
+      status: "observed",
+    });
+  });
+  it("does not sign a ladder when its pre-sign reads reach trading close", async () => {
+    const f = fixture();
+    const prepare = f.chain.prepare;
+    f.chain.prepare = async (command, guard) => {
+      if (command.kind === "ladder") f.setNow(4600);
+      return prepare(command, guard);
+    };
+    await f.maker().seed(1);
+    expect(f.orders).toHaveLength(0);
+    expect([...f.prepared.values()].filter((command) => command.kind === "ladder")).toHaveLength(0);
+    expect(f.db.query("SELECT status FROM actions WHERE kind='seed'").get()).toEqual({
+      status: "observed",
+    });
+  });
+  it("recovers a mined seed step after restart without continuing seeding after trading close", async () => {
+    const f = fixture();
+    f.loseResponse();
+    await expect(f.maker().seed(1)).rejects.toThrow();
+    f.setNow(4600);
+    await f.maker().tick();
+    expect(f.mints()).toBe(1);
+    expect(f.orders).toHaveLength(0);
+    expect([...f.prepared.values()].map((command) => command.kind)).toEqual([
+      "approve",
+      "approve",
+      "deposit",
+      "mint",
+    ]);
+    expect(f.db.query("SELECT status FROM actions WHERE kind='seed'").get()).toEqual({
+      status: "observed",
+    });
+  });
+  it("preserves a posted cash-out bid across housekeeping and a legacy overdue seed restart", async () => {
+    const f = fixture();
+    const maker = f.maker();
+    await maker.seed(1);
+    f.setNow(4600);
+    await maker.tick();
+    f.setNow(5000);
+    f.setState(1);
+    await maker.tick();
+    const bid = { ...f.orders[0]! };
+    f.db.exec("UPDATE actions SET status='pending' WHERE kind='seed'");
+    await f.maker().tick();
+    await f.maker().tick();
+    expect(f.orders).toEqual([bid]);
+    expect(f.mints()).toBe(1);
+    expect(f.db.query("SELECT status FROM actions WHERE kind='seed'").get()).toEqual({
+      status: "observed",
+    });
   });
   it("re-reads the word inside the ladder signing round and drops the ladder once flagged", async () => {
     const f = fixture();
@@ -438,14 +502,23 @@ describe("house economic lifecycle", () => {
       status: "confirmed",
     });
   });
-  it("prepares a pull inside its lead and never signs it before t − 400 ms", async () => {
+  it("executes an old unsigned pull journal without its obsolete flag-time signing gate", async () => {
     const f = fixture();
     const m = f.maker();
     await m.seed(1);
-    // Before: the pull was picked only once due, then read the book serially (0.55–2.0 s late).
-    f.setNow(4600 - PULL_LEAD_MS);
+    f.db.query("UPDATE actions SET payload_json=? WHERE kind='pull'").run(
+      JSON.stringify({
+        owner: "bot",
+        steps: [
+          {
+            key: "cancel:true:1,2,3,4",
+            command: { kind: "cancel", market, ids: [1, 2, 3, 4], flip: true, notBeforeMs: 9000 },
+          },
+        ],
+      }),
+    );
+    f.setNow(4600);
     await m.tick();
-    expect([...f.prepared.values()].find((c) => c.kind === "cancel")?.notBeforeMs).toBe(4600);
     expect(f.db.query("SELECT status,sent_ms FROM actions WHERE kind='pull'").get()).toEqual({
       status: "confirmed",
       sent_ms: 4600,
@@ -477,7 +550,7 @@ describe("house economic lifecycle", () => {
     expect(calls).toEqual(["bid", "words"]);
     expect(f.orders).toEqual([expect.objectContaining({ price: 9800, buy: true })]);
   });
-  it("does not scan a newly posted bid before preparing the next timed pull", async () => {
+  it("does not scan a newly posted bid before finishing the cash-out action", async () => {
     const f = fixture();
     const m = f.maker();
     await m.seed(1);
@@ -489,7 +562,7 @@ describe("house economic lifecycle", () => {
     const scan = f.chain.orders;
     f.chain.orders = async (...args) => {
       if (f.orders.some((order) => order.price === 9800))
-        throw new Error("post-bid scan occupies the next pull window");
+        throw new Error("unexpected post-bid scan");
       return scan(...args);
     };
     await m.tick();

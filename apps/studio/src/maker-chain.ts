@@ -34,7 +34,6 @@ import {
   studioSendTiming,
   urgentReads,
 } from "./rpc.ts";
-import { PRESIGN_MS } from "./runner.ts";
 
 function pause(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve();
@@ -451,10 +450,6 @@ export function createMakerChain(config: StudioConfig): MakerChain {
           gas = gasLimit("redeem");
           break;
       }
-      // A timed pull is prepared early; its reads start one block before its send time so the
-      // gas estimate (a dry run of the cancel) reflects the book it will meet.
-      if (command.notBeforeMs !== undefined)
-        await pause(command.notBeforeMs - PRESIGN_MS - Date.now());
       // One parallel round: chain id, successor block, fees, nonce, balance, gas and the
       // caller's window guard. A failed guard wins over read errors; nothing is signed.
       const stopped = (guard?.() ?? Promise.resolve()).then(
@@ -484,9 +479,6 @@ export function createMakerChain(config: StudioConfig): MakerChain {
       // viem's estimateFeesPerGas default: base fee x 1.2 plus the RPC's priority fee.
       const maxFeePerGas = (block.baseFeePerGas * 12n) / 10n + maxPriorityFeePerGas;
       if (mon < limit * maxFeePerGas) throw new Error("Insufficient BOT MON");
-      // Never sign a timed step before its send time: a pull earlier than t − 400 ms leaks.
-      if (command.notBeforeMs !== undefined)
-        while (Date.now() < command.notBeforeMs) await pause(command.notBeforeMs - Date.now());
       // Estimation/config reads may have outlived playback; never sign an obsolete timed step.
       if (command.notAfterMs !== undefined && Date.now() >= command.notAfterMs)
         throw new Error("BOT clip window elapsed before signing");

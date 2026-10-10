@@ -13,6 +13,7 @@ export {
 } from "./match.ts";
 export { hashPair, merkleProof, merkleRoot, verifyProof } from "./merkle.ts";
 export { nicknameOf } from "./nickname.ts";
+export { TRADING_CLOSE_LEAD_MS, tradingClosesAtMs } from "./trading.ts";
 export {
   CHUNK_MS,
   type Chunk,

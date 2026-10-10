@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { type GasKind, gasLimit } from "@sayso/core";
+import { type GasKind, gasLimit, tradingClosesAtMs } from "@sayso/core";
 import type { Hex } from "viem";
 
 export const ActionKind = {
@@ -15,11 +15,8 @@ export const ActionKind = {
   Redeem: "redeem",
 } as const;
 export type ActionKind = (typeof ActionKind)[keyof typeof ActionKind];
-// Timed sends. The OPERATOR picks a flag FLAG_LEAD_MS early and the BOT a pull PULL_LEAD_MS
-// early, so gating and book reads finish before the send time. Each adapter starts its one
-// parallel pre-sign round PRESIGN_MS (one block) before notBeforeMs and never signs before it.
+// OPERATOR flags are picked early; pre-sign reads start one block before spoken time.
 export const FLAG_LEAD_MS = 1000;
-export const PULL_LEAD_MS = 1500;
 export const PRESIGN_MS = 400;
 // notBeforeMs: the adapter signs no earlier than this, e.g. a flag at its spoken time.
 export type Command = {
@@ -157,9 +154,9 @@ export class EpisodeRunner {
   private botDue(now: number): boolean {
     return !!this.deps.db
       .query(
-        "SELECT id FROM actions WHERE kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND (scheduled_ms<=? OR (kind='pull' AND scheduled_ms<=?)) LIMIT 1",
+        "SELECT id FROM actions WHERE kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? LIMIT 1",
       )
-      .get(now, now + PULL_LEAD_MS);
+      .get(now);
   }
   // BOT work never runs inside the OPERATOR receipt stream: it runs on its own clock
   // (tickMaker), after a request and on every flag receipt. A kick during a run repeats the
@@ -193,16 +190,15 @@ export class EpisodeRunner {
     this.kickMaker();
     await this.#makerWork;
   }
-  // BOT clock: a pull PULL_LEAD_MS early, due or in-flight BOT work per block, otherwise the
-  // five-second housekeeping run.
+  // BOT clock: due or in-flight BOT work per block, otherwise five-second housekeeping.
   nextMakerWakeMs(): number {
     const now = this.deps.now();
     if (this.botDue(now)) return 400;
     const next = this.deps.db
-      .query<{ at: number | null }, [number]>(
-        "SELECT MIN(CASE kind WHEN 'pull' THEN scheduled_ms-? ELSE scheduled_ms END) AS at FROM actions WHERE kind IN ('seed','pull','bid') AND status='pending'",
+      .query<{ at: number | null }, []>(
+        "SELECT MIN(scheduled_ms) AS at FROM actions WHERE kind IN ('seed','pull','bid') AND status='pending'",
       )
-      .get(PULL_LEAD_MS)?.at;
+      .get()?.at;
     return Math.max(
       1,
       Math.min(this.#nextMaker - now, next === null || next === undefined ? Infinity : next - now),
@@ -385,6 +381,10 @@ export class EpisodeRunner {
     const texts: string[] = JSON.parse(clip.words_json);
     this.addAction(id, "list", episode.starts_at_ms - 60000, null, { wordIds });
     if (this.deps.seed) this.addAction(id, "seed", episode.starts_at_ms - 60000);
+    if (this.deps.seed?.tick) {
+      const pullAt = tradingClosesAtMs(episode.starts_at_ms);
+      for (const wordId of wordIds) this.addAction(id, "pull", pullAt, wordId);
+    }
     const flags = db
       .query<Flag, [string]>(`SELECT f.*, MAX(a.end_ms, b.end_ms) AS end_ms FROM flag_plan f
       JOIN chunks a ON a.clip_id = f.clip_id AND a.engine = 'A' AND a.idx = f.chunk_a
@@ -395,7 +395,6 @@ export class EpisodeRunner {
       const wordId = wordIds[texts.indexOf(flag.word)];
       if (wordId === undefined) throw new Error("Missing chain word");
       if (this.deps.seed?.tick) {
-        this.addAction(id, "pull", episode.starts_at_ms + flag.t_ms - 400, wordId);
         this.addAction(id, "bid", episode.starts_at_ms + flag.t_ms, wordId);
       }
       this.addAction(id, "flag", episode.starts_at_ms + flag.t_ms, wordId, {

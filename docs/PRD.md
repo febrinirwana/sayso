@@ -18,8 +18,9 @@ Evidence labels: **[V]** verified with the linked source, **[I]** inference, **[
 ```mermaid
 flowchart LR
   A[Join with passkey] --> B[Pick an episode]
-  B --> C[60 s pre-roll: trade the six words]
-  C --> D[Playback: words flip SAID live]
+  B --> C[Pre-roll: buy YES or NO, video hidden]
+  C --> H[Trading closes 20 s before playback]
+  H --> D[Playback: no new positions, words flip SAID]
   D --> E[Cash out a SAID word at 0.98 now]
   D --> F[Clip ends: CRE settles every word]
   F --> G[Redeem winners, climb the leaderboard]
@@ -32,7 +33,7 @@ flowchart LR
 |---|---|
 | P1 | **Replay Arena only.** Episodes play pre-recorded clips whose titles are hidden. No live streams in this release. |
 | P2 | **SAID is instant, settlement is CRE.** The studio flags a spoken word onchain in about one block; only the CRE workflow finalizes YES or NO. |
-| P3 | **Cash out now.** While a word is SAID but not yet final, the house bids 0.98 AUSD for its YES. |
+| P3 | **Cash out now.** Playback allows no new positions; while a word is SAID but not yet final, a player can sell its YES into the house's 0.98 AUSD cash-out bid. |
 | P4 | **Only YES trades on Kuru.** NO is a complete-set position: mint YES+NO for 1 AUSD and sell the YES in one transaction. |
 | P5 | **Mobile-first PWA.** Installable web app, portrait. No app-store build. |
 | P6 | **Free tooling first.** Offline transcription, public RPC, Envio HyperSync, CRE simulation until deploy access is granted. |
@@ -49,8 +50,8 @@ flowchart LR
 | Stage | Duration | What the player sees | What happens onchain |
 |---|---|---|---|
 | Scheduled | until start | Countdown, word board with opening prices | `EpisodeCreated`; one YES/NO pair and one Kuru YES/AUSD market per word |
-| Pre-roll | 60 s | Board live, video poster, "starts in 0:42" | Players buy YES or NO; house ladders rest on each book |
-| Playback | clip length, 3 to 5 min | Video plays; a spoken word flips to SAID with a haptic tick | `WordFlagged` within about one block of the detection; house pulls that word's quotes and bids 0.98 |
+| Pre-roll | 60 s | Players buy YES or NO for approximately the first 40 s; video hidden and blurred, "starts in 0:42"; trading closes 20 s before playback | House ladders rest on every book until trading closes, then all house quotes are pulled and confirmed before playback |
+| Playback | clip length, 3 to 5 min | Video unblurs and plays; no new positions; a spoken word flips SAID with a haptic tick and can be cashed out at 0.98 AUSD (TESTNET) | `WordFlagged` within about one block of detection; house posts only the SAID word's 0.98 cash-out bid |
 | Closed | until settlement | "Settling" on unflagged words; evidence links appear | `EpisodeClosed`; set minting stops |
 | Settled | permanent | Green YES / grey NO per word, redeem button, CRE transaction link | `WordResolved` per word through the CRE receiver |
 
@@ -58,7 +59,8 @@ Rules:
 - Six words per episode. Curators pick a mix of spoken words and decoys; the ratio is never shown per episode.
 - Every episode commits two transcript Merkle roots before the first trade (section 7 of ARCHITECTURE). The words that will be said are fixed and provable before anyone trades.
 - A judge can start an on-demand episode from the lobby when none is running. A scheduled episode also starts every hour so the leaderboard stays alive. The judging deployment runs on-demand episodes only to fit the testnet MON budget ([BLOCKERS B15](BLOCKERS.md)).
-- Opening prices are 0.50 for every word. The house never quotes from transcript knowledge; its only informed actions are pulling quotes at the flag and the 0.98 cash-out bid, both disclosed on screen.
+- Opening prices are 0.50 for every word. The house never quotes from transcript knowledge: it pulls every word's quotes before playback, spoken words and decoys alike, on the same uninformed schedule. Only the 0.98 cash-out bid at a SAID flag is informed.
+- New positions open only during pre-roll. Trading closes 20 s before playback (`tradingClosesAtMs` in `packages/core`), leaving approximately 40 s of the 60 s pre-roll for buying; during playback the only trade is cashing out a SAID word at the house's 0.98 AUSD (TESTNET) bid. Settlement and redemption are unchanged.
 
 ### 5.1 What counts as "said"
 

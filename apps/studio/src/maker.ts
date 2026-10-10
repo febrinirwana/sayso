@@ -7,9 +7,10 @@ import {
   priceToKuru,
   QUOTE_UNIT,
   quoteCost,
+  tradingClosesAtMs,
 } from "@sayso/core";
 import type { Address, Hex } from "viem";
-import { type Prepared, PULL_LEAD_MS, type SeedHook } from "./runner.ts";
+import type { Prepared, SeedHook } from "./runner.ts";
 
 export type MakerCommand = {
   kind: "approve" | "mint" | "deposit" | "ladder" | "cancel" | "bid" | "withdraw" | "redeem";
@@ -23,8 +24,6 @@ export type MakerCommand = {
   tokens?: Address[];
   side?: 0 | 1;
   notAfterMs?: number;
-  // Timed pull send time (t − 400 ms): the adapter never signs before it.
-  notBeforeMs?: number;
 };
 export type MakerReceipt = { hash: Hex; block: number; success: boolean };
 export type MakerWord = { id: number; yes: Address; no: Address; market: Address; state: number };
@@ -134,6 +133,22 @@ export class HouseMaker implements SeedHook {
     if (list && list.status !== "confirmed") return;
     const journal: Journal = JSON.parse(action.payload_json);
     await this.recoverSteps(action, journal);
+    const episode = db
+      .query<{ starts_at_ms: number }, [number]>("SELECT starts_at_ms FROM episodes WHERE id=?")
+      .get(action.episode_id)!;
+    const closesAt = tradingClosesAtMs(episode.starts_at_ms);
+    // Recovery settles already-signed bytes, but a retired book must never be seeded again.
+    if (
+      this.deps.now() >= closesAt ||
+      db
+        .query(
+          "SELECT id FROM actions WHERE episode_id=? AND kind='pull' AND status='confirmed' LIMIT 1",
+        )
+        .get(action.episode_id)
+    ) {
+      this.finish(action, "observed");
+      return;
+    }
     // Shared AUSD allowances can be read with the clock/IDs: only this sender changes
     // them, and no seed transaction runs before this round resolves.
     const [clock, ids, toMarkets, toMargin] = await Promise.all([
@@ -142,7 +157,7 @@ export class HouseMaker implements SeedHook {
       chain.allowance(chain.ausd, chain.markets),
       chain.allowance(chain.ausd, chain.margin),
     ]);
-    if (clock.closed || clock.timestamp >= clock.endsAt) {
+    if (clock.closed || clock.timestamp >= clock.endsAt || clock.timestamp * 1000 >= closesAt) {
       this.finish(action, "observed");
       return;
     }
@@ -258,17 +273,16 @@ export class HouseMaker implements SeedHook {
           }
           continue;
         }
-        // Timed pulls and bids run before per-word housekeeping reads. Re-pick after every
-        // action and run pulls first, including one inside its lead: a pull that falls due
-        // while a bid is signing must not leave its asks resting on a word about to flip.
+        // All books are pulled during pre-roll, independent of flag-plan knowledge.
+        // Retire any overdue seed before pulling so it cannot repopulate emptied books.
         const visited = new Set<number>();
         for (;;) {
           const at = now();
           const action = db
-            .query<Action, [number, number, number]>(
-              "SELECT * FROM actions WHERE episode_id=? AND kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND (scheduled_ms<=? OR (kind='pull' AND scheduled_ms<=?)) ORDER BY CASE kind WHEN 'pull' THEN 0 ELSE 1 END,scheduled_ms,id",
+            .query<Action, [number, number]>(
+              "SELECT * FROM actions WHERE episode_id=? AND kind IN ('seed','pull','bid') AND status IN ('pending','sent') AND scheduled_ms<=? ORDER BY CASE kind WHEN 'seed' THEN 0 WHEN 'pull' THEN 1 ELSE 2 END,scheduled_ms,id",
             )
-            .all(episode.id, at, at + PULL_LEAD_MS)
+            .all(episode.id, at)
             .find((a) => !visited.has(a.id));
           if (!action) break;
           visited.add(action.id);
@@ -291,7 +305,7 @@ export class HouseMaker implements SeedHook {
             }
             const journal: Journal = JSON.parse(action.payload_json);
             if (action.kind === "pull") {
-              await this.cancelOrders(action, journal, word, true);
+              await this.cancelOrders(action, journal, word);
               this.finish(action);
             } else await this.bid(action, journal, word);
           } catch (error) {
@@ -398,11 +412,11 @@ export class HouseMaker implements SeedHook {
     if (action.status === "confirmed") return;
     const journal: Journal = JSON.parse(action.payload_json);
     await this.recoverSteps(action, journal);
-    await this.cancelOrders(action, journal, word, false);
+    await this.cancelOrders(action, journal, word);
     this.finish(action);
   }
-  private async cancelOrders(action: Action, journal: Journal, word: MakerWord, onlyFlip: boolean) {
-    for (const flip of onlyFlip ? [true] : [true, false]) {
+  private async cancelOrders(action: Action, journal: Journal, word: MakerWord) {
+    for (const flip of [true, false]) {
       const orders = await this.syncOrders(action.episode_id, word.market);
       const covered = new Set<number>();
       const ids: number[] = [];
@@ -423,8 +437,7 @@ export class HouseMaker implements SeedHook {
         });
     }
     const remaining = await this.syncOrders(action.episode_id, word.market);
-    if (remaining.some((o) => !onlyFlip || o.flip))
-      throw new Error("House orders remain after cancellation");
+    if (remaining.length) throw new Error("House orders remain after cancellation");
   }
   private async recycleWord(episodeId: number, word: MakerWord) {
     const action = this.durable(episodeId, word.id, "recycle");
@@ -545,14 +558,19 @@ export class HouseMaker implements SeedHook {
       await this.restoreSender();
       const { chain, db, now } = this.deps;
       const timed = action.kind === "seed" || action.kind === "pull" || action.kind === "bid";
+      let deadline: number | undefined;
       if (timed) {
         const episode = db
-          .query<{ ends_at_ms: number }, [number]>("SELECT ends_at_ms FROM episodes WHERE id=?")
+          .query<{ starts_at_ms: number; ends_at_ms: number }, [number]>(
+            "SELECT starts_at_ms,ends_at_ms FROM episodes WHERE id=?",
+          )
           .get(action.episode_id)!;
-        if (now() >= episode.ends_at_ms) throw new ClipWindowElapsed();
-        step.command.notAfterMs = episode.ends_at_ms;
-        // A pull is picked up to PULL_LEAD_MS early; the adapter signs it at t − 400 ms.
-        if (action.kind === "pull") step.command.notBeforeMs = action.scheduled_ms;
+        deadline =
+          action.kind === "seed"
+            ? Math.min(tradingClosesAtMs(episode.starts_at_ms), episode.ends_at_ms)
+            : episode.ends_at_ms;
+        if (now() >= deadline) throw new ClipWindowElapsed();
+        step.command.notAfterMs = deadline;
       }
       let tx: Prepared;
       try {
@@ -561,7 +579,13 @@ export class HouseMaker implements SeedHook {
             timed ? chain.clock(action.episode_id) : undefined,
             still ? still() : true,
           ]);
-          if (window && (window.closed || window.timestamp >= window.endsAt))
+          if (
+            (deadline !== undefined && now() >= deadline) ||
+            (window &&
+              (window.closed ||
+                window.timestamp >= window.endsAt ||
+                (deadline !== undefined && window.timestamp * 1000 >= deadline)))
+          )
             throw new ClipWindowElapsed();
           if (!keep) throw new StepSkipped();
         });

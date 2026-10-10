@@ -21,7 +21,6 @@ import { z } from "zod";
 import { parseConfig } from "./config.ts";
 import { HouseMaker } from "./maker.ts";
 import { createMakerChain } from "./maker-chain.ts";
-import { PRESIGN_MS } from "./runner.ts";
 
 const abis = [saysoMarketsAbi, routerAbi, orderBookAbi, marginAccountAbi, erc20Abi] as const;
 const zero = `0x${"0".repeat(64)}` as Hex;
@@ -254,11 +253,14 @@ it("seeds a word in at most four RPC rounds and ten requests per transaction", a
   const { rpc, server, config } = fakeRpc();
   const db = new Database(":memory:");
   try {
-    db.exec(`CREATE TABLE episodes(id INTEGER PRIMARY KEY,ends_at_ms INTEGER,state TEXT);
+    db.exec(`CREATE TABLE episodes(id INTEGER PRIMARY KEY,ends_at_ms INTEGER,state TEXT,starts_at_ms INTEGER);
       CREATE TABLE actions(id INTEGER PRIMARY KEY,episode_id INTEGER,kind TEXT,word_id INTEGER,scheduled_ms INTEGER,sent_ms INTEGER,tx_hash TEXT,block INTEGER,status TEXT DEFAULT 'pending',error TEXT,payload_json TEXT DEFAULT '{}');
       CREATE TABLE house_orders(market TEXT,order_id INTEGER,episode_id INTEGER,side TEXT,price INTEGER,size TEXT,status TEXT,is_flip INTEGER,observed_block INTEGER,PRIMARY KEY(market,order_id));
       INSERT INTO actions(episode_id,kind,scheduled_ms) VALUES(1,'seed',0);`);
-    db.query("INSERT INTO episodes VALUES(1,?,'Scheduled')").run(Date.now() + 600_000);
+    db.query("INSERT INTO episodes VALUES(1,?,'Scheduled',?)").run(
+      Date.now() + 600_000,
+      Date.now() + 60_000,
+    );
     const chain = createMakerChain(config);
     const maker = new HouseMaker({ db, now: Date.now, chain });
     await maker.seed(1);
@@ -335,18 +337,23 @@ it("sizes outstanding YES from one block-pinned round that excludes house and pr
   }
 });
 
-it("starts a timed pull's pre-sign round one block early and never signs before its send time", async () => {
+it("prepares legacy unsigned pull commands without the obsolete flag-time wait", async () => {
   const { rpc, server, config } = fakeRpc();
   try {
     const chain = createMakerChain(config);
-    // Real sleep on purpose: the adapter's send-time wait runs on the platform clock.
-    const notBeforeMs = Date.now() + 600;
-    const started = rpc.reads.length;
-    await chain.prepare({ kind: "cancel", market: book, ids: [1], flip: true, notBeforeMs });
-    expect(Date.now()).toBeGreaterThanOrEqual(notBeforeMs);
-    const reads = rpc.reads.slice(started);
-    expect(reads.length).toBeGreaterThan(0);
-    for (const read of reads) expect(read.at).toBeGreaterThanOrEqual(notBeforeMs - PRESIGN_MS);
+    const notBeforeMs = Date.now() + 3000;
+    await chain.prepare(
+      JSON.parse(
+        JSON.stringify({
+          kind: "cancel",
+          market: book,
+          ids: [1],
+          flip: true,
+          notBeforeMs,
+        }),
+      ),
+    );
+    expect(Date.now()).toBeLessThan(notBeforeMs);
     expect(rpc.sends).toHaveLength(0);
   } finally {
     server.stop(true);

@@ -34,13 +34,15 @@ Convert only through `packages/core` (`priceToKuru`, `kuruToPrice`, `sizeToKuru`
 
 ## House market maker (studio BOT key)
 
-1. On listing: mint sets for inventory, deposit to `MarginAccount`, then one `batchProvisionLiquidity` per book: a flip ladder of bids and asks around 0.50.
+1. On listing: mint sets for inventory, deposit to `MarginAccount`, then one `batchProvisionLiquidity` per book: a flip ladder of bids and asks around 0.50. Stop fresh seed steps at trading close or once any pre-play pull has confirmed, including retries/restarts; recheck the deadline inside the signing round. Already-signed bytes must recover before later sender actions.
 2. Never move quotes based on transcript knowledge. The ladder only reacts to fills (flip orders do that by construction).
-3. At `t − 400 ms` of a planned flag: `batchCancelFlipOrders` for that word, then post the cash-out bid at `9800` sized to players' outstanding YES (from Envio `Position`), capped by house AUSD.
+3. Before playback: schedule one pull for every word, spoken or decoy, exactly at `tradingClosesAtMs(startsAt)` (`startsAt − 20 s`), never before trading closes. Cancel all active flip and plain house orders and confirm each empty book before playback, sequencing BOT by successor block. This schedule is uninformed; there is no flag-time pull. At the flag, once chain SAID and the pull are confirmed, post the cash-out bid at `9800`, sized from chain YES outside house/protocol custody and capped by house AUSD.
 4. At close: cancel every remaining house order on that episode's books.
 5. After settlement: withdraw from `MarginAccount`, redeem winners, recycle AUSD.
 
 Every one of these is an `actions` row in SQLite with its scheduled time, tx hash and status.
+
+New positions open only during pre-roll while the clip is hidden. Trading closes 20 s before playback, leaving approximately 40 s of the 60 s pre-roll for buying; the only playback trade is cashing out a SAID word at the 0.98 AUSD (TESTNET) house bid. Settlement/redeem remain unchanged. Live cancellation timing is an explicit gate in BLOCKERS B14, not guaranteed by scheduled offsets alone.
 
 ## Things that are wrong
 

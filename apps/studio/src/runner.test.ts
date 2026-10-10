@@ -6,11 +6,17 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import { openDatabase } from "./db.ts";
 import {
+  HouseMaker,
+  type HouseOrder,
+  type MakerChain,
+  type MakerCommand,
+  type MakerReceipt,
+} from "./maker.ts";
+import {
   type Command,
   type EpisodeChain,
   EpisodeRunner,
   FLAG_LEAD_MS,
-  PULL_LEAD_MS,
   type Receipt,
   type RunnerDeps,
 } from "./runner.ts";
@@ -190,6 +196,170 @@ it("persists fixture flag times, reveal batches, and a seconds-safe close margin
             : undefined,
       ),
     );
+});
+
+it("pulls no books before trading closes, empties all six before playback, and bids at a SAID flag", async () => {
+  const house = "0x0000000000000000000000000000000000000010" as const;
+  const books = new Map(
+    [1, 2, 3, 4, 5, 6].map((id) => [
+      id,
+      {
+        market: `0x${id.toString(16).padStart(40, "0")}` as Hex,
+        orders: [
+          { id: 1, flip: true, price: 5100, size: 1_000_000n, buy: false },
+          { id: 2, flip: false, price: 4900, size: 1_000_000n, buy: true },
+        ],
+      },
+    ]),
+  );
+  const prepared = new Map<Hex, MakerCommand>();
+  const seedHash = hash(100);
+  const receipts = new Map<Hex, MakerReceipt>([
+    [seedHash, { hash: seedHash, block: 1, success: true }],
+  ]);
+  const cancellations: { at: number; block: number }[] = [];
+  const bids: { at: number; wordId: number; empty: boolean }[] = [];
+  let head = 1;
+  const makerChain: MakerChain = {
+    house,
+    ausd: house,
+    margin: house,
+    markets: house,
+    async ready() {
+      return true;
+    },
+    words: () => chain.words(),
+    async word(id) {
+      return {
+        id,
+        yes: house,
+        no: house,
+        market: books.get(id)!.market,
+        ...(await chain.word(id)),
+      };
+    },
+    async clock() {
+      now += 100;
+      return { block: head, timestamp: Math.floor(now / 1000), closed: false, endsAt: 193 };
+    },
+    async balance() {
+      return 100_000_000n;
+    },
+    async allowance() {
+      return 100_000_000n;
+    },
+    async outstandingYes() {
+      return 1_000_000n;
+    },
+    async orders(market) {
+      now += 100;
+      return {
+        block: head,
+        orders: books
+          .get(Number(market))!
+          .orders.map((order) => ({ ...order, market })) as HouseOrder[],
+      };
+    },
+    async prepare(command, guard) {
+      // One successor block before each new signature; never parallelize this sender.
+      now += 400;
+      await guard?.();
+      const txHash = hash(prepared.size + 101);
+      prepared.set(txHash, command);
+      return { hash: txHash, raw: txHash };
+    },
+    async broadcast(tx) {
+      const command = prepared.get(tx.hash)!;
+      const wordId = Number(command.market);
+      const book = books.get(wordId)!;
+      now += 400; // Inclusion is another block, after the prior receipt.
+      const receipt = { hash: tx.hash, block: ++head, success: true };
+      if (command.kind === "cancel") {
+        book.orders = book.orders.filter((order) => !command.ids!.includes(order.id));
+        cancellations.push({ at: now, block: head });
+      } else if (command.kind === "bid") {
+        bids.push({ at: now, wordId, empty: book.orders.length === 0 });
+        book.orders.push({
+          id: 3,
+          flip: false,
+          price: 9800,
+          size: BigInt(command.amount!),
+          buy: true,
+        });
+      } else throw new Error(`Unexpected command ${command.kind}`);
+      receipts.set(tx.hash, receipt);
+      return receipt;
+    },
+    async receipt(txHash) {
+      return receipts.get(txHash) ?? null;
+    },
+  };
+  let maker: HouseMaker | undefined;
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    log: () => {},
+    seed: {
+      ...seed,
+      tick: async () => {
+        await maker?.tick();
+      },
+    },
+  });
+  await runner.request("on_demand", "judge");
+  await runner.tickMaker();
+  db.query("UPDATE actions SET status='confirmed', payload_json=? WHERE kind='seed'").run(
+    JSON.stringify({
+      owner: "bot",
+      steps: [
+        {
+          key: "seed",
+          command: { kind: "ladder" },
+          hash: seedHash,
+          raw: seedHash,
+          status: "confirmed",
+          block: 1,
+        },
+      ],
+    }),
+  );
+  maker = new HouseMaker({ db, now: () => now, chain: makerChain });
+  const pulls = db
+    .query<{ word_id: number; scheduled_ms: number }, []>(
+      "SELECT word_id,scheduled_ms FROM actions WHERE kind='pull' ORDER BY word_id",
+    )
+    .all();
+  expect(pulls).toEqual([1, 2, 3, 4, 5, 6].map((word_id) => ({ word_id, scheduled_ms: 140000 })));
+  expect(pulls.every(({ scheduled_ms }) => scheduled_ms >= 140000)).toBe(true);
+  expect(
+    db.query("SELECT scheduled_ms FROM actions WHERE kind='bid' ORDER BY scheduled_ms").all(),
+  ).toEqual([{ scheduled_ms: 167090 }, { scheduled_ms: 170860 }]);
+  now = 139000;
+  await runner.tickMaker();
+  expect(cancellations).toHaveLength(0);
+  expect(runner.nextMakerWakeMs()).toBe(900);
+  now = 140000;
+  await runner.tickMaker();
+  expect(cancellations).toHaveLength(12);
+  expect(cancellations.every(({ at }) => at >= 140000 && at < 160000)).toBe(true);
+  expect(cancellations.at(-1)?.at).toBe(153200);
+  expect(160000 - cancellations.at(-1)!.at).toBe(6800);
+  expect(cancellations.map(({ block }) => block)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  expect([...books.values()].every(({ orders }) => orders.length === 0)).toBe(true);
+  expect(db.query("SELECT status FROM actions WHERE kind='pull'").all()).toEqual(
+    Array.from({ length: 6 }, () => ({ status: "confirmed" })),
+  );
+  now = 167090;
+  await runner.tick();
+  await runner.tickMaker();
+  expect(bids).toEqual([{ at: expect.any(Number), wordId: 2, empty: true }]);
+  expect(bids[0]!.at).toBeGreaterThanOrEqual(167090);
+  expect(books.get(2)!.orders).toEqual([
+    { id: 3, flip: false, price: 9800, size: 1_000_000n, buy: true },
+  ]);
+  expect(cancellations).toHaveLength(12);
+  await runner.stop();
 });
 
 it("wakes one lead before a flag and signs it exactly at its spoken time", async () => {
@@ -649,7 +819,7 @@ it("kicks the BOT on a flag receipt while later OPERATOR work in the same tick i
   await ticking;
 });
 
-it("runs the BOT clock for a pull lead while an OPERATOR flag receipt is pending", async () => {
+it("runs the BOT cash-out clock while an OPERATOR flag receipt is pending", async () => {
   let runs = 0;
   runner = new EpisodeRunner({
     db,
@@ -664,19 +834,19 @@ it("runs the BOT clock for a pull lead while an OPERATOR flag receipt is pending
     },
   });
   await runner.request("on_demand", "judge");
-  db.query("UPDATE actions SET status='confirmed' WHERE kind='seed'").run();
+  db.query("UPDATE actions SET status='confirmed' WHERE kind IN ('seed','pull')").run();
   now = 165000;
   await runner.tickMaker();
-  // Word 2's pull is at 166690 (t − 400 ms); the BOT clock wakes PULL_LEAD_MS before it.
-  expect(runner.nextMakerWakeMs()).toBe(166690 - PULL_LEAD_MS - 165000);
+  // The next BOT action is word 2's cash-out bid, not a flag-time pull.
+  expect(runner.nextMakerWakeMs()).toBe(167090 - 165000);
   chain.hold = Promise.withResolvers<void>();
   chain.broadcasting = Promise.withResolvers<void>();
   now = 167090;
   const ticking = runner.tick();
   await chain.broadcasting.promise;
   runs = 0;
-  // Word 1's pull lead begins while word 2's flag receipt is still outstanding.
-  now = 170460 - PULL_LEAD_MS;
+  // Word 1's bid falls due while word 2's flag receipt is still outstanding.
+  now = 170860;
   await runner.tickMaker();
   expect(runs).toBe(1);
   const release = chain.hold;
