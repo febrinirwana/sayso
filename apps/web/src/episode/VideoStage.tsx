@@ -1,4 +1,4 @@
-import { Clock3 } from "lucide-react";
+import { Clock3, EyeOff, Lock } from "lucide-react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { VoxelName } from "@/assets/voxels/names";
@@ -9,6 +9,14 @@ import { ClipTimeline, type SaidMark } from "./ClipTimeline";
 import { type StageMoment, stageCue } from "./cues";
 import { formatClock } from "./format";
 
+// Pre-roll hides the frame: a blur of 6 % of the frame's width washes out faces and on-screen
+// text at every size; the slight zoom pushes the blur's soft edge out of the frame. Kickoff
+// sharpens it in one ease-out (reduced motion: a short unblur, no zoom).
+const HIDDEN_FILTER = "blur(6cqw) saturate(1.2)";
+const HIDDEN_SCALE = "scale(1.15)";
+const REVEAL = "filter 550ms var(--ease-out), transform 550ms var(--ease-out)";
+const REDUCED_REVEAL = "filter 150ms var(--ease-out)";
+
 type VideoStageProps = {
   src?: string;
   poster?: string;
@@ -18,19 +26,24 @@ type VideoStageProps = {
   ended?: boolean;
   /** Pre-roll: seconds until the clip starts. Live: seconds left in the clip. */
   secondsLeft?: number | undefined;
+  /** Pre-roll: seconds until bets close; undefined once they have closed. */
+  betsCloseIn?: number | undefined;
   /** Clip length; with `live` and `secondsLeft` it draws the progress bar. */
   durationSeconds?: number;
   /** Words already SAID and when, as red dots on the progress bar. */
   marks?: readonly SaidMark[];
   /** Overlay content above the frame, below the pills. */
   children?: ReactNode;
+  /** A stand-in frame for specimens without a clip file; hidden and revealed like the video. */
+  frame?: ReactNode;
   className?: string;
   sync?: VideoSync;
 };
 
 /**
  * The 16:9 clip frame: full-bleed with an ink bottom edge on phones, a raised sticker frame from
- * tablet up. LIVE pill and clock ride on top; pre-roll shows a big countdown; playback shows the
+ * tablet up. LIVE pill and clock ride on top; pre-roll hides the frame under a heavy blur with a
+ * big countdown and the bets clock, then sharpens it as playback starts; playback shows the
  * progress bar with SAID dots. Plays `tick` in the last five pre-roll seconds and `start` on go.
  */
 export function VideoStage({
@@ -39,9 +52,11 @@ export function VideoStage({
   live,
   ended = false,
   secondsLeft,
+  betsCloseIn,
   durationSeconds,
   marks,
   children,
+  frame,
   className,
   sync,
 }: VideoStageProps) {
@@ -50,7 +65,9 @@ export function VideoStage({
   // a missing file) the stage shows its poster stand instead of an empty ink block.
   const [framed, setFramed] = useState<string>();
   const showsFrame = !!src && framed === src && !failed;
-
+  // Nobody may identify the clip before kickoff: the frame stays blurred until playback starts.
+  const hidden = !live && !ended;
+  const reduce = useReducedMotion() ?? false;
   const moment = useRef<StageMoment | null>(null);
   useEffect(() => {
     const next = { live, secondsLeft };
@@ -65,28 +82,38 @@ export function VideoStage({
   return (
     <section
       aria-label="Clip"
-      className={`relative aspect-video w-full overflow-hidden border-b-2 border-ink md:rounded-card md:border-2 md:shadow-sticker-lg ${showsFrame || poster ? "bg-ink" : "bg-sky-tint"} ${className ?? ""}`}
+      className={`@container relative aspect-video w-full overflow-hidden border-b-2 border-ink md:rounded-card md:border-2 md:shadow-sticker-lg ${showsFrame || poster ? "bg-ink" : "bg-sky-tint"} ${className ?? ""}`}
     >
-      {showsFrame ? null : poster ? (
-        <img src={poster} alt="" className="absolute inset-0 size-full object-cover" />
-      ) : (
-        <PosterStand live={live && !failed} />
-      )}
-      {src ? (
-        // biome-ignore lint/a11y/useMediaCaption: a caption track is the transcript, served ahead of playback it leaks every outcome (CLAUDE.md rule 2).
-        <video
-          ref={video}
-          src={src}
-          playsInline
-          preload="auto"
-          className={`absolute inset-0 size-full object-cover ${showsFrame ? "" : "opacity-0"}`}
-          onLoadedData={() => setFramed(src)}
-          onPlay={() => duck(!video.current?.muted)}
-          onPause={() => duck(false)}
-          onEnded={() => duck(false)}
-          onError={() => setFailed(true)}
-        />
-      ) : null}
+      {showsFrame || poster || frame ? null : <PosterStand live={live && !failed} />}
+      <div
+        className="absolute inset-0"
+        style={{
+          filter: hidden ? HIDDEN_FILTER : "none",
+          transform: hidden && !reduce ? HIDDEN_SCALE : "none",
+          transition: reduce ? REDUCED_REVEAL : REVEAL,
+        }}
+      >
+        {showsFrame ? null : poster ? (
+          <img src={poster} alt="" className="absolute inset-0 size-full object-cover" />
+        ) : (
+          frame
+        )}
+        {src ? (
+          // biome-ignore lint/a11y/useMediaCaption: a caption track is the transcript, served ahead of playback it leaks every outcome (CLAUDE.md rule 2).
+          <video
+            ref={video}
+            src={src}
+            playsInline
+            preload="auto"
+            className={`absolute inset-0 size-full object-cover ${showsFrame ? "" : "opacity-0"}`}
+            onLoadedData={() => setFramed(src)}
+            onPlay={() => duck(!video.current?.muted)}
+            onPause={() => duck(false)}
+            onEnded={() => duck(false)}
+            onError={() => setFailed(true)}
+          />
+        ) : null}
+      </div>
       {children}
       {src && (muted || blocked) && !ended ? (
         <button
@@ -104,7 +131,17 @@ export function VideoStage({
           Clip unavailable. The board still follows the chain.
         </p>
       ) : null}
-      {!live && secondsLeft !== undefined ? <PreRollCountdown secondsLeft={secondsLeft} /> : null}
+      {hidden && !failed ? (
+        <p className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center md:bottom-4">
+          <span className="inline-flex h-7 items-center gap-1.5 rounded-full border-2 border-ink bg-card px-2.5 text-[11px] font-extrabold uppercase leading-none tracking-[0.1em] text-ink md:h-8 md:text-[12px]">
+            <EyeOff aria-hidden size={14} strokeWidth={2.75} />
+            Clip hidden until kickoff
+          </span>
+        </p>
+      ) : null}
+      {!live && secondsLeft !== undefined ? (
+        <PreRollCountdown secondsLeft={secondsLeft} betsCloseIn={betsCloseIn} />
+      ) : null}
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 md:inset-x-4 md:top-4">
         {ended ? (
           <span className="inline-flex h-8 items-center rounded-full border-2 border-ink bg-card px-3 text-[12px] font-extrabold leading-none tracking-[0.12em] text-ink shadow-sticker">
@@ -164,8 +201,17 @@ function LiveDot() {
   );
 }
 
-/** Big sticker countdown over the poster; the last five seconds pop in step with `tick`. */
-function PreRollCountdown({ secondsLeft }: { secondsLeft: number }) {
+/**
+ * Big sticker countdown over the hidden frame with the bets clock beneath it; the last five
+ * seconds pop in step with `tick`.
+ */
+function PreRollCountdown({
+  secondsLeft,
+  betsCloseIn,
+}: {
+  secondsLeft: number;
+  betsCloseIn: number | undefined;
+}) {
   const reduce = useReducedMotion() ?? false;
   const shown = Math.ceil(secondsLeft);
   const final = shown <= 5 && shown > 0;
@@ -187,8 +233,17 @@ function PreRollCountdown({ secondsLeft }: { secondsLeft: number }) {
             {final ? shown : formatClock(secondsLeft)}
           </motion.span>
         </AnimatePresence>
-        <span className="mt-1 text-[12px] font-semibold text-ink-soft md:text-[14px]">
-          Pick YES or NO before it rolls
+        <span
+          className={`tabular mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-bold text-ink transition-colors duration-180 ease-out md:text-[14px] ${betsCloseIn !== undefined && betsCloseIn <= 10 ? "bg-sun" : "bg-line"}`}
+        >
+          {betsCloseIn === undefined ? (
+            <>
+              <Lock aria-hidden size={13} strokeWidth={2.75} />
+              Bets locked — watch
+            </>
+          ) : (
+            `Bets close in ${formatClock(betsCloseIn)}`
+          )}
         </span>
       </div>
     </div>

@@ -70,6 +70,8 @@ Motion explains the product, rewards an action or makes the brand alive. Library
 | Price change | digits roll; card glows sun/green briefly | 180 ms |
 | Cash out / redeem | coins arc from the card into the balance, balance counts up | 0.8 s |
 | Settle | YES cards stamp in `gain`, NO cards fade, 40 ms stagger | 240 ms |
+| Kickoff reveal | Until playback the clip frame sits under a blur of 6 % of the frame width with a 1.15 zoom, a "Clip hidden until kickoff" pill and the countdown sticker; as playback starts it sharpens and the zoom settles | 550 ms `ease-out`; reduced motion: 150 ms unblur, no zoom |
+| Bets close | Open cards take a lock tag, their chance meter turns `no`, and each gives a small clunk in the board's 40 ms wave; an open ticket turns into the locked notice | 320 ms |
 | Win (S5) | 3D voxel burst plus confetti stickers | ≤ 2.5 s |
 | Landing reveals | `whileInView` once, y 32 px, 500 ms, 70 ms stagger; scroll-linked 3D entrances | |
 | Landing ambience | voxels float and face the cursor; marquees scroll; mascot blinks | continuous, paused off-screen |
@@ -130,3 +132,5 @@ Family: bubbly mobile game show in C major pentatonic (C, D, E, G, A). A soft ce
 ## 11. Copy
 
 Short, plain, game-show confident, a little cheeky. Prices in cents, balances in AUSD with TESTNET beside them. No crypto jargon on S0–S4: "passkey", not "wallet"; "cash out", not "sell YES".
+
+Bets window (S3/S4; new positions open only before kickoff, closing `TRADING_CLOSE_LEAD_MS` before the clip starts): the board chip and the countdown sticker read "Bets close in 0:42" (sun in the last 10 s), then "Bets locked — watch" with a lock; open cards wear a lock tag; a locked ticket explains why and keeps SAID cash-outs. After the clip the chip reads "Clip over · results next". Never show the clip title before kickoff.

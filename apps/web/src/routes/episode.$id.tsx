@@ -2,6 +2,8 @@ import { centsToKuru, quoteProceeds } from "@sayso/core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { RequireAccount, useAccount } from "@/account";
 import { mediaUrl } from "@/data/studio";
+import { BetsChip } from "@/episode/BetsChip";
+import { betsView } from "@/episode/bets";
 import { EpisodeHeader } from "@/episode/EpisodeHeader";
 import { EpisodeLayout } from "@/episode/EpisodeLayout";
 import { type Holding, PositionStrip } from "@/episode/PositionStrip";
@@ -83,6 +85,7 @@ function EpisodePage({ id }: { id: number }) {
     }
   }
   const selectedCard = live.cards[live.index];
+  const bets = betsView(live.trading, ended);
   return (
     <EpisodeLayout
       header={
@@ -99,6 +102,7 @@ function EpisodePage({ id }: { id: number }) {
           ended={ended}
           sync={live.sync}
           durationSeconds={durationSeconds}
+          betsCloseIn={bets.closesInSeconds}
           secondsLeft={
             ended || elapsed === null
               ? undefined
@@ -134,7 +138,7 @@ function EpisodePage({ id }: { id: number }) {
           ) : null}
         </VideoStage>
       }
-      board={<WordBoard words={live.cards} variant="episode" />}
+      board={<WordBoard words={live.cards} variant="episode" caption={<BetsChip view={bets} />} />}
       position={
         <PositionStrip
           holdings={holdings}
@@ -161,9 +165,7 @@ function EpisodePage({ id }: { id: number }) {
             layout={layout}
             onClose={live.closeTicket}
             quoteFor={(side, amount) =>
-              side === "no" && live.closed
-                ? null
-                : liveBuyQuote(side, live.book?.bid ?? null, live.book?.ask ?? null, amount)
+              liveBuyQuote(side, live.book?.bid ?? null, live.book?.ask ?? null, amount)
             }
             minSharesFor={(side, amount) => {
               const quote = liveBuyQuote(
@@ -174,11 +176,7 @@ function EpisodePage({ id }: { id: number }) {
               );
               return quote ? (side === "yes" ? quote.minOut : quote.sharesMicro) : null;
             }}
-            noDisabledReason={
-              live.closed
-                ? "New NO positions close when the clip ends. YES and cash-outs remain open until settlement."
-                : undefined
-            }
+            bets={bets}
             disabledReason={live.disabledReason}
             cashOutBidCents={live.book?.bid ?? null}
             transactionUrl={live.transactionUrl}

@@ -1,6 +1,8 @@
+import { TRADING_CLOSE_LEAD_MS } from "@sayso/core";
 import { describe, expect, it, vi } from "vitest";
 import {
   allowanceApproval,
+  canTrade,
   cardPrice,
   driftDecision,
   liveBuyQuote,
@@ -8,8 +10,57 @@ import {
   presentationState,
   scheduleFlip,
   tradeTransition,
+  tradingWindow,
+  wordAction,
 } from "./model";
 import { bookCents } from "./readers";
+
+describe("bets window", () => {
+  const startsAt = 100_000;
+  const closeAt = startsAt - TRADING_CLOSE_LEAD_MS;
+
+  it("is open before the close and counts down to it", () => {
+    expect(tradingWindow(closeAt - 12_000, startsAt, false)).toEqual({
+      status: "open",
+      closesInMs: 12_000,
+    });
+    expect(tradingWindow(closeAt - 1, startsAt, false).status).toBe("open");
+  });
+  it("closes at the close instant, through playback and after the clip", () => {
+    expect(tradingWindow(closeAt, startsAt, false).status).toBe("closed");
+    expect(tradingWindow(startsAt + 10_000, startsAt, false).status).toBe("closed");
+    expect(tradingWindow(closeAt - 30_000, startsAt, true).status).toBe("closed");
+  });
+  it("never reads open without a synchronized clock", () => {
+    expect(tradingWindow(null, startsAt, false).status).toBe("unsynced");
+  });
+  it("buys and sells any open word before the close", () => {
+    const action = wordAction("open", tradingWindow(closeAt - 1, startsAt, false));
+    expect(action).toBe("trade");
+    expect(canTrade(action, "buy")).toBe(true);
+    expect(canTrade(action, "sell")).toBe(true);
+  });
+  it("locks an unflagged word during playback: no buy, no sell", () => {
+    const playing = tradingWindow(startsAt + 4_000, startsAt, false);
+    expect(wordAction("open", playing)).toBe("locked");
+    expect(canTrade("locked", "buy")).toBe(false);
+    expect(canTrade("locked", "sell")).toBe(false);
+    expect(wordAction("open", tradingWindow(null, startsAt, false))).toBe("locked");
+  });
+  it("keeps the SAID cash-out during playback but takes no new bet on it", () => {
+    const playing = tradingWindow(startsAt + 4_000, startsAt, false);
+    expect(wordAction("said", playing)).toBe("cashout");
+    expect(canTrade("cashout", "sell")).toBe(true);
+    expect(canTrade("cashout", "buy")).toBe(false);
+  });
+  it("leaves settled words to redeem", () => {
+    const open = tradingWindow(closeAt - 1, startsAt, false);
+    for (const state of ["yes", "no", "void"] as const) {
+      expect(wordAction(state, open)).toBe("settled");
+    }
+    expect(canTrade("settled", "sell")).toBe(false);
+  });
+});
 
 describe("card price", () => {
   // Episode 9, BLOCK (word 49): bestBidAsk after the house pull, then after its 0.98 bid

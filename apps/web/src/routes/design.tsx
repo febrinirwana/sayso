@@ -1,7 +1,10 @@
+import { TRADING_CLOSE_LEAD_MS } from "@sayso/core";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { SlidersHorizontal, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { BetsChip } from "@/episode/BetsChip";
+import { betsView } from "@/episode/bets";
 import type { SaidMark } from "@/episode/ClipTimeline";
 import { EpisodeHeader } from "@/episode/EpisodeHeader";
 import { EpisodeLayout } from "@/episode/EpisodeLayout";
@@ -18,6 +21,7 @@ import { Ticket, type TicketStatus } from "@/episode/Ticket";
 import { VideoStage } from "@/episode/VideoStage";
 import { WordBoard } from "@/episode/WordBoard";
 import { WordCard, type WordState } from "@/episode/WordCard";
+import { PRESENTATION_DELAY_MS, tradingWindow, wordAction } from "@/live/model";
 import { Voxel } from "@/ui/Voxel";
 
 export const Route = createFileRoute("/design")({
@@ -60,7 +64,8 @@ const WORDS: readonly SpecimenWord[] = [
 
 const START_BALANCE = 124_500_000n;
 const CLIP_SECONDS = 184;
-const PREROLL_SECONDS = 9;
+/** Long enough to watch the bets countdown run out before the clip starts. */
+const PREROLL_SECONDS = TRADING_CLOSE_LEAD_MS / 1_000 + 15;
 const RIBBON_PX = 30;
 const SEND_MS = 750;
 const CLOSE_MS = 900;
@@ -229,6 +234,13 @@ function DesignSpecimen() {
   );
   const ticketWord = ticket ? (words.find((w) => w.word === ticket.word) ?? null) : null;
   const live = phase !== "preroll";
+  // The specimen's clip starts at t = 0 and plays after the presentation delay, like an episode.
+  const trading = tradingWindow(
+    live ? PRESENTATION_DELAY_MS : PRESENTATION_DELAY_MS - secondsLeft * 1_000,
+    0,
+    phase === "settled",
+  );
+  const bets = betsView(trading, phase === "settled");
 
   return (
     <div className="bg-paper">
@@ -243,7 +255,8 @@ function DesignSpecimen() {
         header={
           <EpisodeHeader
             episode="Episode 14 · Replay"
-            title="Cup final presser"
+            // Like the clip itself, its title stays hidden until kickoff.
+            title={live ? "Cup final presser" : "Replay Arena"}
             balanceMicro={balance}
           />
         }
@@ -252,17 +265,19 @@ function DesignSpecimen() {
             live={live}
             ended={phase === "settled"}
             secondsLeft={phase === "settled" ? 0 : secondsLeft}
+            betsCloseIn={bets.closesInSeconds}
             durationSeconds={CLIP_SECONDS}
             marks={marks}
-          >
-            {live ? <SpecimenClip talking={phase === "live"} /> : null}
-          </VideoStage>
+            frame={<SpecimenClip talking={phase === "live"} />}
+          />
         }
         board={
           <WordBoard
             variant="episode"
+            caption={<BetsChip view={bets} />}
             words={words.map(({ costMicro: _cost, ...w }) => ({
               ...w,
+              locked: wordAction(w.state, trading) === "locked",
               selected: ticket?.word === w.word,
               ...(w.state === "open" || w.state === "said"
                 ? { onPress: () => openTicket(w.word) }
@@ -285,6 +300,7 @@ function DesignSpecimen() {
               balanceMicro={balance}
               status={ticket.status}
               {...(ticketWord.position ? { position: ticketWord.position } : {})}
+              bets={bets}
               onClose={() => setTicket(null)}
               onConfirm={({ side, amountMicro }) => {
                 const price = BigInt(sideCents(side, ticketWord.priceCents));
@@ -514,7 +530,7 @@ function Gallery() {
     <div className="mx-auto flex max-w-[1616px] flex-col gap-14 px-6 pt-14 pb-28 md:px-8 xl:px-12">
       <Section
         title="Every card state"
-        note="Open, SAID, settled YES, settled NO; short and long words, held and not."
+        note="Open, SAID, settled YES, settled NO and bets locked; short and long words, held and not."
       >
         <div className="grid grid-cols-2 gap-x-3 gap-y-5 md:grid-cols-4 [&>*]:h-[132px] lg:[&>*]:h-[188px]">
           {STATES.map((state) => (
@@ -536,6 +552,14 @@ function Gallery() {
             state={replay}
             position={{ side: "no", shares: 1_250 }}
           />
+          <WordCard word="Trophy" priceCents={55} state="open" locked />
+          <WordCard
+            word="Legacy"
+            priceCents={41}
+            state="open"
+            locked
+            position={{ side: "yes", shares: 12.5 }}
+          />
         </div>
         <Chip
           onClick={() => {
@@ -550,11 +574,26 @@ function Gallery() {
 
       <Section
         title="Ticket"
-        note="Buy, sending, filled and cash out; phone sheet body and desktop dock body."
+        note="Buy with the bets clock, bets locked, sending, filled and cash out; phone sheet body and desktop dock body."
       >
         <div className="grid gap-6 lg:grid-cols-2">
           <Frame label="Sheet · buy">
-            <Ticket word="Pressure" state="open" yesCents={62} balanceMicro={START_BALANCE} />
+            <Ticket
+              word="Pressure"
+              state="open"
+              yesCents={62}
+              balanceMicro={START_BALANCE}
+              bets={betsView({ status: "open", closesInMs: 8_000 }, false)}
+            />
+          </Frame>
+          <Frame label="Sheet · bets locked">
+            <Ticket
+              word="Legacy"
+              state="open"
+              yesCents={41}
+              position={{ side: "yes", shares: 12.5 }}
+              bets={betsView({ status: "closed" }, false)}
+            />
           </Frame>
           <Frame label="Sheet · cash out">
             <Ticket

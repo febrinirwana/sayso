@@ -20,6 +20,7 @@ import type { TicketStatus } from "@/episode/Ticket";
 import { publicClient } from "@/lib/chain";
 import {
   allowanceApproval,
+  canTrade,
   cardPrice,
   liveBuyQuote,
   minOutput,
@@ -27,6 +28,8 @@ import {
   presentationState,
   scheduleFlip,
   tradeTransition,
+  tradingWindow,
+  wordAction,
 } from "./model";
 import { useEpisodeBooks, useEpisodeTrades, useTokenPositions } from "./readers";
 
@@ -99,6 +102,7 @@ export function useLiveEpisode(id: number) {
     };
   }, [clock.now, startsAtMs, scheduleKey]);
   const now = clock.now();
+  const trading = tradingWindow(now, startsAtMs, closed);
   // A closed episode proves that every flagged offset is already past presentation. No local-clock fiction.
   const cards = words.map((word, i) => {
     const state = presentationState(
@@ -132,6 +136,7 @@ export function useLiveEpisode(id: number) {
       priceAvailable: price !== null,
       state,
       position,
+      locked: wordAction(state, trading) === "locked",
       selected: selected === word.id,
       onPress: () => {
         if (busy.current) return;
@@ -146,9 +151,10 @@ export function useLiveEpisode(id: number) {
   const word = words[index];
   const book = books[index];
   const holding = positions.data?.find((p) => p.wordId === selected);
-  // A ticket left open across the SAID flip is a new ticket: the buy's "Filled!" must not stand in
-  // for, and disable, the Cash out button.
-  const ticketState = cards[index]?.state;
+  // A ticket left open across the SAID flip or the bets close is a new ticket: the buy's "Filled!"
+  // must not stand in for, and disable, the Cash out button or the locked notice.
+  const ticketCard = cards[index];
+  const ticketState = ticketCard && `${ticketCard.state}:${ticketCard.locked}`;
   const [shownTicketState, setShownTicketState] = useState(ticketState);
   if (!busy.current && ticketState !== shownTicketState) {
     // If SAID arrived during signing, defer this reset until the receipt has completed.
@@ -175,7 +181,8 @@ export function useLiveEpisode(id: number) {
     [clock.now, startsAtMs, endsAtMs],
   );
   const execute = async (side: Side, amount: bigint, sell: boolean) => {
-    if (busy.current || !word || !account.address || disabledReason) return;
+    if (busy.current || !word || !ticketCard || !account.address || disabledReason) return;
+    if (!canTrade(wordAction(ticketCard.state, trading), sell ? "sell" : "buy")) return;
     busy.current = true;
     setStatus((s) => tradeTransition(s, "sending"));
     setError(undefined);
@@ -191,7 +198,6 @@ export function useLiveEpisode(id: number) {
         guard = minOutput(quoteProceeds(input, centsToKuru(cents)));
         if (guard <= 0n) throw new Error("Position is below the book's cash-out quantum.");
       } else {
-        if (side === "no" && closed) throw new Error("New NO positions close when the clip ends.");
         const quote = liveBuyQuote(side, book.bid, book.ask, amount);
         if (!quote) throw new Error("No executable quote on this side.");
         const balance = await publicClient.readContract({
@@ -220,6 +226,9 @@ export function useLiveEpisode(id: number) {
           });
           setHash(approvalHash);
         }
+        // Bets may have closed while the player confirmed or signed the approval.
+        if (tradingWindow(clock.now(), startsAtMs, closed).status !== "open")
+          throw new Error("Bets closed before kickoff. Nothing was sent.");
         input = side === "yes" ? amount : quote.sharesMicro;
         guard = side === "yes" ? quote.minOut : quote.maxAusdIn;
       }
@@ -307,6 +316,7 @@ export function useLiveEpisode(id: number) {
     buy: (side: Side, amount: bigint) => execute(side, amount, false),
     sell: (side: Side) => execute(side, 0n, true),
     closed,
+    trading,
     startsAtMs,
     endsAtMs,
   };

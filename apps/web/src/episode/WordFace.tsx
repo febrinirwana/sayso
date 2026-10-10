@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { RollingCents } from "./RollingCents";
 import { EASE_OUT, SETTLE_DURATION } from "./settle";
@@ -28,6 +29,8 @@ type WordFaceProps = {
   priceAvailable?: boolean;
   state: WordState;
   fontSize: number;
+  /** An open word after bets close: a lock tag and a frozen chance meter. */
+  locked?: boolean;
   /** Set when this face is arriving through a settle; delays the YES stamp to the card's wave slot. */
   settleDelay?: number;
 };
@@ -43,6 +46,7 @@ export function WordFace({
   priceAvailable = true,
   state,
   fontSize,
+  locked = false,
   settleDelay,
 }: WordFaceProps) {
   return (
@@ -69,12 +73,16 @@ export function WordFace({
               </span>
             ) : null}
           </span>
-          <StateTag state={state} settleDelay={settleDelay} />
+          {state === "open" && locked ? (
+            <LockTag />
+          ) : (
+            <StateTag state={state} settleDelay={settleDelay} />
+          )}
         </span>
         {state === "open" ? (
           <span className="relative block h-1.5 w-full overflow-hidden rounded-full bg-line @min-[200px]:h-2">
             <span
-              className="absolute inset-y-0 left-0 block rounded-full bg-ink transition-[width] duration-180 ease-out"
+              className={`absolute inset-y-0 left-0 block rounded-full transition-[width,background-color] duration-180 ease-out ${locked ? "bg-no" : "bg-ink"}`}
               style={{ width: `${priceCents}%` }}
             />
           </span>
@@ -91,6 +99,16 @@ export function WordFace({
           {word}
         </span>
       </span>
+    </span>
+  );
+}
+
+/** Bets are closed on this word: it can still be said, but it no longer takes bets. */
+function LockTag() {
+  return (
+    <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-full border-2 border-ink bg-paper px-1 text-[12px] font-extrabold leading-none tracking-[0.1em] text-ink @min-[200px]:h-8 @min-[200px]:min-w-8 @min-[240px]:px-2.5">
+      <Lock aria-hidden size={14} strokeWidth={2.75} />
+      <span className="hidden @min-[240px]:inline">LOCKED</span>
     </span>
   );
 }

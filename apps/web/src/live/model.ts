@@ -1,4 +1,4 @@
-import { MAX_SIZE, MIN_SIZE } from "@sayso/core";
+import { MAX_SIZE, MIN_SIZE, tradingClosesAtMs } from "@sayso/core";
 import type { WordState as ChainState } from "@/data/chain";
 import { buyQuote, type Side } from "@/episode/quote";
 import type { TicketStatus } from "@/episode/Ticket";
@@ -37,6 +37,41 @@ export function cardPrice(
   if (state === "void") return 50;
   if (state === "said") return book?.bid ?? null;
   return book?.ask ?? book?.bid ?? lastYes;
+}
+
+/**
+ * The bets window on the studio clock. New positions open only before the clip: they close
+ * `TRADING_CLOSE_LEAD_MS` before startsAt, the instant the house pulls its quotes. Without a
+ * synchronized clock nobody can show the window is still open, so it reads unsynced, never open.
+ */
+export type TradingWindow =
+  | { status: "open"; closesInMs: number }
+  | { status: "closed" }
+  | { status: "unsynced" };
+
+export function tradingWindow(
+  nowMs: number | null,
+  startsAtMs: number,
+  episodeClosed: boolean,
+): TradingWindow {
+  if (episodeClosed) return { status: "closed" };
+  if (nowMs === null) return { status: "unsynced" };
+  const closesInMs = tradingClosesAtMs(startsAtMs) - nowMs;
+  return closesInMs > 0 ? { status: "open", closesInMs } : { status: "closed" };
+}
+
+/** What a word's ticket offers: bets while the window is open, the SAID cash-out, or nothing. */
+export type WordAction = "trade" | "cashout" | "locked" | "settled";
+
+export function wordAction(state: WordState, trading: TradingWindow): WordAction {
+  if (state === "said") return "cashout";
+  if (state === "open") return trading.status === "open" ? "trade" : "locked";
+  return "settled";
+}
+
+/** Buys need an open window; a sell is a cash-out of a SAID word or an exit before the close. */
+export function canTrade(action: WordAction, order: "buy" | "sell"): boolean {
+  return action === "trade" || (action === "cashout" && order === "sell");
 }
 
 /** Re-check studio time when the timer wakes, including background-tab delays and offset changes. */

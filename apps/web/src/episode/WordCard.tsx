@@ -34,6 +34,8 @@ export type WordCardProps = {
   onPress?: () => void;
   /** The ticket is open for this word: the card lifts and wears the focus-blue outline. */
   selected?: boolean;
+  /** Bets have closed: an open card wears a lock and opens a ticket that explains it. */
+  locked?: boolean;
 };
 
 const FLIP = { type: "spring", duration: 0.45, bounce: 0.25 } as const;
@@ -66,6 +68,7 @@ export function WordCard({
   position,
   onPress,
   selected,
+  locked = false,
 }: WordCardProps) {
   const reduce = useReducedMotion() ?? false;
   const settleDelay = useContext(SettleDelayContext);
@@ -182,12 +185,26 @@ export function WordCard({
     }
   }, [priceCents, state, reduce]);
 
+  // Bets close: each open card gives a small clunk as its lock lands, in the board's wave.
+  const wasLocked = useRef(locked);
+  useEffect(() => {
+    const was = wasLocked.current;
+    wasLocked.current = locked;
+    if (!locked || was || reduce || !card.current) return;
+    animate(
+      card.current,
+      { scale: [1, 0.97, 1.01, 1], rotate: [0, -1, 0.5, 0] },
+      { duration: 0.32, delay: settleDelay, ease: "easeOut" },
+    );
+  }, [locked, reduce, settleDelay]);
+
   const settling = shown === "yes" || shown === "no" || shown === "void";
-  const faceProps = { word, priceCents, priceAvailable, fontSize: size };
+  const faceProps = { word, priceCents, priceAvailable, fontSize: size, locked };
   const label = [
     word,
     priceAvailable ? formatCents(priceCents) : "price unavailable",
     stateLabel[shown],
+    locked && shown === "open" ? "bets locked" : null,
     position ? formatHolding(position).toLowerCase() : null,
   ]
     .filter(Boolean)

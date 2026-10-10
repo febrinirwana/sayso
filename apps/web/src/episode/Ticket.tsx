@@ -1,10 +1,18 @@
-import { Check, LoaderCircle, X } from "lucide-react";
+import { Check, Clock3, LoaderCircle, Lock, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { play } from "@/sound";
 import { TestnetPill } from "@/ui/TestnetPill";
+import type { BetsView } from "./bets";
 import { BALANCE_ANCHOR, useEpisodeFx, wordAnchor } from "./EpisodeFx";
-import { formatAusd, formatAusdAmount, formatCents, formatShares } from "./format";
+import {
+  formatAusd,
+  formatAusdAmount,
+  formatCents,
+  formatClock,
+  formatHolding,
+  formatShares,
+} from "./format";
 import {
   AMOUNT_PRESETS_MICRO,
   type BuyQuote,
@@ -48,7 +56,11 @@ export type TicketProps = {
   sellPositions?: { yes: number; no: number };
   transactionUrl?: string | undefined;
   errorMessage?: string | undefined;
-  noDisabledReason?: string | undefined;
+  /**
+   * The bets window. Open: the header counts down to the close. Closed: an open word shows why it
+   * cannot take a bet instead of the buy form; SAID cash-outs are unaffected. Omit outside an episode.
+   */
+  bets?: BetsView | undefined;
   minSharesFor?: (side: Side, amountMicro: bigint) => bigint | null;
 };
 
@@ -80,11 +92,14 @@ export function Ticket({
   sellPositions,
   transactionUrl,
   errorMessage,
-  noDisabledReason,
+  bets,
   minSharesFor,
 }: TicketProps) {
   const fx = useEpisodeFx();
-  const mode = state === "open" ? "buy" : state === "said" ? "cashout" : "settled";
+  // An order already in flight keeps its buy form until the receipt lands.
+  const locked = bets?.lockedReason !== undefined && status !== "sending" && status !== "filled";
+  const mode =
+    state === "open" ? (locked ? "locked" : "buy") : state === "said" ? "cashout" : "settled";
 
   // Fill feedback when the caller's status lands, never on first render.
   const lastStatus = useRef(status);
@@ -106,8 +121,22 @@ export function Ticket({
     <div className={`@container flex flex-col ${dock ? "gap-3" : "gap-4"}`}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-soft">
-            {mode === "buy" ? "Will they say it?" : mode === "cashout" ? "Said!" : "Settled"}
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-soft">
+            {mode === "buy"
+              ? "Will they say it?"
+              : mode === "locked"
+                ? "Bets locked"
+                : mode === "cashout"
+                  ? "Said!"
+                  : "Settled"}
+            {mode === "buy" && bets?.closesInSeconds !== undefined ? (
+              <span
+                className={`tabular inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-ink transition-colors duration-180 ease-out ${bets.tone === "closing" ? "bg-sun" : "bg-line"}`}
+              >
+                <Clock3 aria-hidden size={12} strokeWidth={3} />
+                Bets close in {formatClock(bets.closesInSeconds)}
+              </span>
+            ) : null}
           </p>
           <h2
             className={`font-headline truncate uppercase leading-[1.02] ${dock ? "text-[26px] xl:text-[30px]" : "text-[34px]"}`}
@@ -145,7 +174,6 @@ export function Ticket({
           quoteFor={quoteFor}
           noCents={noCents}
           disabledReason={disabledReason}
-          noDisabledReason={noDisabledReason}
           minSharesFor={minSharesFor}
         />
       ) : mode === "cashout" ? (
@@ -157,6 +185,8 @@ export function Ticket({
           bidCents={cashOutBidCents}
           disabledReason={disabledReason}
         />
+      ) : mode === "locked" ? (
+        <LockedBody reason={bets?.lockedReason} position={position} />
       ) : (
         <p className="text-[15px] leading-6 text-ink-soft">
           This word settled {state === "yes" ? "YES" : state === "void" ? "VOID" : "NO"}.
@@ -167,7 +197,7 @@ export function Ticket({
       {onSell &&
       sellPositions &&
       (sellPositions.yes > 0 || sellPositions.no > 0) &&
-      mode !== "settled" ? (
+      (mode === "buy" || mode === "cashout") ? (
         <div className="flex gap-2">
           {(["yes", "no"] as const).map((side) =>
             sellPositions[side] > 0 && !(mode === "cashout" && side === "yes") ? (
@@ -214,7 +244,6 @@ function BuyBody({
   quoteFor,
   noCents,
   disabledReason,
-  noDisabledReason,
   minSharesFor,
 }: {
   yesCents: number;
@@ -226,7 +255,6 @@ function BuyBody({
   quoteFor: TicketProps["quoteFor"];
   noCents: TicketProps["noCents"];
   disabledReason: TicketProps["disabledReason"];
-  noDisabledReason: TicketProps["noDisabledReason"];
   minSharesFor: TicketProps["minSharesFor"];
 }) {
   const [side, setSide] = useState<Side>(initialSide);
@@ -237,9 +265,7 @@ function BuyBody({
 
   const finePrint = (
     <p className="text-[12px] leading-4 text-ink-soft">
-      {side === "no" && noDisabledReason
-        ? noDisabledReason
-        : "Immediate-or-cancel. 1% slippage guard; unspent AUSD returns to you."}
+      Immediate-or-cancel. 1% slippage guard; unspent AUSD returns to you.
     </p>
   );
 
@@ -475,6 +501,37 @@ function CashOutBody({
         </ActionButton>
         {dock ? null : disclosure}
       </div>
+    </div>
+  );
+}
+
+/** An open word after bets close: why it takes no bet, and what a holding can still do. */
+function LockedBody({
+  reason,
+  position,
+}: {
+  reason: string | undefined;
+  position: TicketProps["position"];
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-4 rounded-2xl border-2 border-ink bg-paper px-4 py-3.5">
+        <span
+          aria-hidden
+          className="inline-flex size-12 shrink-0 -rotate-6 items-center justify-center rounded-2xl border-2 border-ink bg-sun text-ink shadow-[0_2px_0_var(--color-ink)]"
+        >
+          <Lock size={22} strokeWidth={2.75} />
+        </span>
+        <p className="text-[15px] leading-6 text-ink">{reason}</p>
+      </div>
+      {position ? (
+        <p className="text-[14px] leading-5 text-ink-soft">
+          {formatHolding(position)}.{" "}
+          {position.side === "yes"
+            ? "If it's said, cash out here or hold for the result."
+            : "Hold it until the result."}
+        </p>
+      ) : null}
     </div>
   );
 }

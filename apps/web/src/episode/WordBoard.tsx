@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { TestnetPill } from "@/ui/TestnetPill";
 import { SETTLE_STAGGER, SettleDelayContext } from "./settle";
 import { WordCard, type WordCardProps } from "./WordCard";
@@ -16,14 +16,17 @@ const layouts = {
 
 /**
  * The six-word board. Settles as a left-to-right, top-to-bottom wave and announces SAID words to
- * screen readers. The episode variant adds a caption row with the TESTNET label its prices need.
+ * screen readers. The episode variant adds a caption row with the TESTNET label its prices need;
+ * `caption` replaces the default hint (the episode passes the bets window).
  */
 export function WordBoard({
   words,
   variant = "compact",
+  caption,
 }: {
   words: readonly WordCardProps[];
   variant?: keyof typeof layouts;
+  caption?: ReactNode;
 }) {
   const announcement = useSaidAnnouncement(words);
   const grid = (
@@ -42,9 +45,11 @@ export function WordBoard({
   return (
     <section aria-label="Word board" className="flex flex-col gap-4 lg:h-full lg:gap-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-soft lg:text-[12px]">
-          The board · tap a word to trade
-        </p>
+        {caption ?? (
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-soft lg:text-[12px]">
+            The board · tap a word to trade
+          </p>
+        )}
         <TestnetPill />
       </div>
       {grid}
