@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { PlayLink } from "@/account/PlayLink";
 import mascotUrl from "@/assets/brand/mascot-640.webp";
+import { InstallButton } from "@/pwa/InstallButton";
 import { play } from "@/sound";
 import { sendSignal, useStageReady } from "@/three/registry";
 import { useStageSlot } from "@/three/Slot";
@@ -147,6 +148,7 @@ export function Hero() {
             >
               How it works
             </Button>
+            <InstallButton size="xl" className="max-md:h-14 max-md:px-5" />
           </motion.div>
 
           <motion.div {...enter(0.85)} className="mt-8 lg:mt-10">

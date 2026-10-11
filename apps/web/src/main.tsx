@@ -3,7 +3,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { startInstallCapture } from "./pwa/install";
 import { routeTree } from "./routeTree.gen";
+
+// Before React renders: `beforeinstallprompt` can fire before the landing mounts.
+startInstallCapture();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5_000, refetchOnWindowFocus: false } },

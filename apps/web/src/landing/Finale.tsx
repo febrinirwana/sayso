@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { PlayLink } from "@/account/PlayLink";
+import { InstallButton } from "@/pwa/InstallButton";
 import { StageSlot } from "@/three/Slot";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
@@ -55,6 +56,7 @@ export function Finale() {
             >
               Try the demo
             </Button>
+            <InstallButton size="xl" />
           </RevealItem>
         </RevealGroup>
       </div>
