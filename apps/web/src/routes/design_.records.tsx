@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { confirmRedeem, type RedeemConfirmation } from "@/records/celebration";
 import { Leaderboard } from "@/screens/leaderboard/Leaderboard";
 import { Portfolio } from "@/screens/portfolio/Portfolio";
 import { Results } from "@/screens/results/Results";
@@ -235,6 +236,7 @@ function RecordsSpecimen() {
   );
   const [state, setState] = useState(() => query.get("state") ?? STATES[screen]?.[0] ?? "win");
   const [redeem, setRedeem] = useState<"idle" | "sending" | "filled">("idle");
+  const [confirmed, setConfirmed] = useState<RedeemConfirmation | null>(null);
   const timer = useRef<number | undefined>(undefined);
   useEffect(
     () => () => {
@@ -247,6 +249,7 @@ function RecordsSpecimen() {
     setScreen(nextScreen);
     setState(nextState);
     setRedeem("idle");
+    setConfirmed(null);
     window.history.replaceState(null, "", `?screen=${nextScreen}&state=${nextState}`);
     play("tap");
   };
@@ -254,8 +257,9 @@ function RecordsSpecimen() {
     setRedeem("sending");
     play("confirm");
     timer.current = window.setTimeout(() => {
+      // Stands in for the receipt: the celebration plays its own sound.
       setRedeem("filled");
-      play("redeem");
+      setConfirmed(confirmRedeem(screen === "results" ? 20_000_000n : 7_500_000n));
     }, 900);
   };
   const filled = state === "filled" || state === "redeemed" || redeem === "filled";
@@ -347,6 +351,7 @@ function RecordsSpecimen() {
             words={words}
             redeemState={sending ? "sending" : "idle"}
             onRedeem={redeemDemo}
+            celebration={confirmed}
             onPlayNext={() => {
               window.location.href = "/design/player?state=arena-live";
             }}
@@ -368,6 +373,7 @@ function RecordsSpecimen() {
             redeemable={filled ? 0n : state === "empty" ? 0n : 7_500_000n}
             redeemState={filled ? "filled" : sending ? "sending" : "idle"}
             onRedeemAll={redeemDemo}
+            celebration={confirmed}
             onPlay={() => {
               window.location.href = "/design/player?state=arena-live";
             }}

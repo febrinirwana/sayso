@@ -1,6 +1,8 @@
 import { ArrowRight, CheckCircle2, Coins, ShieldCheck } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
+import type { RedeemConfirmation } from "@/records/celebration";
+import { RedeemCelebration } from "@/records/RedeemCelebration";
 import { play } from "@/sound";
 import { Button } from "@/ui/Button";
 import { Voxel } from "@/ui/Voxel";
@@ -24,6 +26,8 @@ export type ResultsProps = {
   redeemableByWord?: Readonly<Record<string, bigint>>;
   accountingUnavailable?: boolean;
   balancesUnavailable?: boolean;
+  /** The latest redeem confirmed on chain; celebrated once over the redeem panel. */
+  celebration?: RedeemConfirmation | null;
 };
 
 export function Results({
@@ -41,6 +45,7 @@ export function Results({
   redeemableByWord = {},
   accountingUnavailable = false,
   balancesUnavailable = false,
+  celebration = null,
 }: ResultsProps) {
   const reduce = useReducedMotion();
   const sounded = useRef<string | null>(null);
@@ -181,7 +186,7 @@ export function Results({
             ))}
           </div>
         </section>
-        <aside className="rounded-3xl border-2 border-ink bg-card p-6 shadow-sticker xl:sticky xl:top-6 xl:min-h-[458px]">
+        <aside className="relative rounded-3xl border-2 border-ink bg-card p-6 shadow-sticker xl:sticky xl:top-6 xl:min-h-[458px]">
           <Coins size={28} className="mb-4" />
           <h2 className="font-headline text-2xl">
             {state === "redeemed" ? "All yours." : "Bring it home."}
@@ -236,6 +241,7 @@ export function Results({
           <p className="mt-4 text-xs leading-relaxed text-ink-soft">
             Monad testnet only. No real money.
           </p>
+          {celebration && <RedeemCelebration key={celebration.id} confirmation={celebration} />}
         </aside>
       </div>
     </div>

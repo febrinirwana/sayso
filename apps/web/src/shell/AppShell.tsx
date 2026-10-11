@@ -54,7 +54,10 @@ export function AppShell({ active, balance, nickname, children }: AppShellProps)
             ))}
           </nav>
           <div className="flex min-w-0 items-center gap-2 md:gap-3">
-            <div className="rounded-full border-2 border-ink bg-sun-tint px-3 py-2.5 font-headline text-xs md:px-4 md:text-sm">
+            <div
+              data-balance-chip
+              className="rounded-full border-2 border-ink bg-sun-tint px-3 py-2.5 font-headline text-xs md:px-4 md:text-sm"
+            >
               {balance !== null ? (
                 <TokenAmount amount={balance} symbol="AUSD" />
               ) : (

@@ -12,6 +12,7 @@ import {
 } from "@/data/chain";
 import { publicClient } from "@/lib/chain";
 import { redeemableAmount, redemptionAmounts } from "./adapters";
+import { confirmRedeem, type RedeemConfirmation, redeemPayout } from "./celebration";
 
 export type Holding = { word: ChainWord; episode: ChainEpisode; yes: bigint; no: bigint };
 export async function readHoldings(
@@ -115,6 +116,8 @@ export type Redemption = {
   transactions: { wordId: string; hash: Hex; url: string }[];
   error: string | null;
   failedTxUrl: string | null;
+  /** Set only once every redeem transaction of the latest run mined successfully. */
+  confirmed: RedeemConfirmation | null;
   redeem: (holdings: readonly Holding[]) => Promise<void>;
 };
 export function useRedeem(): Redemption {
@@ -127,6 +130,7 @@ export function useRedeem(): Redemption {
   );
   const [error, setError] = useState<string | null>(null);
   const [failedTxUrl, setFailedTxUrl] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState<RedeemConfirmation | null>(null);
   async function redeem(holdings: readonly Holding[]) {
     if (busy.current || !account.address) return;
     busy.current = true;
@@ -138,6 +142,7 @@ export function useRedeem(): Redemption {
       const fresh = await readRedeemable(holdings, account.address);
       if (fresh.length === 0)
         throw new Error("Nothing to redeem yet. Your words are still being confirmed.");
+      let paid = 0n;
       for (const holding of fresh) {
         for (const amount of redemptionAmounts(holding.word.state, holding.yes, holding.no)) {
           const hash = await account.send({
@@ -153,8 +158,10 @@ export function useRedeem(): Redemption {
             ...previous,
             { wordId: holding.word.id.toString(), hash, url: explorerTxUrl(hash) },
           ]);
+          paid += redeemPayout(holding.word.state, amount);
         }
       }
+      setConfirmed(confirmRedeem(paid));
       setState("redeemed");
     } catch (cause) {
       setState("failed");
@@ -173,5 +180,5 @@ export function useRedeem(): Redemption {
       ]);
     }
   }
-  return { state, transactions, error, failedTxUrl, redeem };
+  return { state, transactions, error, failedTxUrl, confirmed, redeem };
 }

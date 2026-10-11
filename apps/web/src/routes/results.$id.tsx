@@ -123,6 +123,7 @@ function ResultsPage() {
             accountingUnavailable={accountingUnavailable || !holdings.data || holdings.isError}
             balancesUnavailable={!holdings.data || holdings.isError}
             redeemableByWord={redeemableByWord}
+            celebration={redemption.confirmed}
             onProofOpen={() => setOpened(true)}
             onRedeemWord={(wordId) => {
               void redemption.redeem(

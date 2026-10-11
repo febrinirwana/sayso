@@ -1,4 +1,6 @@
 import { ArrowRight, CheckCircle2, Coins, ExternalLink, Layers3 } from "lucide-react";
+import type { RedeemConfirmation } from "@/records/celebration";
+import { RedeemCelebration } from "@/records/RedeemCelebration";
 import { Button } from "@/ui/Button";
 import { Voxel } from "@/ui/Voxel";
 import { amount, positionValue, price, shares } from "../results/format";
@@ -15,6 +17,8 @@ export type PortfolioProps = {
   onPlay: () => void;
   onPlayEpisode?: ((episodeId: string) => void) | undefined;
   historyUnavailable?: boolean;
+  /** The latest redeem confirmed on chain; celebrated once over the redeem card. */
+  celebration?: RedeemConfirmation | null;
 };
 
 export function Portfolio({
@@ -27,6 +31,7 @@ export function Portfolio({
   onPlay,
   onPlayEpisode,
   historyUnavailable = false,
+  celebration = null,
 }: PortfolioProps) {
   const grouped = new Map<string, PortfolioPosition[]>();
   for (const position of positions) {
@@ -86,7 +91,7 @@ export function Portfolio({
             className="absolute right-4 top-4 -rotate-12 opacity-90"
           />
         </section>
-        <section className="flex flex-wrap items-center justify-between gap-5 rounded-3xl border-2 border-ink bg-mint-tint p-6 shadow-sticker sm:p-8">
+        <section className="relative flex flex-wrap items-center justify-between gap-5 rounded-3xl border-2 border-ink bg-mint-tint p-6 shadow-sticker sm:p-8">
           <div>
             <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink-soft">
               <Coins size={17} />
@@ -117,6 +122,7 @@ export function Portfolio({
               "Redeem all"
             )}
           </Button>
+          {celebration && <RedeemCelebration key={celebration.id} confirmation={celebration} />}
         </section>
       </div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">

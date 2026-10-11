@@ -143,6 +143,7 @@ function PortfolioPage() {
               void navigate({ to: "/episode/$id", params: { id } });
             }}
             historyUnavailable={indexed.isError}
+            celebration={redemption.confirmed}
           />
         </>
       )}
