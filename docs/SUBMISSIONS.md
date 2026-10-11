@@ -171,3 +171,87 @@ Rules require public source throughout and after the event, accurate attribution
 - [Prizes and stacking](https://hackathon.monad.xyz/prizes), [participant resources](https://hackathon.monad.xyz/resources)
 
 Dashboard sources require login. Sponsor terms supplement Rules. Requirements are verified; product completion and organizer exceptions still require their own evidence.
+
+## 10. Portal answers, ready to paste
+
+The portal's "describe" fields allow 8,000 characters each; these stay under 3,700. Plain text, no em dashes, every claim tied to a file or receipt. Re-read each against the repo before pasting, and update the Mera paragraph that names real-phone proof once the S5 phone run (BUILD-PLAN S5, 7.7) is green. The two video fields take a public link starting with https://.
+
+### 10.1 Best workflow with CRE
+
+```text
+SAYSO is a word-market game on replayed video clips. Each episode has six words, and each word is its own market on a Kuru order book on Monad testnet. Chainlink CRE is the only thing that can decide whether a word was said. No admin button settles an outcome.
+
+The problem CRE solves: an outcome market is only fair if nobody can pick the answer after seeing the bets. So before the first trade, the studio commits two independent transcripts of the clip (Whisper and Vosk) as Merkle roots (rootA, rootB) in SaysoMarkets. Nothing after that moment can change what counts as "said". CRE checks the revealed evidence against those roots and writes the verdict back onchain.
+
+Workflow (cre/resolver, TypeScript, two EVM log-trigger handlers):
+
+1. EvidenceReady trigger, fired during playback when a word is flagged. CRE reads the episode and word state and both roots from SaysoMarkets with the EVM client. It fetches the revealed transcript chunks over the HTTP capability from the studio's reveal API (an external system, not a chain), using consensusIdenticalAggregation on schema-normalized JSON so every node must see the same chunk. It verifies each chunk's Merkle proof against the committed roots, then runs the shared matcher to find the spoken time. Two engines must agree within 1,500 ms. It then sends a report with the word ids, the outcomes and an evidence hash.
+
+2. EpisodeClosed trigger. CRE re-reads every word of the episode, fetches the chunks it needs and resolves the remaining words. A word spoken late still resolves YES at close, and every unspoken word resolves NO. One report settles the episode.
+
+3. SaysoMarkets accepts a report only from the Chainlink forwarder (ReceiverTemplate plus an explicit msg.sender check, and the report origin must be our reporter address). It emits WordResolved and winners redeem 1 AUSD per token. The owner cannot settle. The only admin path is voiding a word after 24 hours with no report.
+
+The workflow fails closed. If a proof does not verify, the engines disagree or the word enumeration is incomplete, it emits no report and the market stays unsettled. A failed proof never produces a wrong payout.
+
+Verified on Monad testnet (chain 10143):
+- Episode 12: evidence report 0x216b9f1434c1239ed03f68eb2cb6fc30d4c704c90b98712434c7b681195e2348 (block 69,515,751, status 1) resolved word 68 YES. Close report 0xc3d77d95a48499ad7a5d39f604d775d0acf9f25887032e70bda1e9bab0a3dba6 (block 69,516,169, status 1) resolved word 67 YES (late) and words 69 to 72 NO, and the episode settled.
+- Our hosted studio then ran the same workflow through the CRE CLI for later episodes: 24 successful runs and 2 failed runs recorded. Nine episodes have settled on testnet, and after each the house recycled every word unattended.
+
+Honest status: the workflow runs through the CRE CLI simulation (cre workflow simulate --broadcast), which delivers real reports to the mock forwarder on Monad testnet. Deploy access to the live DON has been requested and is not enabled on our organization, so settlement runs in simulation mode. We say so plainly instead of claiming a DON deployment. The receiver is written for the production forwarder too, so going live is one setter call plus the deploy.
+
+Why CRE and not a bot: one verifiable workflow combines an onchain read (roots, word state), an external HTTP source (revealed chunks), cryptographic verification and an onchain write. Replace it with a script and the fairness guarantee of the product is gone.
+
+Code: cre/resolver/src/workflow.ts, resolve.ts, decide.ts. Contract: contracts/src/SaysoMarkets.sol (_processReport).
+```
+
+Video (up to 2 minutes, required): show `cre workflow simulate` finishing with a successful result, the two report transaction hashes opening on the explorer with status 1, the `WordResolved` event, and the `_processReport` forwarder check in the contract. Say "simulation" out loud.
+
+### 10.2 Best Mera-Powered UX on Monad
+
+```text
+Mera is the entire account layer of SAYSO. There is no wallet extension, no seed phrase screen, no email login and no custody backend. A player taps "Join with passkey" and is in.
+
+How it works (apps/web/src/account):
+- Join: createPasskeyWithPrfOutput creates a discoverable passkey bound to our relying-party ID. The 32-byte PRF output becomes the key material: BIP-39 entropy, then the standard path m/44'/60'/0'/0/0, then a Mera secp256k1 signing session wrapped by toViemAccount. Every intermediate (the PRF output, the seed, each parent HD node, the raw private key) is zeroed as soon as it is used, so only the memory-owned Mera session survives.
+- Keys never leave memory: no key or session material is written to localStorage, IndexedDB, cookies or a server (the only stored browser value is the sound on/off preference). Our studio holds no player key. It only sends a starter balance to the player's public address.
+- Prompt-free signing: after the one ceremony, every trade, cash-out and redeem is signed by the in-memory session with no further prompt. Transactions go through a serialized send queue with explicit gas, and the next transaction waits for a strictly later block, so a player's actions never race each other on Monad.
+- Session end and re-prompt: the session ends on sign-out, reload or tab close. If it ends in the middle of an action, the app asks for exactly one passkey tap (getPasskeyPrfOutput). It then accepts only the same address as before. A passkey for a different account can never send a transaction on behalf of the original player (accounts check in AccountProvider.tsx).
+- Restore: clear all site storage, tap "I already have one", and the same passkey rebuilds the same address, the same AUSD balance and the same positions, because positions and balances live onchain and in the indexer, never in browser storage.
+- Failure UX: if the device or browser returns no PRF output, the player sees a dedicated screen instead of a broken join (PRF_UNAVAILABLE).
+
+Live Monad transactions through this account: starter drip, buy YES or NO on a word, cash out when the word flips to SAID, and redeem winners after CRE settles. All run on Monad testnet against Kuru books and SaysoMarkets.
+
+What we verified: join, clearing all storage and restoring the same address (Edge with a CTAP2 PRF virtual authenticator at 412 px, BUILD-PLAN 7.3), no-PRF handling, and a live episode that joined, received the starter balance, bought, saw the word flip and sold, all signed by the Mera session. The production app is https://playsayso.vercel.app, so passkeys are bound to that real domain. Real-phone passkey proof on that domain is the one item still being recorded.
+
+Code: apps/web/src/account/derive.ts, AccountProvider.tsx, sendQueue.ts, and the join screen in apps/web/src/screens/join.
+```
+
+Video (optional, up to 2 minutes): join with one tap, first trade and its elapsed seconds, a session re-prompt, clear site data, restore to the same address and the same positions. Record the device and browser. Same-browser cached state is not restore proof.
+
+### 10.3 Best Use of Envio
+
+```text
+SAYSO's history, positions and rankings all come from an Envio HyperIndex indexer. It is not installed as decoration. Remove it and the Leaderboard, Portfolio history and Results screens go empty.
+
+What we index (indexer/config.template.yaml, schema.graphql, src/handlers.ts):
+- Source: HyperSync on Monad testnet (https://monad-testnet.hypersync.xyz), starting at the SaysoMarkets creation block. Sixteen SaysoMarkets events (EpisodeCreated, WordAdded, WordListed, SetMinted, SetBurned, Traded, WordFlagged, EvidenceReady, EpisodeClosed, WordResolved, EpisodeSettled, Redeemed, WordVoided and admin updates) plus OutcomeToken Transfer.
+- Entities: Episode, Word, Trade, Position, Player and EpisodePlayer, with relations between them.
+- Derived data, not raw logs: each Position tracks YES and NO balances, cash paid in, cash taken out and redeemed value. Each Player rolls these up into trades, volume, settled value and profit. Each EpisodePlayer holds the per-episode profit and a competition rank, with ties broken deterministically by address.
+- Correct profit: profit counts only words the CRE report has resolved. Realized profit is cash in minus cash out plus the value of tokens still held at the resolved outcome. An open position can never inflate a ranking before it settles.
+
+What it drives in the app (apps/web/src/data/indexer.ts, records/indexer.ts):
+- Leaderboard: all-time and per-episode rankings, queried from Player and EpisodePlayer, ordered by profit.
+- Portfolio: the player's positions and full trade history, queried by address, plus redeemable amounts.
+- Results: the episode, its six resolved words, the evidence hash and the resolve transaction, next to the player's own cashflow.
+- Arena: recent episodes and their settled state.
+
+The split is deliberate. The chain stays the source of truth for balances, prices and trading, and Envio supplies the history and derived numbers the chain cannot give cheaply.
+
+Deployment: Envio Cloud, public GraphQL at https://indexer.dev.hyperindex.xyz/0c56fbe/v1/graphql, deployed from the indexer/ directory of the public repo. The config, schema, handlers and a handler test suite (indexer/src/handlers.test.ts) are all public.
+
+End to end path: a real trade or CRE resolution receipt on Monad testnet, then the handler writes Position and Player entities, then GraphQL, then the Leaderboard and Portfolio screens a player sees.
+```
+
+Video (optional, up to 2 minutes): make a trade, show the transaction on the explorer, then the same trade appearing in Portfolio history and the profit moving on the Leaderboard after settlement, with the GraphQL query shown once. For two players, reconcile profit against their actual cashflows before filming.
+
+Before pasting 10.3, run one GraphQL query against the endpoint and confirm it answers at chain head; the indexer deployment is a 30-day development instance (ARCHITECTURE, hosting table).
