@@ -14,6 +14,7 @@ import { config } from "@/lib/config";
 import { sessionFromPrf } from "./derive";
 import { createSendQueue, type Send } from "./sendQueue";
 import type { Account, AccountStatus } from "./types";
+import { normalizePasskeyName } from "./types";
 
 const Context = createContext<Account | null>(null);
 type Identity = { session: Secp256k1SigningSession; signer: LocalAccount };
@@ -51,7 +52,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setStatus("ready");
   }
 
-  async function authenticate(join: boolean) {
+  async function authenticate(join: boolean, passkeyName = "") {
     if (authenticating.current) return;
     authenticating.current = true;
     const version = ++generation.current;
@@ -61,9 +62,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     try {
       let next: Identity;
       if (join) {
+        const name = normalizePasskeyName(passkeyName);
         const result = await createPasskeyWithPrfOutput({
           rp: { id: config.rpId, name: "SAYSO" },
-          user: { name: "SAYSO player", displayName: "SAYSO player" },
+          user: { name, displayName: name },
         });
         try {
           next = sessionFromPrf(result.prfOutput);
@@ -150,7 +152,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     nickname: status === "ready" && signer ? nicknameOf(signer.address) : null,
     signer: status === "ready" ? signer : null,
     errorCode,
-    join: () => authenticate(true),
+    join: (passkeyName) => authenticate(true, passkeyName),
     signIn: () => authenticate(false),
     signOut: () => {
       generation.current++;

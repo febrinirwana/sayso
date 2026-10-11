@@ -27,6 +27,7 @@ function Join() {
     account.status === "error"
       ? {
           status: "error",
+          action: lastAction.current,
           message:
             account.errorCode === "PASSKEY_OPERATION_FAILED"
               ? "The passkey prompt was cancelled or could not finish. Try again when you’re ready."
@@ -44,16 +45,17 @@ function Join() {
     <JoinScreen
       state={state}
       currentUrl={window.location.href}
-      onJoin={() => {
+      onJoin={(passkeyName) => {
         lastAction.current = "join";
-        void account.join();
+        void account.join(passkeyName);
       }}
       onSignIn={() => {
         lastAction.current = "signIn";
         void account.signIn();
       }}
-      onRetry={() => {
-        void account[lastAction.current]();
+      onRetry={(passkeyName) => {
+        if (lastAction.current === "join") void account.join(passkeyName);
+        else void account.signIn();
       }}
     />
   );

@@ -6,6 +6,7 @@ import { JoinScreen } from "@/screens/join/JoinScreen";
 import {
   ARENA_STATES,
   JOIN_STATES,
+  OTHER_PLAYER_ADDRESS,
   PLAYER_ADDRESS,
   PLAYER_BALANCES,
   PLAYER_NICKNAME,
@@ -81,8 +82,11 @@ function PlayerSpecimen() {
               ? "instructions"
               : selected === "account-verified"
                 ? "verified"
-                : "idle"
+                : selected === "account-mismatch"
+                  ? "mismatch"
+                  : "idle"
           }
+          restoredAddress={selected === "account-mismatch" ? OTHER_PLAYER_ADDRESS : undefined}
           onCopy={async (address) => {
             try {
               await navigator.clipboard.writeText(address);

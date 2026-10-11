@@ -11,6 +11,7 @@ import type { JoinState } from "./JoinScreen";
 // Synthetic display fixtures only: no clip manifest, transcript or outcome plan.
 // Public schedule names match studio runner.schedule(); amounts match DripStatus.
 export const PLAYER_ADDRESS = "0x0000000000000000000000000000000000000001";
+export const OTHER_PLAYER_ADDRESS = "0x123456000000000000000000000000000000abcd";
 export const PLAYER_NICKNAME = nicknameOf(PLAYER_ADDRESS);
 export const SPECIMEN_NOW = 1_791_417_600_000;
 export const PLAYER_BALANCES: NonNullable<AccountScreenProps["balances"]> = {
@@ -101,4 +102,5 @@ export const PLAYER_SPECIMENS = [
   ["account-copy-error", "Account · copy error"],
   ["account-restore", "Account · restore guide"],
   ["account-verified", "Account · restored"],
+  ["account-mismatch", "Account · another passkey"],
 ] as const;

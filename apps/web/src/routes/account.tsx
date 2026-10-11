@@ -19,6 +19,7 @@ function AccountPage() {
   const address = account.address;
   const [copyState, setCopyState] = useState<AccountScreenProps["copyState"]>("idle");
   const [restoreState, setRestoreState] = useState<AccountScreenProps["restoreState"]>("idle");
+  const [restoredAddress, setRestoredAddress] = useState<`0x${string}` | undefined>();
   const balances = useBalances(address);
   if (!address || !account.nickname) return null;
   return (
@@ -29,6 +30,7 @@ function AccountPage() {
         balanceState={balances.isError ? "error" : "loading"}
         copyState={copyState}
         restoreState={restoreState}
+        restoredAddress={restoredAddress}
         onCopy={(value) => {
           void navigator.clipboard.writeText(value).then(
             () => setCopyState("copied"),
@@ -37,9 +39,11 @@ function AccountPage() {
         }}
         onRestoreCheck={() => {
           setRestoreState("checking");
+          setRestoredAddress(undefined);
           void restoreIdentity().then(
             (restored) => {
               try {
+                setRestoredAddress(restored.signer.address);
                 setRestoreState(restored.signer.address === address ? "verified" : "mismatch");
               } finally {
                 restored.session.end();

@@ -7,6 +7,7 @@ import {
   RotateCcw,
   ShieldCheck,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/ui/Button";
 import { CreditFooter, PageHeading, PlayerAvatar, TokenAmount } from "@/ui/PlayerPrimitives";
 import { Voxel } from "@/ui/Voxel";
@@ -19,6 +20,7 @@ export type AccountScreenProps = {
   balanceState?: "loading" | "error";
   copyState: "idle" | "copied" | "error";
   restoreState: "idle" | "instructions" | "checking" | "verified" | "mismatch" | "error";
+  restoredAddress?: `0x${string}` | undefined;
   onCopy(address: string): void;
   onRestoreCheck(): void;
   onSignOut(): void;
@@ -29,11 +31,19 @@ export function AccountScreen({
   copyState,
   balanceState,
   restoreState,
+  restoredAddress,
   onCopy,
   onRestoreCheck,
   onSignOut,
 }: AccountScreenProps) {
   const nickname = nicknameOf(address);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const confirmation = useRef<HTMLFieldSetElement>(null);
+  const shortAddress = `${address.slice(0, 6)}…${address.slice(-4)}`;
+  useEffect(() => {
+    if (confirmSignOut)
+      confirmation.current?.querySelector<HTMLButtonElement>("[data-stay]")?.focus();
+  }, [confirmSignOut]);
   return (
     <>
       <PageHeading
@@ -189,9 +199,23 @@ export function AccountScreen({
                 {restoreState === "checking"
                   ? "Choose the same passkey to compare your address."
                   : restoreState === "mismatch"
-                    ? "That passkey restores a different address. Choose your original passkey."
+                    ? "That passkey belongs to another player. Choose your original passkey."
                     : "The passkey check could not finish. Try again."}
               </p>
+            )}
+            {restoreState === "mismatch" && restoredAddress && (
+              <dl className="mt-3 grid grid-cols-2 gap-3 rounded-2xl bg-card p-4 text-sm">
+                <div>
+                  <dt className="text-xs text-ink-soft">Expected</dt>
+                  <dd className="mt-1 font-mono font-semibold">{shortAddress}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-ink-soft">Found</dt>
+                  <dd className="mt-1 font-mono font-semibold">
+                    {restoredAddress.slice(0, 6)}…{restoredAddress.slice(-4)}
+                  </dd>
+                </div>
+              </dl>
             )}
             <Button
               variant="secondary"
@@ -212,17 +236,64 @@ export function AccountScreen({
           </section>
         </div>
       </div>
-      <section className="mt-8 flex flex-wrap items-center justify-between gap-5 rounded-3xl border-2 border-ink bg-card p-6">
-        <div>
-          <h2 className="font-headline text-xl">Taking a break?</h2>
-          <p className="mt-2 text-sm text-ink-soft">
-            Sign back in with the same passkey whenever you’re ready.
-          </p>
+      <section className="mt-8 rounded-3xl border-2 border-ink bg-card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div>
+            <h2 className="font-headline text-xl">Taking a break?</h2>
+            <p className="mt-2 text-sm text-ink-soft">
+              Sign back in with the same passkey whenever you’re ready.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            aria-expanded={confirmSignOut}
+            aria-controls="sign-out-confirm"
+            onClick={() => setConfirmSignOut(true)}
+          >
+            <LogOut size={18} aria-hidden />
+            Sign out
+          </Button>
         </div>
-        <Button variant="secondary" onClick={onSignOut}>
-          <LogOut size={18} aria-hidden />
-          Sign out
-        </Button>
+        {confirmSignOut && (
+          <fieldset
+            ref={confirmation}
+            id="sign-out-confirm"
+            aria-labelledby="sign-out-heading"
+            className="mt-5 rounded-2xl border-2 border-ink bg-sun-tint p-5"
+          >
+            <h3 id="sign-out-heading" className="font-headline text-xl">
+              Keep this passkey handy.
+            </h3>
+            <p className="mt-3 text-sm leading-relaxed">
+              Coming back needs this same passkey. Your balance and positions stay on{" "}
+              <strong className="font-mono">{shortAddress}</strong>, even after you sign out.
+            </p>
+            <p className="mt-3 text-sm">
+              Balance:{" "}
+              {balances ? (
+                <TokenAmount amount={balances.ausd} symbol="AUSD" className="font-semibold" />
+              ) : (
+                <span>{balanceState === "error" ? "Unavailable" : "Loading…"} AUSD · TESTNET</span>
+              )}
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button onClick={onSignOut}>Confirm sign out</Button>
+              <Button
+                variant="secondary"
+                data-stay
+                onClick={(event) => {
+                  setConfirmSignOut(false);
+                  event.currentTarget
+                    .closest("section")
+                    ?.querySelector<HTMLButtonElement>("button[aria-controls]")
+                    ?.focus();
+                }}
+              >
+                Stay
+              </Button>
+            </div>
+          </fieldset>
+        )}
       </section>
       <CreditFooter />
     </>

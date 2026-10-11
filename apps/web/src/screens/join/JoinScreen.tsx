@@ -1,4 +1,6 @@
 import { ArrowRight, Check, Fingerprint, KeyRound, LoaderCircle, Smartphone } from "lucide-react";
+import { useState } from "react";
+import { defaultPasskeyName, normalizePasskeyName } from "@/account/types";
 import mascot from "@/assets/brand/mascot-640.webp";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
@@ -9,15 +11,18 @@ import { Voxel } from "@/ui/Voxel";
 
 export type JoinState =
   | { status: "idle" | "waiting" | "creating" | "prf-unavailable" }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; action?: "join" | "signIn" };
 export type JoinScreenProps = {
   state: JoinState;
   currentUrl: string;
-  onJoin(): void;
+  onJoin(passkeyName: string): void;
   onSignIn(): void;
-  onRetry(): void;
+  onRetry(passkeyName: string): void;
 };
 export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: JoinScreenProps) {
+  const [defaultName] = useState(defaultPasskeyName);
+  const [passkeyName, setPasskeyName] = useState(defaultName);
+  const chosenName = () => normalizePasskeyName(passkeyName, defaultName);
   const busy = state.status === "waiting" || state.status === "creating";
   return (
     <div className="mx-auto max-w-[1616px] px-6 md:px-8 lg:px-12">
@@ -30,13 +35,13 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
           <SoundToggle />
         </div>
       </header>
-      <main className="grid items-center gap-8 py-5 md:gap-12 lg:min-h-[650px] lg:grid-cols-[1.08fr_1fr] lg:py-12">
-        <div className="relative isolate flex min-h-[270px] items-center justify-center overflow-hidden rounded-[36px] border-2 border-ink bg-sun-tint md:min-h-[380px] lg:min-h-[580px]">
+      <main className="grid items-center gap-6 py-3 md:gap-12 md:py-5 lg:min-h-[650px] lg:grid-cols-[1.08fr_1fr] lg:py-12">
+        <div className="relative isolate flex h-40 items-center justify-center overflow-hidden rounded-[36px] border-2 border-ink bg-sun-tint md:h-auto md:min-h-[380px] lg:min-h-[580px]">
           <div
             aria-hidden
             className="absolute size-[74%] rounded-full border-2 border-dashed border-ink/20"
           />
-          <span className="absolute top-6 left-6 -rotate-6 rounded-full border-2 border-ink bg-card px-4 py-2 font-headline text-sm shadow-sticker md:text-lg">
+          <span className="absolute top-6 left-6 hidden -rotate-6 rounded-full border-2 border-ink bg-card px-4 py-2 font-headline text-sm shadow-sticker md:block md:text-lg">
             GOOD CALL. GREAT GAME.
           </span>
           <img
@@ -44,7 +49,7 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
             alt="The winking SAYSO mascot"
             width={640}
             height={640}
-            className="relative w-[65%] max-w-[470px] drop-shadow-xl"
+            className="relative w-36 drop-shadow-xl md:w-[65%] md:max-w-[470px]"
           />
           <Voxel
             name="star"
@@ -80,12 +85,12 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
               />
             </span>
           </h1>
-          <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-soft">
+          <p className="mt-4 max-w-md text-base leading-relaxed text-ink-soft md:mt-6 md:text-lg">
             A passkey uses your fingerprint, face or device PIN to sign you in. No password to
             remember.
           </p>
           <div
-            className="mt-7 rounded-3xl border-2 border-ink bg-card p-5 shadow-sticker md:p-7"
+            className="mt-5 rounded-3xl border-2 border-ink bg-card p-4 shadow-sticker md:mt-7 md:p-7"
             aria-live="polite"
             aria-busy={busy}
           >
@@ -111,7 +116,11 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
                     </p>
                   </div>
                 </div>
-                <Button onClick={onRetry} variant="secondary" className="mt-5 w-full">
+                <Button
+                  onClick={() => onRetry(chosenName())}
+                  variant="secondary"
+                  className="mt-5 w-full"
+                >
                   Try this browser again
                 </Button>
               </>
@@ -144,11 +153,38 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
                     <span className="font-headline text-xl">One tap. You’re a player.</span>
                   </div>
                 )}
+                {!busy && !(state.status === "error" && state.action === "signIn") && (
+                  <div className="mb-4">
+                    <label htmlFor="passkey-name" className="text-sm font-semibold">
+                      Name this passkey{" "}
+                      <span className="font-normal text-ink-soft">(optional)</span>
+                    </label>
+                    <input
+                      id="passkey-name"
+                      type="text"
+                      value={passkeyName}
+                      onChange={(event) => setPasskeyName(event.target.value)}
+                      onBlur={() => setPasskeyName(chosenName())}
+                      autoComplete="off"
+                      aria-describedby="passkey-name-help"
+                      className="mt-2 min-h-11 w-full rounded-xl border-2 border-ink bg-paper px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
+                    />
+                    <p
+                      id="passkey-name-help"
+                      className="mt-2 text-xs leading-relaxed text-ink-soft"
+                    >
+                      Pick this name in your password manager when you come back. Up to 32
+                      characters.
+                    </p>
+                  </div>
+                )}
                 <Button
                   size="lg"
                   className="w-full"
                   disabled={busy}
-                  onClick={state.status === "error" ? onRetry : onJoin}
+                  onClick={() =>
+                    state.status === "error" ? onRetry(chosenName()) : onJoin(chosenName())
+                  }
                 >
                   <KeyRound size={20} aria-hidden />
                   {state.status === "error" ? "Try again" : "Join with passkey"}

@@ -81,14 +81,14 @@ Phone-first and fully responsive: every screen has a real phone layout (390 to 4
 | # | Screen | Must show |
 |---|---|---|
 | S0 | Landing | What SAYSO is in one line, how a round plays, a tappable demo board, why outcomes are fair, Play CTA, TESTNET |
-| S1 | Join | "Join with passkey" and "I already have one"; one sentence on what a passkey is; TESTNET label |
+| S1 | Join | "Join with passkey" and "I already have one"; one sentence on what a passkey is; an optional passkey name (prefilled `SAYSO · <date time>`) so the player can pick the right passkey later; TESTNET label |
 | S2 | Arena | Running or next episode with countdown, "Start an episode" when idle, last results, starter balance status |
 | S3 | Episode | Video (16:9) above a 2×3 word board; each card shows word, price, state (open / SAID / YES / NO), own position |
 | S4 | Ticket | Bottom sheet: YES/NO, amount, cost, payout if right, one confirm; cash-out button on SAID words |
 | S5 | Results | Outcome per word, the transcript chunk that proves it, the CRE transaction, own profit or loss |
 | S6 | Portfolio | Open positions, redeemable amount, "Redeem all" |
 | S7 | Leaderboard | Episode and all-time profit in AUSD, trade count, rank change |
-| S8 | Account | Address, deterministic nickname, balances, restore check, TESTNET |
+| S8 | Account | Address, deterministic nickname, balances, restore check (a mismatch shows the expected and found addresses), sign out only after a warning that the same passkey is needed to return, TESTNET |
 
 ## 7. Account and onboarding
 

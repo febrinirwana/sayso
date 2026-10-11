@@ -20,6 +20,40 @@ const join = {
   onRetry: noop,
 };
 describe("player-visible screen states", () => {
+  it("offers an optional passkey name without disabling one-tap join", () => {
+    const html = renderToStaticMarkup(h(JoinScreen, { ...join, state: { status: "idle" } }));
+    expect(html).toContain("Name this passkey");
+    expect(html).toContain("password manager");
+    expect(html).not.toContain("required");
+    expect(html).not.toMatch(/ disabled(?:=""|>)/);
+  });
+  it("does not ask to name an existing passkey on sign-in retry", () => {
+    const html = renderToStaticMarkup(
+      h(JoinScreen, {
+        ...join,
+        state: { status: "error", message: "Prompt dismissed.", action: "signIn" },
+      }),
+    );
+    expect(html).not.toContain("Name this passkey");
+  });
+  it("shows expected and found addresses after choosing another passkey", () => {
+    const html = renderToStaticMarkup(
+      h(AccountScreen, {
+        address: "0x123456000000000000000000000000000000abcd",
+        balances: { monWei: 0n, ausd: 10000000n },
+        copyState: "idle",
+        restoreState: "mismatch",
+        restoredAddress: "0x987654000000000000000000000000000000dcba",
+        onCopy: noop,
+        onRestoreCheck: noop,
+        onSignOut: noop,
+      }),
+    );
+    expect(html).toContain("Expected");
+    expect(html).toContain("0x1234…abcd");
+    expect(html).toContain("Found");
+    expect(html).toContain("0x9876…dcba");
+  });
   it("disables passkey actions while a prompt is pending", () => {
     const html = renderToStaticMarkup(h(JoinScreen, { ...join, state: { status: "waiting" } }));
     expect(html).toContain("disabled");
