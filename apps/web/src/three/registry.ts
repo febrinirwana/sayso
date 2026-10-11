@@ -11,8 +11,14 @@ export type IconMotion = "bob" | "rock" | "wobble" | "spin";
 export type StageScene =
   /** The hero: the mascot sits on `mascot`'s box; voxels scatter across the whole slot. */
   | { kind: "hero"; mascot: RefObject<HTMLElement | null> }
-  /** One voxel filling the slot; hover or tap barrel-rolls it. */
-  | { kind: "icon"; name: VoxelMeshName; motion: IconMotion; fill?: number }
+  /** One voxel filling the slot; hover or tap barrel-rolls it. `tilt`: resting z turn, radians. */
+  | {
+      kind: "icon";
+      name: VoxelMeshName;
+      motion: IconMotion;
+      fill?: number;
+      tilt?: number | undefined;
+    }
   /** The mascot alone, for galleries. */
   | { kind: "mascot" }
   /** The closing star: slides in from the edge and turns from −90° as the slot scrolls in. */

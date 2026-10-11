@@ -45,38 +45,49 @@ export function WordTicker({ onSaid }: { onSaid?: (word: string) => void }) {
   );
 }
 
-function Chip({ word, said, reduced }: { word: string; said: boolean; reduced: boolean }) {
-  const face =
-    "absolute inset-0 flex items-center justify-center gap-1.5 rounded-full border-2 border-ink [backface-visibility:hidden]";
+/** Badge on the SAID face; the invisible sizer renders it too so the chip fits the wider face. */
+function SaidBadge() {
   return (
-    <div
-      className="relative h-11 [perspective:400px]"
-      style={{ minWidth: `${word.length * 0.72 + 2.4}em` }}
-    >
+    <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] leading-none tracking-[0.08em] text-said">
+      SAID
+    </span>
+  );
+}
+
+function Chip({ word, said, reduced }: { word: string; said: boolean; reduced: boolean }) {
+  const text = "font-headline text-[15px] tracking-[-0.01em]";
+  const face = `absolute inset-0 flex items-center justify-center gap-1.5 rounded-full border-2 border-ink [backface-visibility:hidden] ${text}`;
+  return (
+    <div className="relative h-11 [perspective:400px]">
+      {/* Sizer: the SAID face is the wider one, so it sets the chip's width for both faces. */}
+      <span
+        className={`invisible flex h-full items-center gap-1.5 border-2 border-transparent px-4 ${text}`}
+      >
+        {word}
+        <SaidBadge />
+      </span>
       <motion.div
-        className="relative size-full [transform-style:preserve-3d]"
+        className="absolute inset-0 [transform-style:preserve-3d]"
         initial={false}
         animate={reduced ? { rotateX: 0 } : { rotateX: said ? -180 : 0 }}
         transition={{ type: "spring", duration: 0.45, bounce: 0.25 }}
       >
         <motion.span
-          className={`${face} bg-card font-headline text-[15px] tracking-[-0.01em] shadow-sticker`}
+          className={`${face} bg-card shadow-sticker`}
           animate={{ opacity: reduced && said ? 0 : 1 }}
           transition={{ duration: 0.15 }}
         >
           {word}
         </motion.span>
         <motion.span
-          className={`${face} bg-said font-headline text-[15px] tracking-[-0.01em] text-ink shadow-sticker`}
+          className={`${face} bg-said text-ink shadow-sticker`}
           style={reduced ? {} : { rotateX: 180 }}
           initial={false}
           animate={{ opacity: reduced ? (said ? 1 : 0) : 1 }}
           transition={{ duration: 0.15 }}
         >
           {word}
-          <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] leading-none tracking-[0.08em] text-said">
-            SAID
-          </span>
+          <SaidBadge />
         </motion.span>
       </motion.div>
     </div>

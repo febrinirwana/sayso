@@ -13,7 +13,7 @@ export function Logo({ variant = "full", height, className }: LogoProps) {
       height={height}
       width={full ? Math.round(height * LOGO_ASPECT) : height}
       draggable={false}
-      className={className}
+      className={["object-contain", className].filter(Boolean).join(" ")}
     />
   );
 }

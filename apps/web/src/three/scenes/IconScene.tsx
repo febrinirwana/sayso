@@ -14,13 +14,22 @@ type IconSceneProps = {
   motion: IconMotion;
   /** Share of the slot's shorter side the voxel fills; the rest is room to roll and bob. */
   fill?: number | undefined;
+  /** Resting z turn in radians (counter-clockwise), under the idle motion and rolls. */
+  tilt?: number | undefined;
 };
 
 /**
  * One voxel in its slot. Turns in from −90° the first time it scrolls into view, then floats,
  * leans toward the pointer and barrel-rolls on `roll` (hover or tap on the slot).
  */
-export function IconScene({ slotId, element, name, motion, fill = 0.78 }: IconSceneProps) {
+export function IconScene({
+  slotId,
+  element,
+  name,
+  motion,
+  fill = 0.78,
+  tilt = 0,
+}: IconSceneProps) {
   const group = useRef<Group>(null);
   const roll = useRoll(slotId);
   const state = useRef({ shownAt: -1, rx: 0, ry: 0, phase: (slotId.length * 1.7) % 6.28 });
@@ -85,7 +94,9 @@ export function IconScene({ slotId, element, name, motion, fill = 0.78 }: IconSc
 
   return (
     <group ref={group}>
-      <Mesh />
+      <group rotation-z={tilt}>
+        <Mesh />
+      </group>
     </group>
   );
 }

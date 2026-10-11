@@ -1,3 +1,4 @@
+import { BatteryFull, Signal, Wifi } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import markUrl from "@/assets/brand/mark.webp";
 import { TestnetPill } from "@/ui/TestnetPill";
@@ -17,6 +18,9 @@ const BOARD = [
 
 const CAPTION = "…honestly, next stop is the moon.";
 
+/** How far the clip has played at each step, for the framed phone's scrubber. */
+const PLAYED: Record<RoundStep, number> = { 0: 0, 1: 0.35, 2: 0.6, 3: 1 };
+
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
 /**
@@ -26,7 +30,7 @@ const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 export function RoundMockup({ step, framed = false }: { step: RoundStep; framed?: boolean }) {
   const said = step >= 2;
   const body = (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col ${framed ? "flex-1 gap-3.5" : "gap-3"}`}>
       <div className="flex items-center gap-2">
         <img src={markUrl} alt="" width={28} height={28} className="size-7" />
         <span className="font-headline text-[15px]">Episode 7</span>
@@ -34,7 +38,9 @@ export function RoundMockup({ step, framed = false }: { step: RoundStep; framed?
       </div>
 
       {/* Clip */}
-      <div className="relative aspect-video overflow-hidden rounded-2xl border-2 border-ink bg-sky">
+      <div
+        className={`relative overflow-hidden rounded-2xl border-2 border-ink bg-sky ${framed ? "aspect-[4/3]" : "aspect-video"}`}
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_35%,#8b8ef5_0,transparent_55%)]" />
         <Voxel
           name="alien"
@@ -65,13 +71,36 @@ export function RoundMockup({ step, framed = false }: { step: RoundStep; framed?
         </AnimatePresence>
       </div>
 
+      {framed && (
+        <div className="flex items-center gap-2 text-[11px] font-semibold text-ink-soft">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
+            <motion.div
+              className="h-full origin-left rounded-full bg-ink"
+              initial={false}
+              animate={{ scaleX: PLAYED[step] }}
+              transition={{ duration: 0.45, ease: EASE_OUT }}
+            />
+          </div>
+          <span className="tabular">0:42</span>
+        </div>
+      )}
+
       {/* Board */}
+      {framed && (
+        <p className="mt-1 flex justify-between text-[11px] font-bold tracking-[0.08em] text-ink-soft">
+          <span>THE BOARD</span>
+          <span className="tabular">6 WORDS</span>
+        </p>
+      )}
       <div className="grid grid-cols-3 gap-2">
         {BOARD.map((card, i) => {
           const picked = i === 0;
           const flipped = picked && said;
           return (
-            <div key={card.word} className="relative h-[58px] [perspective:500px]">
+            <div
+              key={card.word}
+              className={`relative [perspective:500px] ${framed ? "h-16" : "h-[58px]"}`}
+            >
               <motion.div
                 className="relative size-full [transform-style:preserve-3d]"
                 initial={false}
@@ -114,7 +143,7 @@ export function RoundMockup({ step, framed = false }: { step: RoundStep; framed?
       </div>
 
       {/* Step-specific tray */}
-      <div className="relative h-[92px]">
+      <div className={`relative h-[92px] ${framed ? "mt-auto" : ""}`}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={step}
@@ -132,9 +161,44 @@ export function RoundMockup({ step, framed = false }: { step: RoundStep; framed?
   );
 
   if (!framed) return body;
+  const button = "absolute w-[5px] bg-ink";
   return (
-    <div className="relative mx-auto w-[340px] rounded-[44px] border-2 border-ink bg-ink p-2.5 shadow-[0_10px_0_var(--color-ink),0_30px_60px_-24px_rgb(10_10_10/0.45)]">
-      <div className="rounded-[34px] bg-paper px-4 pt-5 pb-4">{body}</div>
+    <div className="relative mx-auto w-[340px]">
+      {/* Side buttons sit outside the body, as on a real handset. */}
+      <span aria-hidden="true" className={`${button} top-[128px] -left-[4px] h-8 rounded-l-sm`} />
+      <span aria-hidden="true" className={`${button} top-[176px] -left-[4px] h-14 rounded-l-sm`} />
+      <span aria-hidden="true" className={`${button} top-[244px] -left-[4px] h-14 rounded-l-sm`} />
+      <span aria-hidden="true" className={`${button} top-[196px] -right-[4px] h-20 rounded-r-sm`} />
+      <div className="relative flex h-[696px] flex-col rounded-[56px] border-2 border-ink bg-ink p-[9px] shadow-soft">
+        {/* Hairline rim inside the outline reads as the metal band around the glass. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-[3px] rounded-[51px] ring-1 ring-white/15"
+        />
+        <div className="relative flex flex-1 flex-col overflow-hidden rounded-[45px] bg-paper">
+          <StatusBar />
+          <div className="flex flex-1 flex-col px-3.5 pt-1 pb-2">{body}</div>
+          <span aria-hidden="true" className="mx-auto mb-2 h-[5px] w-28 rounded-full bg-ink" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Clock, dynamic island and radio icons: the strip that makes the frame read as a phone. */
+function StatusBar() {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative flex h-12 shrink-0 items-center justify-between px-7 text-ink"
+    >
+      <span className="tabular text-[14px] font-semibold">9:41</span>
+      <span className="absolute top-2.5 left-1/2 h-7 w-[96px] -translate-x-1/2 rounded-full bg-ink" />
+      <span className="flex items-center gap-1">
+        <Signal className="size-3.5" strokeWidth={2.75} />
+        <Wifi className="size-3.5" strokeWidth={2.75} />
+        <BatteryFull className="size-5" strokeWidth={2} />
+      </span>
     </div>
   );
 }

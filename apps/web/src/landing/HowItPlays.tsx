@@ -16,6 +16,8 @@ type Step = {
   icon: VoxelMeshName & VoxelName;
   motion: IconMotion;
   tint: string;
+  /** Resting z turn in radians (counter-clockwise), shared by the 3D voxel and its WebP fallback. */
+  tilt?: number;
 };
 
 const STEPS: readonly Step[] = [
@@ -24,6 +26,8 @@ const STEPS: readonly Step[] = [
     body: "Six words sit on the board, each priced 1¢ to 99¢: the crowd’s odds it gets said. Back the ones you believe in.",
     icon: "pink-arrow",
     motion: "rock",
+    // The art points up; turn it a quarter clockwise so it points at the step's copy.
+    tilt: -Math.PI / 2,
     tint: "bg-bubble-tint",
   },
   {
@@ -73,12 +77,13 @@ export function HowItPlays() {
 
         <div className="mt-16 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-16 xl:gap-24">
           <div className="hidden lg:block">
-            <div className="sticky top-[calc(50svh-300px)] flex justify-center py-12">
+            <div className="sticky top-[max(76px,calc(50svh-336px))] flex justify-center py-6">
               <RoundMockup step={active} framed />
             </div>
           </div>
 
-          <ol className="flex flex-col gap-24 lg:gap-0">
+          {/* Desktop: the extra tail keeps the sticky phone centred while the last step is read. */}
+          <ol className="flex flex-col gap-24 lg:gap-0 lg:pb-[14svh]">
             {STEPS.map((step, i) => (
               <StepCard
                 key={step.title}
@@ -143,10 +148,14 @@ function StepCard({
               {String(index + 1).padStart(2, "0")}
             </span>
             <StageSlot
-              scene={{ kind: "icon", name: step.icon, motion: step.motion }}
+              scene={{ kind: "icon", name: step.icon, motion: step.motion, tilt: step.tilt }}
               rollOnTouch
               className="absolute -top-20 left-4 size-40 md:-top-24 md:left-8 md:size-44"
-              fallback={<Voxel name={step.icon} size={176} className="size-full p-[11%]" />}
+              fallback={
+                <div className="size-full" style={{ rotate: `${-(step.tilt ?? 0)}rad` }}>
+                  <Voxel name={step.icon} size={176} className="size-full p-[11%]" />
+                </div>
+              }
             />
             <p className="text-sm font-bold tracking-[0.08em] text-ink-soft">STEP {index + 1}</p>
             <h3 className="mt-2 font-headline text-[34px] leading-[1] md:text-[44px]">

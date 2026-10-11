@@ -30,8 +30,16 @@ export function TopBar() {
       }`}
     >
       <div className="flex h-16 w-full items-center gap-2 px-6 md:h-[72px] md:px-8 lg:px-12">
-        <a href="/" aria-label="SAYSO home" className="-ml-1 mr-auto rounded-lg px-1 py-1.5">
-          <Logo height={36} className="h-8 w-auto md:h-10" />
+        <a
+          href="/"
+          aria-label="SAYSO home"
+          className="-ml-1 mr-auto shrink-0 rounded-lg px-1 py-1.5"
+        >
+          <Logo variant="mark" height={36} className="size-9 min-[390px]:hidden" />
+          <Logo
+            height={36}
+            className="hidden h-7 w-auto min-[390px]:block min-[400px]:h-8 md:h-10"
+          />
         </a>
         <nav aria-label="Sections" className="mr-4 hidden items-center gap-1 lg:flex">
           {LINKS.map((link) => (
@@ -45,9 +53,9 @@ export function TopBar() {
             </a>
           ))}
         </nav>
-        <TestnetPill className="mr-1 max-[359px]:hidden" />
+        <TestnetPill className="max-[359px]:hidden min-[400px]:mr-1" />
         <SoundToggle />
-        <PlayLink variant="brand" className="ml-1 px-5">
+        <PlayLink variant="brand" className="px-4 min-[400px]:ml-1 min-[400px]:px-5">
           Play
         </PlayLink>
       </div>

@@ -66,6 +66,7 @@ function SceneFor({ slot }: { slot: Slot }) {
           name={scene.name}
           motion={scene.motion}
           fill={scene.fill}
+          tilt={scene.tilt}
         />
       );
     case "finale":
