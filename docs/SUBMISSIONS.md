@@ -189,7 +189,7 @@ The workflow (cre/resolver) has two EVM log triggers:
 
 SaysoMarkets only accepts reports from the Chainlink forwarder. Winners redeem 1 AUSD per token, and the owner cannot settle anything. If a proof fails or the engines disagree, CRE sends no report and the market stays open. It never guesses.
 
-Proof on Monad testnet: episode 12's evidence report 0x216b9f1434c1239ed03f68eb2cb6fc30d4c704c90b98712434c7b681195e2348 resolved word 68 YES, and the close report 0xc3d77d95a48499ad7a5d39f604d775d0acf9f25887032e70bda1e9bab0a3dba6 settled the rest. Our server has since run the same workflow for later episodes (9 settled in total).
+Proof on Monad testnet: episode 12's evidence report 0x216b9f1434c1239ed03f68eb2cb6fc30d4c704c90b98712434c7b681195e2348 resolved word 68 YES, and the close report 0xc3d77d95a48499ad7a5d39f604d775d0acf9f25887032e70bda1e9bab0a3dba6 settled the rest. Our server has since run the same workflow automatically for every episode: 12 episodes (12 to 23) and 72 words settled, 34 successful CRE runs. Episode 22 example: evidence report 0xb89006abecf77dd078ab0236ec828e32fa71a37ae42bb87f5bc263afb72cfea4, close report 0xece2f9453716ce15f284b14dca7ba82a0b19e452120ff49118c9ba321b778962.
 
 To be clear about status: this runs through `cre workflow simulate --broadcast`, which sends real reports to the mock forwarder on Monad testnet. Our DON deploy access is requested but not enabled yet, so we are not claiming a live deployment.
 
@@ -209,7 +209,7 @@ After that one tap, trades, cash-outs and redeems sign without prompts. Transact
 
 Clear all site data, tap "I already have one", and the same address comes back with the same balance and positions, because those live onchain. A browser without PRF support gets a clear message instead of a broken join.
 
-Live on Monad testnet at https://playsayso.vercel.app. Verified so far: join, storage wipe and restore to the same address, and a live episode that was funded, bought, saw SAID and sold, all signed by the Mera session (Edge with a virtual PRF authenticator). Real-phone proof on the production domain is still being recorded.
+Live on Monad testnet at https://playsayso.vercel.app. Verified: join, storage wipe and restore to the same address in Edge with a virtual PRF authenticator; and on the founder's Android phone at the production domain, join, starter kit, live trades, sign out, sign back in with the same passkey and redeem a winning word (9.80 test AUSD back). iOS has not been tested on a real device yet.
 
 Code: apps/web/src/account (derive.ts, AccountProvider.tsx, sendQueue.ts).
 ```
@@ -233,3 +233,143 @@ Hosted on Envio Cloud: https://indexer.dev.hyperindex.xyz/0c56fbe/v1/graphql. Co
 Video (optional, up to 2 minutes): make a trade, show the transaction on the explorer, then the same trade appearing in Portfolio history and the profit moving on the Leaderboard after settlement, with the GraphQL query shown once. For two players, reconcile profit against their actual cashflows before filming.
 
 Before pasting 10.3, run one GraphQL query against the endpoint and confirm it answers at chain head; the indexer deployment is a 30-day development instance (ARCHITECTURE, hosting table).
+
+## 11. Main project form, ready to paste
+
+Seen on the portal on 2026-10-12 (owner screenshots): one-line description (200 characters), Description (8,000), go-to-market and user acquisition (8,000), GitHub repository, and an optional private Judge access instructions field (8,000). Plain text, no em dashes, every number tied to a receipt, the indexer or the studio database on 2026-10-11. The 8 early testers and their quotes are owner-supplied (pitch SCRIPT); re-read every number before pasting.
+
+### 11.1 One-line description
+
+Recommended (162 characters):
+
+```text
+Bet on the words before they're spoken. Six words per clip flip SAID onchain in a second, settled by Chainlink CRE from transcripts locked before the first trade.
+```
+
+Shorter alternative (122 characters):
+
+```text
+A word-calling game show on Monad: bet on what gets said in a clip, watch words flip SAID live, get paid by Chainlink CRE.
+```
+
+### 11.2 Description
+
+```text
+SAYSO is a word-calling game show on Monad. Pick a clip, see six words, and call YES or NO on each one before it plays. The moment a word is spoken, its card flips SAID onchain in about a second. Cash out at 98 cents right away, or hold until Chainlink CRE settles it and redeem 1 AUSD per winning share. A full round takes about three minutes. Live on Monad testnet: https://playsayso.vercel.app
+
+THE PROBLEM
+Millions of people watch casters, streamers and finals, and the only thing they can do is watch. The appetite to play along is real: traders staked more than $47 million on what NFL announcers would say in a single season, and Kalshi plus Polymarket traded $53 billion in July 2026 alone. But these "mention markets" have three problems:
+1. They settle after the fact, by trust. Someone reads a transcript afterwards and declares the result. Players cannot check the answer key, and the operator could change it. In August 2026 Kalshi pulled its sports mention markets amid a federal inquiry.
+2. They are not a game. You bet and wait hours. Nothing happens while you watch.
+3. They start with a wallet. Seed phrases, extensions and gas lose most people before their first call.
+
+THE SOLUTION
+SAYSO makes the answer key provable and the game live.
+- Fair by construction. Before the first trade, two independent transcripts of the clip (Whisper and Vosk) are cut into 10-second chunks and committed onchain as Merkle roots in createEpisode. Nothing after that can change an outcome, not even us.
+- Live. Every word is its own YES/AUSD market on a Kuru order book. When a word is spoken, the studio mines flagSaid on Monad within about a second (measured 455 to 1,257 ms from spoken word to mined transaction) and the card flips SAID on every player's screen. The house posts a disclosed 98 cent bid so players can lock in a win instantly.
+- Settled by Chainlink CRE, never by an admin. A CRE workflow with two EVM log triggers reads both roots from the contract, fetches the revealed transcript chunks, verifies every Merkle proof, requires both engines to agree on the word, and writes the result through the Chainlink forwarder. If a proof fails or the engines disagree, it sends nothing and the market stays open. The owner's only power is to void a word 24 hours after close if no report ever arrived.
+- Invisible onboarding. Mera is the whole account layer: one passkey tap creates the account, the key is derived from the passkey's PRF output in memory only, and every trade, cash-out and redeem after that signs without a popup. Sign out, clear the browser, sign back in with the same passkey: same address, same positions. No wallet app, no seed phrase, no extension.
+- Free to play. Testnet only: players claim a free starter kit of test AUSD and test MON. No fees, no real money.
+
+WHAT MAKES IT USEFUL
+For players it is a reason to lean in while watching, with friends, in a three-minute round. For creators and leagues it turns any replayed clip into an interactive moment with a leaderboard. For the market category it shows mention markets can settle provably and instantly instead of by trust.
+
+WHY MONAD
+SAID has to feel live. Monad's fast blocks let a SAID card be backed by a mined transaction inside the 1.5-second presentation delay, not by a server promise. Each episode deploys six fresh Kuru books, one per word, which is only practical with cheap, fast execution. Every transaction carries an explicit measured gas limit, because Monad bills the limit.
+
+SPONSOR INTEGRATIONS
+- Chainlink CRE: the only path that can settle a word. Runs through the official CLI (cre workflow simulate --broadcast) for every episode; DON deploy access is requested.
+- Mera: the entire account layer, passkey to prompt-free signing session to restore.
+- Envio HyperIndex (hosted): powers the Leaderboard, Portfolio history, Results and the Arena's recent rounds; profit counts only CRE-resolved words.
+- Kuru: one YES/AUSD order book per word per episode; players trade immediate-or-cancel through our contract.
+- AUSD: the collateral and quote token; 1 AUSD mints a YES plus a NO, the winner redeems 1 AUSD.
+
+PROOF, ON MONAD TESTNET (as of 11 Oct 2026)
+- 12 episodes played and settled end to end (episodes 12 to 23), 72 word markets resolved (26 YES, 46 NO), zero admin overrides.
+- 34 successful CRE workflow runs: 23 evidence reports and 11 close reports.
+- 65 player trades from 13 wallets (team and early testers), 78 positions redeemed.
+- SaysoMarkets 0xc8492B2906d57c184be372899d18EDF195D11CF8, source verified on Sourcify and Monadscan.
+- Full transaction-by-transaction evidence, architecture diagrams and setup are in the README: https://github.com/febrinirwana/sayso
+
+STATUS, HONESTLY
+Contracts, studio, CRE settlement, indexer and web app are live and have run 12 consecutive episodes without manual settlement. CRE runs in simulation mode through the official CLI until DON access is enabled. Passkeys are proven in Edge and on an Android phone; iOS is not yet tested on a real device. Not audited. Testnet only.
+
+WHO BUILT IT
+Febri Nirwana, solo founder and smart contract engineer, ETHOnline 2026 winner with Mandate. Built during Metropolis with AI coding agents under human direction; the full AI disclosure is in the README.
+```
+
+### 11.3 Go-to-market and user acquisition
+
+```text
+SUMMARY
+SAYSO grows community by community, free to play first. Our wedge is people who already gather around a stream and want something to do while they watch: Monad's own community today, Southeast Asian esports fans next, and creators who run watch parties after that. Money only enters where it is legal.
+
+WHO OUR FIRST USERS ARE
+1. The Monad community (now). Testnet users and builders who want apps that feel fast. They already have the habit of trying new testnet products, they understand passkeys and test tokens, and they are concentrated in a few channels we can reach directly. SAYSO is a natural showcase for Monad: a SAID card is a mined transaction about a second after the word.
+2. Southeast Asian esports fans (next 3 months). Mobile Legends is the biggest esports title in the region: the MPL Indonesia Season 17 final peaked at 2.9 million viewers (Esports Charts). These fans watch on their phones, in groups, with chat open, and love predicting what casters will shout. The founder is based in Indonesia, so we can work in the language and the communities directly.
+3. Creators and casters who host watch parties and replays (3 to 6 months). They have audiences and want engagement tools. SAYSO gives them a three-minute interactive segment with a leaderboard, and a revenue share once sponsored words exist.
+
+WHAT WE LEARNED SO FAR
+8 early testers played closed builds. They loved the gameplay and the sound ("the UI is super nice, and I love the sound, it makes the platform feel lively"; "you can predict what gets said next, and it's all verifiable? Wow"). Their main ask was a simpler operator side, so creators can run episodes without us. That is the first item on our roadmap.
+
+HOW WE REACH THEM
+Phase 1, launch inside the Monad ecosystem (now to month 1)
+- Weekly "SAID Night": a scheduled community episode with a live host on X Spaces and Discord, the leaderboard reset each week, and the top callers shouted out.
+- Shareable result cards (next to build): after every round a player will be able to share "I called 4 of 6" with their nickname and voxel avatar, and every card links back to a free round.
+- Ecosystem cross-promotion: SAYSO is a live showcase for Mera passkeys, Kuru books, Chainlink CRE and Envio, so we will ask each partner to feature it, and we will publish short build threads showing a word flipping SAID onchain.
+- Zero-friction first round: one passkey tap, a free starter kit, and a round that starts on demand. Target: under 60 seconds from opening the link to the first trade.
+
+Phase 2, Southeast Asian esports communities (months 1 to 3)
+- Partner with Indonesian Mobile Legends community admins and fan pages for weekly replay episodes of licensed or creator-owned commentary.
+- Indonesian-language clips and transcription, so the words on the board are the words fans actually hear.
+- Campus and community game nights in Indonesia with seasonal leaderboards and sponsor prizes.
+
+Phase 3, creators run their own episodes (months 3 to 6)
+- An operator console: upload a clip, pick six words, launch. The transcripts are committed automatically, so creators cannot rig outcomes either.
+- Sponsored words: a brand buys a word on the board ("Will the caster say MONAD?"), the creator earns a share, players play free.
+- White-label word markets for streaming platforms and leagues.
+
+WHY THIS WORKS
+- The loop is social and fast: three minutes, six words, a result you want to share. Every round ends with a leaderboard and a reason to play the next one.
+- Trust is the product. Mention markets were just pulled from a major platform amid a federal inquiry; SAYSO's answer key is onchain before the first trade and settled by Chainlink CRE, which is a story communities can verify themselves.
+- Onboarding is invisible: no wallet, no seed phrase, no gas to buy.
+
+WHAT WE MEASURE
+Time to first trade, rounds per player per week, day-7 return rate, share-card click-through, and episodes started by people other than us. We will report these publicly with every SAID Night.
+
+BUSINESS MODEL
+1. Free-to-play seasons funded by sponsors and creators (sponsored words, branded episodes).
+2. White-label word markets for platforms and leagues.
+3. Trading fees only where real-money prediction markets are legal and after an audit. Until then SAYSO stays free to play and testnet only.
+
+COMMITMENT
+SAYSO is not a hackathon throwaway. We are committing to it beyond Metropolis: next are the operator console, a licensed clip library, Indonesian commentary, and Chainlink CRE on the DON. We would welcome every form of support the Monad ecosystem offers: mentorship, grants, introductions to creators and esports leagues, and early users.
+```
+
+### 11.4 Judge access instructions (private)
+
+```text
+No test login is needed: a passkey creates your account in one tap. Please use a phone.
+
+1. Open https://playsayso.vercel.app on Android Chrome or iOS Safari. Desktop browsers whose passkeys live in a local profile often lack the PRF extension that Mera needs; the app tells you if so. Optional: tap "Install app" on the landing page.
+2. Tap Play, then "Join with passkey". Give the passkey a name you will recognise (for example "SAYSO judge"), then confirm with your fingerprint, face or PIN.
+3. In the Arena, tap "Claim starter kit". You receive 10 test AUSD and 0.5 test MON, once per account. TESTNET only, no real money.
+4. Tap "Start an episode", or "Join now" if one is already running. During the 60-second pre-roll the clip is hidden: tap any word and buy YES or NO (1 AUSD is enough). Bets lock 20 seconds before kickoff.
+5. Watch the board. Words flip SAID about a second after they are spoken. Tap a SAID word to cash out at 98 cents, or hold.
+6. When the clip ends you land on Results. Chainlink CRE settles every word within seconds (usually under 30). Tap "Redeem AUSD" for winners. Then open Portfolio and Leaderboard (indexed by Envio).
+7. Account, Sign out, then "I already have one" and pick the same passkey: the same address, balance and positions come back.
+
+Every transaction links to the Monad testnet explorer. The full round takes about 3 minutes.
+
+FAIR-USE LIMITS (they keep the game free during judging)
+- One episode runs at a time for everyone. If one is already running, join it.
+- One "Start an episode" per network (IP address) per hour.
+- One starter kit per account, and one new account per network per hour. If you share Wi-Fi with another judge and see "rate-limited", switch to mobile data.
+- Six clips rotate, least recently played first, so a second round gives you a different clip.
+
+IF SOMETHING LOOKS STUCK
+- Studio health (public): https://sayso-studio.43-129-38-115.nip.io/v1/health
+- Contract and transactions: https://testnet.monadvision.com/address/0xc8492B2906d57c184be372899d18EDF195D11CF8
+- A step-by-step evidence table with every transaction of one episode is in the README: https://github.com/febrinirwana/sayso
+- If a passkey prompt shows "No passkeys available" on Android, check Settings, Passwords and autofill: Chrome uses Google Password Manager by default, and some Samsung phones save passkeys to Samsung Pass instead.
+```
