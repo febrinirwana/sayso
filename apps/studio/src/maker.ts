@@ -257,6 +257,19 @@ export class HouseMaker implements SeedHook {
           )
           .get(episode.id);
         if (list && list.status !== "confirmed") continue;
+        // A recycled word is final and holds no house orders or outcome tokens, so an episode
+        // whose every word is recycled has nothing left to do. `words` is an immutable read.
+        const recycled = db
+          .query<{ word_id: number; payload_json: string }, [number]>(
+            "SELECT word_id,payload_json FROM actions WHERE episode_id=? AND kind='redeem' AND status='confirmed'",
+          )
+          .all(episode.id)
+          .filter((a) => (JSON.parse(a.payload_json) as Journal).purpose === "recycle");
+        if (
+          recycled.length &&
+          (await chain.words(episode.id)).every((id) => recycled.some((a) => a.word_id === id))
+        )
+          continue;
         const clock = await chain.clock(episode.id);
         const ended =
           clock.closed || clock.timestamp >= clock.endsAt || now() >= episode.ends_at_ms;

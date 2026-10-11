@@ -454,6 +454,24 @@ describe("house economic lifecycle", () => {
     await f.maker().tick();
     expect(f.balances.get(ausd)).toBe(before + 20000000n);
   });
+  it("stops reading chain state for an episode whose every word is recycled", async () => {
+    const f = fixture();
+    const m = f.maker();
+    await m.seed(1);
+    f.setState(3);
+    f.setNow(10000);
+    f.close();
+    await m.tick();
+    // Before: every five-second BOT pass re-read the clock and each word of every past
+    // episode forever, ≈15 RPC calls/s on an idle studio with nine settled episodes.
+    const reads: string[] = [];
+    const { clock, word } = f.chain;
+    f.chain.clock = (id) => (reads.push("clock"), clock(id));
+    f.chain.word = (id) => (reads.push("word"), word(id));
+    await m.tick();
+    await f.maker().tick();
+    expect(reads).toEqual([]);
+  });
   it("recycles a final winning word before the episode closes", async () => {
     const f = fixture();
     const m = f.maker();
