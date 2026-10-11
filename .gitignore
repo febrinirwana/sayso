@@ -40,6 +40,9 @@ apps/studio/data/
 clips/media/
 models/
 
+# local scratch: spikes, evidence screenshots
+.local/
+
 # raw ElevenLabs generations (tools/sfx); only mastered apps/web/public/sfx ships
 tools/sfx/.cache/
 

@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 
-/** Evidence screenshots land beside the handoff notes unless `SAYSO_SCREENS_DIR` overrides. */
+/** Evidence screenshots land in the gitignored repo `.local/` scratch unless `SAYSO_SCREENS_DIR` overrides. */
 export const SCREENS_DIR =
   process.env.SAYSO_SCREENS_DIR ??
-  fileURLToPath(new URL("../../../../handoff/sayso/screens/e2e/", import.meta.url));
+  fileURLToPath(new URL("../../../.local/screens/e2e/", import.meta.url));
 
 export async function screenshot(page: Page, name: string): Promise<string> {
   await mkdir(SCREENS_DIR, { recursive: true });

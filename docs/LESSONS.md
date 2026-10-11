@@ -221,6 +221,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Working with the user
 
+### 2026/10/11 — Keep scratch inside the project and prune it
+
+- **Cause:** The external `handoff\sayso\` folder grew to 5.3 GB unnoticed (a 1.8 GB model zip beside its extracted 2.7 GB copy, an unused 466 MB model, spike media) and held the only copy of the deployer key; the owner deleted it.
+- **Rule:** Scratch, screenshots and spike files go in the gitignored `.local/`; transcription models in the gitignored `tools/transcribe/models/`; keys only in the gitignored root `.env`. Delete archives once extracted and spike media once its result is recorded.
+
 ### 2026/10/05 — Explain first, build after "letsgo"
 
 - **Cause:** The user wants to judge an idea and its trade-offs before any file exists.
@@ -249,7 +254,7 @@ Newest on top. Each entry: root cause, then the durable rule.
 ### 2026/10/05 — Keep projects visibly separate
 
 - **Cause:** Two hackathon projects share a parent folder and a machine.
-- **Rule:** Each project has its own repo, identity and `handoff/<project>/` folder; never read or write another project's handoff.
+- **Rule:** Each project has its own repo and identity; never read or write another project's files.
 
 ### 2026/10/05 — Prefer free tools, explain choices plainly
 

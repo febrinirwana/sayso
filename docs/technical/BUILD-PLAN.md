@@ -8,7 +8,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 - `- [ ] **2.3** <task> — proof: <exact command or artefact required>` is open.
 - Phase status: `TODO / DOING / DONE / BLOCKED / CUT`. A phase is DONE only when every box is ticked and the phase review passed.
 - Labels: [V] verified by a command or source, [I] inference, [U] unresolved with the spike that settles it.
-- Spike scratch work lives outside the repo in `handoff\sayso\spikes\`; results land in [INTEGRATIONS](INTEGRATIONS.md) section 9.
+- Spike scratch work lives in the gitignored repo folder `.local/spikes/`; results land in [INTEGRATIONS](INTEGRATIONS.md) section 9. The earlier external `handoff\sayso\` folder (PROGRESS, review reports, screenshots, spike scratch) was deleted on 2026-10-11 at the owner's request, so proof lines citing it are historical; their commits, receipts and the docs they fed remain the evidence.
 - External delivery gates and owner actions are tracked in [BLOCKERS](../BLOCKERS.md). Local fork/source proof never closes a live gate.
 
 ## Status at a glance (2026-10-09)
@@ -76,7 +76,7 @@ The live tracker for the build: every phase, every task, what proves it and wher
 
 ## Spikes · DOING
 
-Each spike answers one question with on-chain or on-device evidence, then writes its result into INTEGRATIONS section 9 in its own commit. Scratch code stays in `handoff\sayso\spikes\<id>\`.
+Each spike answers one question with on-chain or on-device evidence, then writes its result into INTEGRATIONS section 9 in its own commit. Scratch code stays in `.local/spikes/<id>/`.
 
 - [x] **S1** AUSD faucet supply
   - [x] two timed `requestFunds` broadcasts; amount and cadence recorded — proof: 2026-10-08 DRIP `0xe09ff14aee40c8879957f31ff59f47eb5153bf281c47a57524e07e28c98e4cd1` (block 69,201,554) and BOT `0x043a4ac3b89824c67aba7322ab9ea1ba870c7470af8ccf7c042682cf3eb53827` (block 69,201,793), each status 1 and `balanceOf` 0 → 10,000,000,000 (10,000 AUSD); block times 73 s apart. Right after the first, `eth_call` reverted `MaxFrequencyExceeded` for DRIP and BOT alike (global limit) and succeeded again within 66 s
