@@ -47,7 +47,7 @@ function LeaderboardPage() {
           )}
           <Leaderboard
             tab={search.tab}
-            episodeId={episodeId?.toString() ?? "—"}
+            episodeId={episodeId?.toString() ?? "–"}
             onTabChange={(tab) => {
               void navigate({ to: "/leaderboard", search: { ...search, tab } });
             }}

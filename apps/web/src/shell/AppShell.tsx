@@ -61,7 +61,7 @@ export function AppShell({ active, balance, nickname, children }: AppShellProps)
               {balance !== null ? (
                 <TokenAmount amount={balance} symbol="AUSD" />
               ) : (
-                <span>— AUSD · TESTNET</span>
+                <span>– AUSD · TESTNET</span>
               )}
             </div>
             <Link

@@ -255,7 +255,7 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
               </div>
               <div className="text-sm">
                 <span className="mr-2 text-xs text-ink-soft lg:hidden">Avg</span>
-                <b className="tabular">{average === null ? "—" : price(average)}</b>
+                <b className="tabular">{average === null ? "–" : price(average)}</b>
                 <span className="ml-1 text-[9px] text-ink-soft">TESTNET</span>
               </div>
               <div className="text-sm">
@@ -267,7 +267,7 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {bps === null ? "—" : price(bps)}
+                    {bps === null ? "–" : price(bps)}
                     <ExternalLink size={12} />
                   </a>
                 ) : (
@@ -279,7 +279,7 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
                           ? "100¢"
                           : "0¢"
                       : bps === null
-                        ? "—"
+                        ? "–"
                         : price(bps)}
                   </b>
                 )}

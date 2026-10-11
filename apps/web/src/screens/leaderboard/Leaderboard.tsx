@@ -49,7 +49,9 @@ export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: Leade
         </section>
       )}
       <div className="grid gap-7 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="relative flex flex-col overflow-hidden rounded-[32px] border-2 border-ink bg-sun-tint p-5 shadow-sticker-lg sm:p-8">
+        <section
+          className={`relative flex flex-col overflow-hidden rounded-[32px] border-2 border-ink bg-sun-tint p-5 shadow-sticker-lg sm:p-8 xl:sticky xl:self-start ${you ? "xl:top-36" : "xl:top-6"}`}
+        >
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-bold tracking-widest uppercase text-ink-soft">
@@ -59,7 +61,7 @@ export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: Leade
             </div>
             <Trophy size={30} />
           </div>
-          <div className="mt-8 grid flex-1 grid-cols-3 items-end gap-2 sm:gap-4">
+          <div className="mt-8 grid grid-cols-3 items-end gap-2 sm:gap-4">
             {[2, 1, 3].map((rank) => {
               const entry = podium.find((row) => row.rank === rank);
               return entry ? (
@@ -109,7 +111,7 @@ export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: Leade
             <h2 className="font-headline text-2xl">The standings</h2>
             <span className="text-xs text-ink-soft">{leaders.length} players</span>
           </header>
-          <div className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-2 border-y border-line bg-paper px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-ink-soft sm:grid-cols-[40px_minmax(0,1fr)_120px_48px_40px] sm:px-6">
+          <div className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-2 border-y border-line bg-paper px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-ink-soft sm:grid-cols-[40px_minmax(0,1fr)_120px_48px_64px] sm:px-6">
             <span>Rank</span>
             <span>Player</span>
             <span className="text-right">Profit</span>
@@ -140,10 +142,10 @@ export function Leaderboard({ tab, episodeId, onTabChange, leaders, you }: Leade
 function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }) {
   return (
     <div
-      className={`grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-2 px-4 py-4 sm:grid-cols-[40px_minmax(0,1fr)_120px_48px_40px] sm:px-6 ${isYou ? "bg-sky-tint/50" : ""}`}
+      className={`grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-2 px-4 py-4 sm:grid-cols-[40px_minmax(0,1fr)_120px_48px_64px] sm:px-6 ${isYou ? "bg-sky-tint/50" : ""}`}
     >
       <span className="font-headline text-lg tabular">
-        {entry.rank === 0 ? "—" : entry.rank.toString().padStart(2, "0")}
+        {entry.rank === 0 ? "–" : entry.rank.toString().padStart(2, "0")}
       </span>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Voxel name={entry.avatar} size={36} className="shrink-0 rounded-lg bg-paper p-1" />

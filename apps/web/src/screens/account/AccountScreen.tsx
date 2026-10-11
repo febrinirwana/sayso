@@ -103,8 +103,8 @@ export function AccountScreen({
               </p>
             )}
             <p className="mt-6 text-sm leading-relaxed text-ink-soft">
-              Your nickname is made from your address. It stays yours when you come back — no
-              profile to set up.
+              Your nickname is made from your address. It stays yours when you come back. No profile
+              to set up.
             </p>
           </div>
         </section>
@@ -165,7 +165,7 @@ export function AccountScreen({
             </div>
             <p className="mt-4 text-sm leading-relaxed text-ink-soft">
               Clear storage, sign in with the same passkey, get the same address. Your positions
-              live on the network — not just on this device.
+              live on the network, not just on this device.
             </p>
             {restoreState === "instructions" && (
               <ol className="mt-5 space-y-3 rounded-2xl border border-ink/20 bg-card p-5 text-sm">

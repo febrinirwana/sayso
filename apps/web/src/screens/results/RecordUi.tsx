@@ -104,14 +104,22 @@ export function RankChange({ rank, previousRank }: { rank: number; previousRank:
             : `${difference > 0 ? "Up" : "Down"} ${Math.abs(difference)} places`
       }
     >
-      {difference > 0 ? (
-        <ArrowUp size={14} />
-      ) : difference < 0 ? (
-        <ArrowDown size={14} />
+      {previousRank === null ? (
+        <span className="rounded-full border border-ink/30 bg-sun-tint px-1.5 py-0.5 text-[9px] uppercase leading-none tracking-wider text-ink">
+          New
+        </span>
       ) : (
-        <Minus size={14} />
+        <>
+          {difference > 0 ? (
+            <ArrowUp size={14} />
+          ) : difference < 0 ? (
+            <ArrowDown size={14} />
+          ) : (
+            <Minus size={14} />
+          )}
+          {Math.abs(difference) || "0"}
+        </>
       )}
-      {previousRank === null ? "New" : Math.abs(difference) || "—"}
     </span>
   );
 }

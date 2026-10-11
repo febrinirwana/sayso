@@ -36,7 +36,7 @@ export function betsView(trading: TradingWindow, clipOver: boolean): BetsView {
     };
   return {
     tone: "locked",
-    caption: clipOver ? "Clip over · results next" : "Bets locked — watch",
+    caption: clipOver ? "Clip over · results next" : "Bets locked · watch",
     closesInSeconds: undefined,
     lockedReason: clipOver
       ? `Bets closed ${LEAD_SECONDS} s before kickoff. The clip is over; this word settles next.`

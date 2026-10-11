@@ -15,7 +15,7 @@ describe("bets window copy", () => {
   });
   it("tells a locked player to watch, with the lead the house uses", () => {
     const locked = betsView({ status: "closed" }, false);
-    expect(locked.caption).toBe("Bets locked — watch");
+    expect(locked.caption).toBe("Bets locked · watch");
     expect(locked.closesInSeconds).toBeUndefined();
     expect(locked.lockedReason).toContain(`${TRADING_CLOSE_LEAD_MS / 1_000} s before kickoff`);
   });

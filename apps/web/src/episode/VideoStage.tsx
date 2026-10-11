@@ -239,7 +239,7 @@ function PreRollCountdown({
           {betsCloseIn === undefined ? (
             <>
               <Lock aria-hidden size={13} strokeWidth={2.75} />
-              Bets locked — watch
+              Bets locked · watch
             </>
           ) : (
             `Bets close in ${formatClock(betsCloseIn)}`

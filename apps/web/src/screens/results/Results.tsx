@@ -89,7 +89,7 @@ export function Results({
                 ? "The clip is over. Chainlink CRE is checking both transcripts before the results become final."
                 : winning
                   ? "You listened. You called it. Here’s how your words played out."
-                  : "Some words went the other way. Every call has a receipt — and there’s always another episode."}
+                  : "Some words went the other way. Every call has a receipt, and there’s always another episode."}
             </p>
             {accountingUnavailable ? (
               <p className="mt-7 text-sm text-ink-soft">
