@@ -1,5 +1,5 @@
 import { centsToKuru, quoteProceeds } from "@sayso/core";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { RequireAccount, useAccount } from "@/account";
 import { mediaUrl } from "@/data/studio";
 import { BetsChip } from "@/episode/BetsChip";
@@ -33,6 +33,7 @@ function EpisodeRoute() {
 function EpisodePage({ id }: { id: number }) {
   const account = useAccount();
   const live = useLiveEpisode(id);
+  const navigate = useNavigate();
   const episode = live.episode.data;
   if (!episode)
     return (
@@ -188,6 +189,13 @@ function EpisodePage({ id }: { id: number }) {
             onConfirm={({ side, amountMicro }) => {
               void live.buy(side, amountMicro);
             }}
+            {...(live.balances.data
+              ? {
+                  onGetStarterKit: () => {
+                    void navigate({ to: "/arena", hash: "starter-kit" });
+                  },
+                }
+              : {})}
             onCashOut={() => {
               void live.sell("yes");
             }}

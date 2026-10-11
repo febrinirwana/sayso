@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/ui/Button";
 import { CreditFooter, PageHeading, TokenAmount } from "@/ui/PlayerPrimitives";
 import { Voxel } from "@/ui/Voxel";
@@ -49,6 +50,8 @@ export type ArenaScreenProps = {
   statusMessage?: string;
   recentMessage?: string;
   onClaimStarter?(): void;
+  /** Zero AUSD and an unclaimed kit: Start and Join point to the starter card instead. */
+  needsKit?: boolean;
 };
 export function ArenaScreen({
   nickname,
@@ -64,8 +67,44 @@ export function ArenaScreen({
   statusMessage,
   recentMessage,
   onClaimStarter,
+  needsKit = false,
 }: ArenaScreenProps) {
   const reduced = useReducedMotion();
+  const kitRef = useRef<HTMLElement>(null);
+  const [highlight, setHighlight] = useState(false);
+  const [kitNudge, setKitNudge] = useState("");
+  const showKit = (nudge: boolean) => {
+    const card = kitRef.current;
+    if (!card) return;
+    card.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    card.focus({ preventScroll: true });
+    setHighlight(true);
+    if (nudge)
+      setKitNudge("Claim your free starter kit first. It has the test AUSD you play with.");
+  };
+  // One gentle highlight on arrival: from the ticket link (#starter-kit) or a first visit.
+  const arrivalShown = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per unclaimed arrival
+  useEffect(() => {
+    if (arrivalShown.current) return;
+    const fromLink = window.location.hash === "#starter-kit";
+    if (!fromLink && starter.status !== "unclaimed") return;
+    arrivalShown.current = true;
+    if (fromLink) showKit(false);
+    else setHighlight(true);
+  }, [starter.status]);
+  useEffect(() => {
+    if (!highlight) return;
+    const timer = window.setTimeout(() => setHighlight(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [highlight]);
+  useEffect(() => {
+    if (!needsKit) setKitNudge("");
+  }, [needsKit]);
+  const guard = (go: () => void) => {
+    if (needsKit) showKit(true);
+    else go();
+  };
   const scheduled = episode.status === "scheduled" || episode.status === "live";
   const live = episode.status === "live";
   const pending = episode.status === "starting" || episode.status === "queued";
@@ -134,7 +173,7 @@ export function ArenaScreen({
               </p>
               {scheduled ? (
                 <div className="mt-7 flex flex-wrap items-center gap-5">
-                  <Button size="lg" onClick={() => onJoin(episode.schedule.episodeId)}>
+                  <Button size="lg" onClick={() => guard(() => onJoin(episode.schedule.episodeId))}>
                     <Play size={19} aria-hidden />
                     {live ? "Join now" : "Get ready"}
                     <ArrowRight size={18} aria-hidden />
@@ -151,7 +190,7 @@ export function ArenaScreen({
                   size="lg"
                   className="mt-7"
                   disabled={pending || startDisabled}
-                  onClick={onStart}
+                  onClick={() => guard(onStart)}
                 >
                   {pending ? (
                     <LoaderCircle size={20} aria-hidden className="motion-safe:animate-spin" />
@@ -165,9 +204,9 @@ export function ArenaScreen({
                       : "Start an episode"}
                 </Button>
               )}
-              {statusMessage && (
+              {(statusMessage || kitNudge) && (
                 <p role="status" className="mt-4 text-sm font-semibold text-ink-soft">
-                  {statusMessage}
+                  {[kitNudge, statusMessage].filter(Boolean).join(" ")}
                 </p>
               )}
             </div>
@@ -195,13 +234,26 @@ export function ArenaScreen({
             </div>
           )}
         </section>
-        <aside
-          className="relative flex flex-col overflow-hidden rounded-[32px] border-2 border-ink bg-mint-tint p-6 shadow-sticker md:p-8 xl:justify-between"
+        <motion.aside
+          id="starter-kit"
+          ref={kitRef}
+          tabIndex={-1}
+          aria-label="Your starter kit"
+          className={`relative flex scroll-mt-24 flex-col overflow-hidden rounded-[32px] border-2 border-ink bg-mint-tint p-6 shadow-sticker outline-none transition-shadow md:p-8 xl:justify-between ${highlight ? "ring-4 ring-sun ring-offset-2 ring-offset-paper" : ""}`}
+          animate={highlight && !reduced ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+          transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
           aria-live="polite"
         >
           <div className="flex items-start justify-between gap-3">
-            <span className="rounded-full border-2 border-ink bg-card px-3 py-1.5 text-xs font-bold">
-              YOUR STARTER KIT
+            <span className="flex items-center gap-2">
+              <span className="rounded-full border-2 border-ink bg-card px-3 py-1.5 text-xs font-bold">
+                YOUR STARTER KIT
+              </span>
+              {starter.status === "unclaimed" && (
+                <span className="rounded-full border-2 border-ink bg-sun px-2.5 py-1 text-[10px] font-bold">
+                  NEW
+                </span>
+              )}
             </span>
             <Coins size={24} aria-hidden />
           </div>
@@ -241,7 +293,7 @@ export function ArenaScreen({
                       ? starter.message
                       : starter.status === "checking"
                         ? "We’re asking the studio whether your one-time kit has arrived."
-                        : "Claim your one-time test tokens for gas and predictions."}
+                        : "Test MON for gas and test AUSD to play, once per account. No real money."}
             </p>
           </div>
           {starter.status === "received" ? (
@@ -257,7 +309,9 @@ export function ArenaScreen({
             </div>
           ) : starter.status === "unavailable" || starter.status === "unclaimed" ? (
             <Button className="mt-5" onClick={onClaimStarter} disabled={!onClaimStarter}>
-              {starter.status === "unavailable" ? "Check again" : "Claim starter kit"} · TESTNET
+              {starter.status === "unavailable"
+                ? "Check again · TESTNET"
+                : "Claim starter kit · TESTNET"}
             </Button>
           ) : (
             <p className="mt-5 flex items-center gap-2 text-xs font-semibold">
@@ -273,7 +327,7 @@ export function ArenaScreen({
                   : "Claiming starter balance · TESTNET"}
             </p>
           )}
-        </aside>
+        </motion.aside>
       </div>
       {firstTime && (
         <section className="mt-8 rounded-3xl border-2 border-ink bg-sun-tint p-5 md:grid md:grid-cols-[max-content_minmax(0,1fr)] md:items-center md:gap-6 md:p-6">

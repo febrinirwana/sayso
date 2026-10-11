@@ -9,7 +9,7 @@ import { StickerToy } from "./StickerToy";
 const FAQ: readonly { q: string; a: string }[] = [
   {
     q: "Is it real money?",
-    a: "No. SAYSO runs on Monad testnet with test coins. You get a starter balance when you sign in, and it has no cash value.",
+    a: "No. SAYSO runs on Monad testnet with test coins. Claim your free starter kit in the Arena after you join. It has no cash value.",
   },
   {
     q: "How is it fair?",

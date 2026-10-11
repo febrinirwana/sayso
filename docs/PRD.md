@@ -94,7 +94,7 @@ Phone-first and fully responsive: every screen has a real phone layout (390 to 4
 
 - **Mera is the whole account layer.** The passkey PRF output derives the signing key; there is no seed phrase, extension or custody backend.
 - **Stateless test.** Clearing storage or switching devices and signing in with the same passkey restores the same address, positions and nickname. The nickname is derived from the address, so no server profile exists.
-- **Starter balance.** On first sign-in the studio drips testnet MON for gas and test AUSD for play, once per address, rate-limited.
+- **Starter kit.** Nothing is sent at sign-in. The Arena shows a "Starter kit" card with a Claim button; on tap the studio drips testnet MON for gas and test AUSD for play, once per address, rate-limited. A player with no AUSD who taps Start or Join before claiming is pointed to the card instead, and the ticket links to it when the balance cannot cover a bet.
 - **One-time approval.** AUSD uses its ERC-2612 permit for complete sets; trades go through `SaysoMarkets`, so a player approves it for AUSD once during onboarding and never approves outcome tokens or Kuru books.
 - Mera's PRF is unavailable in some desktop browser profiles; S1 detects this and points to a phone or a supported browser.
 

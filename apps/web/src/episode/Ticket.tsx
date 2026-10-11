@@ -62,6 +62,8 @@ export type TicketProps = {
    */
   bets?: BetsView | undefined;
   minSharesFor?: (side: Side, amountMicro: bigint) => bigint | null;
+  /** When the balance is below the smallest preset, shows a path to the one-time starter kit. */
+  onGetStarterKit?: () => void;
 };
 
 const DEFAULT_AMOUNT = AMOUNT_PRESETS_MICRO[1] ?? 5_000_000n;
@@ -94,6 +96,7 @@ export function Ticket({
   errorMessage,
   bets,
   minSharesFor,
+  onGetStarterKit,
 }: TicketProps) {
   const fx = useEpisodeFx();
   // An order already in flight keeps its buy form until the receipt lands.
@@ -175,6 +178,7 @@ export function Ticket({
           noCents={noCents}
           disabledReason={disabledReason}
           minSharesFor={minSharesFor}
+          onGetStarterKit={onGetStarterKit}
         />
       ) : mode === "cashout" ? (
         <CashOutBody
@@ -245,6 +249,7 @@ function BuyBody({
   noCents,
   disabledReason,
   minSharesFor,
+  onGetStarterKit,
 }: {
   yesCents: number;
   balanceMicro: bigint | undefined;
@@ -256,12 +261,15 @@ function BuyBody({
   noCents: TicketProps["noCents"];
   disabledReason: TicketProps["disabledReason"];
   minSharesFor: TicketProps["minSharesFor"];
+  onGetStarterKit: TicketProps["onGetStarterKit"];
 }) {
   const [side, setSide] = useState<Side>(initialSide);
   const [amountMicro, setAmountMicro] = useState(DEFAULT_AMOUNT);
   const quote = quoteFor ? quoteFor(side, amountMicro) : buyQuote(side, yesCents, amountMicro);
   const affordable = balanceMicro === undefined || amountMicro <= balanceMicro;
   const busy = status === "sending" || status === "filled";
+  const smallest = AMOUNT_PRESETS_MICRO[0] ?? DEFAULT_AMOUNT;
+  const broke = balanceMicro !== undefined && balanceMicro < smallest;
 
   const finePrint = (
     <p className="text-[12px] leading-4 text-ink-soft">
@@ -341,6 +349,20 @@ function BuyBody({
       >
         {affordable ? `Buy ${side.toUpperCase()} · ${formatAusd(amountMicro)}` : "Not enough AUSD"}
       </ActionButton>
+      {broke && onGetStarterKit ? (
+        <div className="rounded-2xl border-2 border-ink bg-sun-tint px-3.5 py-2.5">
+          <p className="text-[12px] leading-4">
+            Out of test AUSD? Your one-time starter kit lives in the Arena.
+          </p>
+          <button
+            type="button"
+            onClick={onGetStarterKit}
+            className="pressable font-headline mt-2 h-10 w-full rounded-full border-2 border-ink bg-card text-[15px] shadow-sticker"
+          >
+            Get your starter kit
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 

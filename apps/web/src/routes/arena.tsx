@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { RequireAccount, useAccount } from "@/account";
 import { useBalances, useChainEpisode, useLatestEpisode } from "@/data/chain";
 import { useIndexedEpisode, useRecentEpisodes } from "@/data/indexer";
@@ -86,17 +86,6 @@ function Arena() {
       client.setQueryData(dripKey, { status: "unavailable", reason: "offline" });
     },
   });
-  const autoClaimed = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      account.address &&
-      drip.data?.status === "unclaimed" &&
-      autoClaimed.current !== account.address
-    ) {
-      autoClaimed.current = account.address;
-      claim.mutate(account.address);
-    }
-  }, [account.address, drip.data?.status, claim.mutate]);
   useEffect(() => {
     if (episodeId === undefined) return;
     return subscribeEpisode(episodeId, {
@@ -210,6 +199,7 @@ function Arena() {
         recentEpisodes={recentEpisodes}
         nowMs={nowMs}
         firstTime={result?.status === "unclaimed" || claim.isPending}
+        needsKit={balances.data?.ausd === 0n && starter.status === "unclaimed"}
         startDisabled={
           offline ||
           health.data?.chain === null ||

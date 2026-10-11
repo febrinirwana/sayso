@@ -75,6 +75,7 @@ export const ARENA_STATES: Record<string, ArenaEpisode> = {
   "arena-queued": { status: "queued", episodeId: 43 },
 };
 export const STARTER_STATES: Record<string, StarterBalance> = {
+  "arena-unclaimed": { status: "unclaimed" },
   "arena-claiming": { status: "claiming" },
   "arena-received": {
     status: "received",
@@ -93,6 +94,7 @@ export const PLAYER_SPECIMENS = [
   ["arena-idle", "Arena · idle"],
   ["arena-starting", "Arena · starting"],
   ["arena-queued", "Arena · queued"],
+  ["arena-unclaimed", "Arena · kit unclaimed"],
   ["arena-claiming", "Arena · claiming"],
   ["arena-received", "Arena · received"],
   ["arena-claimed", "Arena · claimed"],

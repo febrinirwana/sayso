@@ -109,6 +109,11 @@ function PlayerSpecimen() {
           recentEpisodes={selected === "arena-empty" ? [] : RECENT_EPISODES}
           firstTime={selected !== "arena-claimed"}
           onStart={start}
+          needsKit={selected === "arena-unclaimed"}
+          onClaimStarter={() => {
+            choose("arena-claiming");
+            timer.current = window.setTimeout(() => choose("arena-received"), 1200);
+          }}
           onJoin={() => {
             play("start");
             window.location.assign("/design");
