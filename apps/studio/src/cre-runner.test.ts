@@ -13,6 +13,7 @@ import {
 } from "viem";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { type CreRunner, createCreRunner } from "./cre-runner.ts";
+import { invalidateStudioReads } from "./rpc.ts";
 
 const receiver = "0x1111111111111111111111111111111111111111" as Address;
 const reporter = "0x2222222222222222222222222222222222222222" as Address;
@@ -74,7 +75,7 @@ function closed(tx: number, logIndex: number): RpcLog {
     data: "0x",
   };
 }
-function resolved(tx: number, episodeId = 1, wordId = 1n): RpcLog {
+function resolved(tx: number, episodeId = 1, wordId = 1n, outcome = 2): RpcLog {
   return {
     ...evidence(tx, 0),
     blockNumber: "0xc",
@@ -84,7 +85,7 @@ function resolved(tx: number, episodeId = 1, wordId = 1n): RpcLog {
       eventName: "WordResolved",
       args: { episodeId, wordId },
     }) as Hex[],
-    data: encodeAbiParameters([{ type: "uint8" }, { type: "bytes32" }], [2, hash(999)]),
+    data: encodeAbiParameters([{ type: "uint8" }, { type: "bytes32" }], [outcome, hash(999)]),
   };
 }
 function settled(tx: number): RpcLog {
@@ -728,6 +729,141 @@ it.each([4, 6])(
     expect(row().report_tx).toBe(hash(2));
   },
 );
+it("reconciles an ambiguous evidence nonce from a superset close report without signing again", async () => {
+  trigger();
+  states.set(2n, 0);
+  const r = make();
+  await r.tick();
+  expect(row().status).toBe("ambiguous");
+  const reports = [resolved(2), resolved(2, 1, 2n, 3), settled(2)];
+  logs.push(...reports);
+  receipts.set(hash(2), receipt(2, reports));
+  states.set(1n, 2);
+  states.set(2n, 3);
+  invalidateStudioReads(server.url.toString());
+  nonce = 1;
+  const event = closed(3, 0);
+  logs.push(event);
+  receipts.set(hash(3), receipt(3, [event], outsider, receiver));
+  await r.onReceipt({
+    episodeId: 1,
+    kind: "close",
+    receipt: { hash: hash(3), block: 10, success: true },
+  });
+  now += 30_000;
+  await r.tick();
+  expect(db.query("SELECT status,attempts,report_tx FROM cre_runs ORDER BY id").all()).toEqual([
+    { status: "reconciled", attempts: 1, report_tx: hash(2) },
+    { status: "reconciled", attempts: 0, report_tx: hash(2) },
+  ]);
+});
+it.each([
+  "wrong-episode",
+  "wrong-target-outcome",
+  "invalid-other-outcome",
+  "wrong-sender",
+  "wrong-forwarder",
+  "wrong-nonce",
+  "unrelated-only",
+])("preserves the ambiguous sender gate for a %s superset report", async (kind) => {
+  trigger();
+  const r = make();
+  await r.tick();
+  const reports = [
+    ...(kind === "unrelated-only"
+      ? []
+      : [resolved(2, 1, 1n, kind === "wrong-target-outcome" ? 3 : 2)]),
+    resolved(2, kind === "wrong-episode" ? 2 : 1, 2n, kind === "invalid-other-outcome" ? 4 : 3),
+    settled(2),
+  ];
+  logs.push(...reports);
+  receipts.set(
+    hash(2),
+    receipt(
+      2,
+      reports,
+      kind === "wrong-sender" ? outsider : reporter,
+      kind === "wrong-forwarder" ? outsider : addresses.creSimulationForwarder,
+    ),
+  );
+  reportNonces.set(hash(2), kind === "wrong-nonce" ? 1 : 0);
+  states.set(1n, 2);
+  for (let i = 0; i < 2; i++) {
+    now += 30_000;
+    await r.tick();
+    expect(row().status).toBe("ambiguous");
+    expect(row().attempts).toBe(1);
+    expect(row().report_tx).toBeNull();
+  }
+});
+it("does not treat a final no-report result after delivery starts as prewrite proof", async () => {
+  trigger();
+  await writeFile(
+    cli,
+    `console.log('[USER LOG] Episode 1: failed during report generation and delivery; no completed report\\nWorkflow Simulation Result:\\n"no-report"');`,
+  );
+  const r = make();
+  await r.tick();
+  now += 86_400_000;
+  await r.tick();
+  expect(row().status).toBe("ambiguous");
+  expect(row().attempts).toBe(1);
+  expect(row().report_tx).toBeNull();
+});
+it.each(["\n", "\r\n"])(
+  "frames prewrite status by real line boundaries %j after verbose CLI output",
+  async (newline) => {
+    trigger();
+    const marker =
+      "SAYSO_CRE_STATUS:" +
+      JSON.stringify({ episodeId: 1, phase: "prewrite", result: "no-report", retryable: false });
+    // Each line is bounded; only the combined CLI output exceeds the parser's line budget.
+    const output =
+      Array.from({ length: 100 }, () => "Simulation progress without protocol data").join(newline) +
+      newline +
+      marker +
+      newline +
+      "Workflow Simulation Result:" +
+      newline +
+      '"no-report"' +
+      newline;
+    await writeFile(cli, `process.stdout.write(${JSON.stringify(output)});`);
+    await make().tick();
+    expect(row().status).toBe("no-report");
+    expect(row().attempts).toBe(1);
+    expect(row().report_tx).toBeNull();
+  },
+);
+it("preserves sanitized exit diagnosis across reconciliation and restart", async () => {
+  trigger();
+  await writeFile(
+    cli,
+    'console.log("private stdout must not be persisted"); console.error("private stderr must not be persisted"); process.exit(23);',
+  );
+  const r = make();
+  await r.tick();
+  expect(row().status).toBe("ambiguous");
+  const diagnosis = row().error;
+  expect(diagnosis).toMatch(/\b23\b/);
+  expect(diagnosis).not.toContain("private stdout");
+  expect(diagnosis).not.toContain("private stderr");
+  expect(row().report_tx).toBeNull();
+  const event = closed(2, 0);
+  logs.push(event);
+  receipts.set(hash(2), receipt(2, [event], outsider, receiver));
+  db.query("INSERT INTO actions VALUES(2,'close','confirmed',?,10)").run(hash(2));
+  await r.stop();
+  now += 86_400_000;
+  const restarted = make();
+  await restarted.tick();
+  now += 30_000;
+  await restarted.tick();
+  expect(row().error).toBe(diagnosis);
+  expect(db.query("SELECT status,attempts FROM cre_runs ORDER BY id").all()).toEqual([
+    { status: "ambiguous", attempts: 1 },
+    { status: "pending", attempts: 0 },
+  ]);
+});
 it("a proven prewrite no-agreement result does not block the episode close subprocess", async () => {
   trigger();
   const marker =

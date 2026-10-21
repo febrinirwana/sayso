@@ -65,7 +65,11 @@ type Run = {
 type ReportProof = { hash: Hex; block: bigint };
 type ProcessResult = "ok" | "failed" | "timeout" | "not-started" | "stopped";
 type NoReport = { retryable: boolean };
-type Execution = { status: ProcessResult; noReport: NoReport | null };
+type Execution = {
+  status: ProcessResult;
+  noReport: NoReport | null;
+  diagnostic?: string;
+};
 const retryDelays = [5_000, 30_000, 120_000, 600_000] as const;
 const sameAddress = (a: string | null | undefined, b: string) =>
   a?.toLowerCase() === b.toLowerCase();
@@ -301,11 +305,12 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
         if (event.eventName === "WordResolved") {
           if (
             event.args.episodeId !== run.episode_id ||
-            !ids.includes(event.args.wordId) ||
-            (event.args.outcome !== 2 && event.args.outcome !== 3) ||
-            (run.trigger === "evidence" && event.args.outcome !== 2)
+            (event.args.outcome !== 2 && event.args.outcome !== 3)
           )
             return false;
+          // A close report can include this evidence run's YES alongside other episode words.
+          if (!ids.includes(event.args.wordId)) continue;
+          if (run.trigger === "evidence" && event.args.outcome !== 2) return false;
           resolved = true;
         }
         if (event.eventName === "EpisodeSettled") {
@@ -446,7 +451,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
       child.stdout?.setEncoding("utf8");
       child.stdout?.on("data", (chunk: string) => {
         for (const character of chunk) {
-          if (character === "\\n") {
+          if (character === "\n") {
             parseLine();
             line = "";
             overflow = false;
@@ -466,7 +471,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
         if (active === child) active = undefined;
         done({ status: launched ? "failed" : "not-started", noReport: null });
       });
-      child.once("close", (code) => {
+      child.once("close", (code, signal) => {
         clearTimeout(timeout);
         if (active === child) active = undefined;
         parseLine();
@@ -480,7 +485,18 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
               : code === 0
                 ? "ok"
                 : "failed";
-        done({ status, noReport: status === "ok" && !conflicting ? noReport : null });
+        const result: Execution = {
+          status,
+          noReport: status === "ok" && !conflicting ? noReport : null,
+        };
+        // OS exit metadata is bounded; never copy subprocess output into the durable error.
+        if (status === "failed") {
+          if (signal)
+            result.diagnostic = `CRE execution terminated by signal ${signal}; reconciliation required`;
+          else if (code !== null)
+            result.diagnostic = `CRE execution exited with code ${code}; reconciliation required`;
+        }
+        done(result);
       });
       timeout = setTimeout(() => {
         timedOut = true;
@@ -511,7 +527,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
         }
         if (run.status === "running" || run.status === "ambiguous") {
           db.query(
-            "UPDATE cre_runs SET status='ambiguous',error='report outcome unknown; reconciliation required',next_attempt_ms=? WHERE id=?",
+            "UPDATE cre_runs SET status='ambiguous',error=COALESCE(error,'report outcome unknown; reconciliation required'),next_attempt_ms=? WHERE id=?",
           ).run(now() + 30_000, run.id);
           continue;
         }
@@ -579,7 +595,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
           ).run(
             result.status === "timeout"
               ? "CRE execution timed out; reconciliation required"
-              : "CRE report not corroborated; reconciliation required",
+              : (result.diagnostic ?? "CRE report not corroborated; reconciliation required"),
             now() + 30_000,
             run.id,
           );
@@ -590,7 +606,7 @@ export function createCreRunner(deps: CreRunnerDeps): CreRunner {
           .get(run.id);
         if (persisted?.status === "running" || persisted?.status === "ambiguous") {
           db.query(
-            "UPDATE cre_runs SET status='ambiguous',error='CRE reconciliation unavailable',next_attempt_ms=? WHERE id=?",
+            "UPDATE cre_runs SET status='ambiguous',error=COALESCE(error,'CRE reconciliation unavailable'),next_attempt_ms=? WHERE id=?",
           ).run(now() + 30_000, run.id);
         } else defer(run, "CRE preflight unavailable");
       }

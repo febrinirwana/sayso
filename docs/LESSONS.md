@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/21 — Reconcile an evidence nonce against the complete close report
+
+- **Cause:** episode 30's first CRE execution became ambiguous and blocked subsequent simulation signing. A normal CRE close report subsequently settled all six words at the reserved reporter nonce, but evidence reconciliation rejected its additional same-episode word events. The CLI status parser also compared each character with a literal backslash-n instead of LF, losing bounded pre-write completion markers after verbose output.
+- **Rule:** corroborate the expected target inside a same-episode superset report without weakening sender, forwarder, nonce or target-outcome checks. Frame stdout by real line boundaries, retain only sanitized exit metadata, and never release an unknown signing outcome by timeout or blindly re-sign it.
+
 ### 2026/10/11 — Measure idle RPC calls; never sweep finished work every pass
 
 - **Cause:** the BOT's five-second housekeeping re-read the clock and all six words of every past episode. With nine settled episodes the idle studio made 14.8 calls/s, ≈1.2M a day on the QuickNode plan, and it grew with every episode. The documented "2 requests/s idle" budget was never measured.

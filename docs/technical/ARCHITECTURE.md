@@ -154,6 +154,8 @@ Until deploy access is granted, the studio CRE runner invokes `cre workflow simu
 
 Simulation trigger discovery recovers confirmed action receipts and catches up canonical logs from `SAYSO_START_BLOCK`. Receipt-array log index selects the exact trigger. Success is corroborated from actual forwarder/receiver receipts and the durable REPORTER nonce, never stdout hashes. The resolver emits a bounded structured pre-write no-report marker only before report submission: a legitimate false flag releases the queue for close; a pre-write capability failure backs off safely. Interrupted/failed write execution without proof remains ambiguous and gates REPORTER until onchain reconciliation.
 
+An evidence run can be corroborated by a later close report at its recorded REPORTER nonce: the receipt may also resolve other words in the same episode, including NO outcomes, but the evidence run's own target must resolve YES. Wrong sender, forwarder, nonce, episode or unrelated-only events never release its sender gate. The CLI completion parser frames actual LF/CRLF lines and bounds each line independently; failures retain only exit-code/signal metadata, never raw output. Episode 30 was recovered through the real close workflow after an ambiguous evidence execution; the original subprocess failure could not be determined from the retained diagnostics.
+
 ### 5.5 Redeem
 
 After a word settles, the winning token redeems 1 AUSD per unit; the losing token redeems nothing; Void pays 0.5 per unit on both sides. BOT redeems house inventory after every episode to recycle AUSD.
