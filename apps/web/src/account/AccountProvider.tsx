@@ -12,7 +12,7 @@ import { createWalletClient, http, type LocalAccount } from "viem";
 import { monadTestnet, publicClient } from "@/lib/chain";
 import { config } from "@/lib/config";
 import { sessionFromPrf } from "./derive";
-import { createSendQueue, type Send } from "./sendQueue";
+import { createSendQueue, InsufficientMonBalanceError, type Send } from "./sendQueue";
 import type { Account, AccountStatus } from "./types";
 import { normalizePasskeyName } from "./types";
 
@@ -101,12 +101,24 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const active = identity.current;
         if (!active) throw new MeraError("SESSION_ENDED", "Sign in to send a transaction");
         const version = generation.current;
-        const broadcast = (account: LocalAccount) =>
-          createWalletClient({
+        const broadcast = async (account: LocalAccount) => {
+          const wallet = createWalletClient({
             account,
             chain: monadTestnet,
             transport: http(config.rpcUrl),
-          }).sendTransaction({ ...tx, chain: monadTestnet });
+          });
+          const request = await wallet.prepareTransactionRequest({ ...tx, chain: monadTestnet });
+          const feePerGas = request.maxFeePerGas ?? request.gasPrice;
+          if (feePerGas === undefined)
+            throw new Error("TESTNET network fees are unavailable. Nothing was sent.");
+          const balance = await publicClient.getBalance({
+            address: account.address,
+            blockTag: "pending",
+          });
+          if (balance < request.gas * feePerGas + (request.value ?? 0n))
+            throw new InsufficientMonBalanceError();
+          return wallet.sendTransaction(request);
+        };
         try {
           return await broadcast(active.signer);
         } catch (error) {

@@ -102,6 +102,8 @@ The tracked `config.monad-testnet.json` keeps a `REPLACE_WITH_…` reveal URL, w
 
 Open: PRF on the target phones (iOS Safari, Android Chrome) at the production domain [U: S5].
 
+Player transactions prepare one request with their explicit gas limit, then check pending native MON against `gas × maxFeePerGas + value` (or `gas × gasPrice + value` for legacy transactions) before signing. AUSD does not pay network fees. Insufficient MON produces an actionable TESTNET error and leaves the queue available for a later funded retry [V: AccountProvider fee regressions; 412 px Chrome smoke with a real virtual PRF passkey and zero broadcasts]. The reported failed-buy account held 21.490194 test AUSD but only 0.0114098 MON; the prepared buy's maximum fee was 0.0866378112 MON. Read-only preparation accepted that unaffordable request, so successful preparation alone was not proof of affordability. The historical node rejection body was not captured.
+
 ## 5. AUSD (quote and collateral)
 
 | Fact | Value | Label |

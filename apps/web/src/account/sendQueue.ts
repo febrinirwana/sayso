@@ -8,6 +8,13 @@ export class TransactionRevertedError extends Error {
     super("TRANSACTION_REVERTED");
   }
 }
+
+/** The native balance cannot cover the prepared transaction's maximum upfront cost. */
+export class InsufficientMonBalanceError extends Error {
+  constructor() {
+    super("Not enough MON for TESTNET network fees. AUSD cannot pay gas.");
+  }
+}
 type SendClient = {
   broadcast(tx: TxRequest): Promise<Hash>;
   waitForTransactionReceipt(request: { hash: Hash }): Promise<{

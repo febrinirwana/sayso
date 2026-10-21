@@ -4,6 +4,11 @@ Newest on top. Each entry: root cause, then the durable rule.
 
 ## Technical
 
+### 2026/10/21 — AUSD balance does not establish transaction affordability
+
+- **Cause:** a player had 21.490194 test AUSD but only 0.0114098 MON, below even the buy's base-fee gas cost. Public RPC transaction filling and estimation still succeeded, so the wallet reached submission without an actionable native-fee check.
+- **Rule:** prepare once, compare pending native funds with the prepared maximum gas cost plus native value, and sign that same request only when affordable. Keep explicit gas unchanged; distinguish test AUSD spending power from MON network fees and leave the queue usable after a funded retry.
+
 ### 2026/10/21 — Reconcile an evidence nonce against the complete close report
 
 - **Cause:** episode 30's first CRE execution became ambiguous and blocked subsequent simulation signing. A normal CRE close report subsequently settled all six words at the reserved reporter nonce, but evidence reconciliation rejected its additional same-episode word events. The CLI status parser also compared each character with a literal backslash-n instead of LF, losing bounded pre-write completion markers after verbose output.
