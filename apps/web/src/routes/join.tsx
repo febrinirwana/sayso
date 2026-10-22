@@ -37,7 +37,9 @@ function Join() {
           status:
             account.status === "signing-in"
               ? "waiting"
-              : account.status === "signed-out" || account.status === "ready"
+              : account.status === "signed-out" ||
+                  account.status === "locked" ||
+                  account.status === "ready"
                 ? "idle"
                 : account.status,
         };

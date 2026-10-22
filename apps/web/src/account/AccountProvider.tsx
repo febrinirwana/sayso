@@ -1,197 +1,68 @@
-import {
-  createPasskeyWithPrfOutput,
-  getPasskeyPrfOutput,
-  isMeraError,
-  MeraError,
-  type Secp256k1SigningSession,
-} from "@category-labs/mera";
 import { nicknameOf } from "@sayso/core";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
-import { createWalletClient, http, type LocalAccount } from "viem";
-import { monadTestnet, publicClient } from "@/lib/chain";
-import { config } from "@/lib/config";
-import { sessionFromPrf } from "./derive";
-import { createSendQueue, InsufficientMonBalanceError, type Send } from "./sendQueue";
-import type { Account, AccountStatus } from "./types";
-import { normalizePasskeyName } from "./types";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
+import { type AccountController, createAccountController } from "./controller";
+import { type Account, VIEWABLE_STATUSES } from "./types";
 
-const Context = createContext<Account | null>(null);
-type Identity = { session: Secp256k1SigningSession; signer: LocalAccount };
-
-export function accountErrorCode(error: unknown): string {
-  if (isMeraError(error)) return error.code;
-  if (error instanceof Error && error.cause) return accountErrorCode(error.cause);
-  return "PASSKEY_OPERATION_FAILED";
-}
-
-export async function restoreIdentity(): Promise<Identity> {
-  const { prfOutput } = await getPasskeyPrfOutput({ rpId: config.rpId });
-  return sessionFromPrf(prfOutput);
-}
+export const AccountContext = createContext<Account | null>(null);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AccountStatus>("signed-out");
-  const [signer, setSigner] = useState<LocalAccount | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
-  const identity = useRef<Identity | null>(null);
-  const generation = useRef(0);
-  const authenticating = useRef(false);
-
-  function clear() {
-    identity.current?.session.end();
-    identity.current = null;
-    setSigner(null);
-  }
-
-  function install(next: Identity) {
-    clear();
-    identity.current = next;
-    setSigner(next.signer);
-    setErrorCode(null);
-    setStatus("ready");
-  }
-
-  async function authenticate(join: boolean, passkeyName = "") {
-    if (authenticating.current) return;
-    authenticating.current = true;
-    const version = ++generation.current;
-    clear();
-    setErrorCode(null);
-    setStatus(join ? "creating" : "signing-in");
-    try {
-      let next: Identity;
-      if (join) {
-        const name = normalizePasskeyName(passkeyName);
-        const result = await createPasskeyWithPrfOutput({
-          rp: { id: config.rpId, name: "SAYSO" },
-          user: { name, displayName: name },
-        });
-        try {
-          next = sessionFromPrf(result.prfOutput);
-        } finally {
-          result.prfOutput.fill(0);
-          result.prfSalt.fill(0);
-        }
-      } else {
-        next = await restoreIdentity();
-      }
-      if (generation.current !== version) next.session.end();
-      else install(next);
-    } catch (error) {
-      if (generation.current !== version) return;
-      const code = accountErrorCode(error);
-      setErrorCode(code);
-      setStatus(
-        code === "PRF_UNAVAILABLE"
-          ? "prf-unavailable"
-          : code === "SESSION_ENDED"
-            ? "signed-out"
-            : "error",
-      );
-    } finally {
-      authenticating.current = false;
-    }
-  }
-
-  const send = useRef<Send | null>(null);
-  if (!send.current) {
-    send.current = createSendQueue({
-      broadcast: async (tx) => {
-        const active = identity.current;
-        if (!active) throw new MeraError("SESSION_ENDED", "Sign in to send a transaction");
-        const version = generation.current;
-        const broadcast = async (account: LocalAccount) => {
-          const wallet = createWalletClient({
-            account,
-            chain: monadTestnet,
-            transport: http(config.rpcUrl),
-          });
-          const request = await wallet.prepareTransactionRequest({ ...tx, chain: monadTestnet });
-          const feePerGas = request.maxFeePerGas ?? request.gasPrice;
-          if (feePerGas === undefined)
-            throw new Error("TESTNET network fees are unavailable. Nothing was sent.");
-          const balance = await publicClient.getBalance({
-            address: account.address,
-            blockTag: "pending",
-          });
-          if (balance < request.gas * feePerGas + (request.value ?? 0n))
-            throw new InsufficientMonBalanceError();
-          return wallet.sendTransaction(request);
-        };
-        try {
-          return await broadcast(active.signer);
-        } catch (error) {
-          if (accountErrorCode(error) !== "SESSION_ENDED") throw error;
-          // One discoverable re-prompt, never a transaction from a different account.
-          try {
-            const restored = await restoreIdentity();
-            if (
-              version !== generation.current ||
-              restored.signer.address !== active.signer.address
-            ) {
-              restored.session.end();
-              throw new MeraError("SESSION_ENDED", "The original passkey is required");
-            }
-            install(restored);
-            return await broadcast(restored.signer);
-          } catch (retryError) {
-            generation.current++;
-            clear();
-            setErrorCode(accountErrorCode(retryError));
-            setStatus("signed-out");
-            throw retryError;
-          }
-        }
-      },
-      waitForTransactionReceipt: (request) => publicClient.waitForTransactionReceipt(request),
-      getBlockNumber: () => publicClient.getBlockNumber({ cacheTime: 0 }),
-    });
-  }
-
-  useEffect(
-    () => () => {
-      generation.current++;
-      identity.current?.session.end();
-      identity.current = null;
-    },
-    [],
+  const holder = useRef<AccountController | null>(null);
+  holder.current ??= createAccountController();
+  const controller = holder.current;
+  const snapshot = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    controller.getSnapshot,
   );
-
-  const account: Account = {
-    status,
-    address: status === "ready" ? (signer?.address ?? null) : null,
-    nickname: status === "ready" && signer ? nicknameOf(signer.address) : null,
-    signer: status === "ready" ? signer : null,
-    errorCode,
-    join: (passkeyName) => authenticate(true, passkeyName),
-    signIn: () => authenticate(false),
-    signOut: () => {
-      generation.current++;
-      clear();
-      setErrorCode(null);
-      setStatus("signed-out");
-    },
-    send: send.current,
-  };
-  return <Context.Provider value={account}>{children}</Context.Provider>;
+  useEffect(() => () => controller.dispose(), [controller]);
+  const account = useMemo<Account>(
+    () => ({
+      ...snapshot,
+      nickname: snapshot.address ? nicknameOf(snapshot.address) : null,
+      join: controller.join,
+      signIn: controller.signIn,
+      unlock: controller.unlock,
+      switchToFound: controller.switchToFound,
+      dismissMismatch: controller.dismissMismatch,
+      signOut: controller.signOut,
+      send: controller.send,
+    }),
+    [snapshot, controller],
+  );
+  return <AccountContext.Provider value={account}>{children}</AccountContext.Provider>;
 }
 
 export function useAccount(): Account {
-  const account = useContext(Context);
+  const account = useContext(AccountContext);
   if (!account) throw new Error("useAccount requires AccountProvider");
   return account;
 }
 
+/** For presentational pieces that also render outside a provider (tests, the design gallery). */
+export function useOptionalAccount(): Account | null {
+  return useContext(AccountContext);
+}
+
+/** Read-only views render while locked; only signing needs the passkey. */
 export function RequireAccount({ children }: { children: ReactNode }) {
   const account = useAccount();
   const location = useLocation();
   const redirect = useRef(location.href);
   const navigate = useNavigate();
+  const viewable = VIEWABLE_STATUSES.includes(account.status);
   useEffect(() => {
-    if (account.status !== "ready") {
+    if (!viewable) {
       void navigate({ to: "/join", search: { redirect: redirect.current }, replace: true });
     }
-  }, [account.status, navigate]);
-  return account.status === "ready" ? children : null;
+  }, [viewable, navigate]);
+  return viewable ? children : null;
 }

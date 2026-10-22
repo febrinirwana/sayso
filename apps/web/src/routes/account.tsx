@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { RequireAccount, useAccount } from "@/account";
-import { restoreIdentity } from "@/account/AccountProvider";
+import { RequireAccount, restoreIdentity, useAccount } from "@/account";
 import { useBalances } from "@/data/chain";
 import { AccountScreen, type AccountScreenProps } from "@/screens/account/AccountScreen";
 import { AppShell } from "@/shell/AppShell";
