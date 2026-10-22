@@ -1,7 +1,7 @@
 # SAYSO — Product Requirements
 
 **Bet on the words before they're spoken.**
-SAYSO turns a short video clip into a set of live word markets. Before playback, the board shows six words that might be said. Each word trades between 0 and 1 AUSD. When a word is spoken, its card flips to SAID within one Monad block; Chainlink CRE then checks two independent transcripts and settles it. Players join with a passkey: no wallet app, no seed phrase.
+SAYSO turns a short video clip into a set of live word markets. Before playback, the board shows six words that might be said. Each word trades between 0 and 1 AUSD. A spoken word is flagged onchain in about one Monad block; its card flips to SAID after the player's playhead reaches the heard-word margin, subject to the bounded clock fallback in ARCHITECTURE section 5.3. Chainlink CRE then checks two independent transcripts and settles it. Players join with a passkey: no wallet app, no seed phrase.
 
 Testnet only. No real money moves through SAYSO.
 
@@ -32,7 +32,7 @@ flowchart LR
 | # | Decision |
 |---|---|
 | P1 | **Replay Arena only.** Episodes play pre-recorded clips whose titles are hidden. No live streams in this release. |
-| P2 | **SAID is instant, settlement is CRE.** The studio flags a spoken word onchain in about one block; only the CRE workflow finalizes YES or NO. |
+| P2 | **SAID follows playback, settlement is CRE.** The studio flags a spoken word onchain in about one block; the card and its cues follow the player's playhead with a heard-word margin and bounded clock fallback (ARCHITECTURE section 5.3). Only the CRE workflow finalizes YES or NO. |
 | P3 | **Cash out now.** Playback allows no new positions; while a word is SAID but not yet final, a player can sell its YES into the house's 0.98 AUSD cash-out bid. |
 | P4 | **Only YES trades on Kuru.** NO is a complete-set position: mint YES+NO for 1 AUSD and sell the YES in one transaction. |
 | P5 | **Mobile-first PWA.** Installable web app, portrait. No app-store build. |
@@ -51,7 +51,7 @@ flowchart LR
 |---|---|---|---|
 | Scheduled | until start | Countdown, word board with opening prices | `EpisodeCreated`; one YES/NO pair and one Kuru YES/AUSD market per word |
 | Pre-roll | 60 s | Players buy YES or NO for approximately the first 40 s; video hidden and blurred, "starts in 0:42"; trading closes 20 s before playback | House ladders rest on every book until trading closes, then all house quotes are pulled and confirmed before playback |
-| Playback | clip length, 3 to 5 min | Video unblurs and plays; no new positions; a spoken word flips SAID with a haptic tick and can be cashed out at 0.98 AUSD (TESTNET) | `WordFlagged` within about one block of detection; house posts only the SAID word's 0.98 cash-out bid |
+| Playback | clip length, 3 to 5 min | Video unblurs and plays; no new positions; a spoken word flips SAID with a haptic tick at the heard-word presentation time (ARCHITECTURE section 5.3), then can be cashed out at 0.98 AUSD (TESTNET) | `WordFlagged` within about one block of detection; house posts only the SAID word's 0.98 cash-out bid |
 | Closed | until settlement | "Settling" on unflagged words; evidence links appear | `EpisodeClosed`; set minting stops |
 | Settled | permanent | Green YES / grey NO per word, redeem button, CRE transaction link | `WordResolved` per word through the CRE receiver |
 
@@ -106,7 +106,7 @@ No generic AI interface. The direction is a toy-box game show starring the SaySo
 - Wow in the first second: the landing opens on a living 3D scene, not a template hero.
 - In the game, the logo red means SAID or LIVE; one gain colour; losses stay neutral.
 - Words and key numbers in Plus Jakarta Sans ExtraBold, prices in tabular figures.
-- The signature moment is the card flip: a split-flap turn, reaction stickers, a sound and a haptic tick when a word is said.
+- The signature moment is the card flip: a split-flap turn, reaction stickers, a sound and a haptic tick on the heard-word presentation flip, not the earlier chain flag.
 - Motion explains the product or rewards an action; landing ambience pauses off-screen and respects reduced motion. No neon, dark-purple gradients or glassmorphism.
 - Sound is short, bright and mutable; no music competes with the clip's speech.
 - Every number on screen opens its source: book, transaction, transcript chunk.

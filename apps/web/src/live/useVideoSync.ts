@@ -3,19 +3,55 @@ import { duck, setMuted as setSoundMuted, useMuted } from "@/sound";
 import { driftDecision, PRESENTATION_DELAY_MS } from "./model";
 
 export type VideoSync = { now: () => number | null; startsAtMs: number; endsAtMs: number };
-export function useVideoSync(src: string | undefined, sync: VideoSync | undefined, live: boolean) {
+export type PlaybackObserver = (playheadMs: number | null) => void;
+export function useVideoSync(
+  src: string | undefined,
+  sync: VideoSync | undefined,
+  live: boolean,
+  onPlayback?: PlaybackObserver,
+) {
   const video = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [failed, setFailed] = useState(false);
   const [soundMuted] = useMuted();
+  const [source, setSource] = useState(src);
+  if (source !== src) {
+    setSource(src);
+    setBlocked(false);
+    setFailed(false);
+  }
   useEffect(() => {
     const el = video.current;
-    if (!el || !src) return;
+    if (!el || !src || failed || blocked) {
+      onPlayback?.(null);
+      return;
+    }
     let initial = true;
     let alive = true;
     let playPending = false;
+    let hasPlayed = !el.paused && el.readyState >= 2;
+    let buffering = el.paused || el.readyState < 2;
+    let playhead: number | null = null;
+    const sample = () => {
+      // A seek target is not audio already heard. Freeze the last playable sample during
+      // seeking/buffering; the presentation model bounds this hold to keep cash-out reachable.
+      if (hasPlayed && !buffering && !el.paused && !el.seeking && el.readyState >= 2) {
+        playhead = el.currentTime * 1_000;
+      }
+      onPlayback?.(playhead);
+    };
+    const playing = () => {
+      hasPlayed = true;
+      buffering = false;
+      sample();
+    };
+    const waiting = () => {
+      buffering = true;
+      sample();
+    };
     const update = () => {
+      sample();
       if (el.readyState < 1) return;
       const now = sync?.now();
       if (sync && now == null) {
@@ -32,7 +68,7 @@ export function useVideoSync(src: string | undefined, sync: VideoSync | undefine
         Math.max(0, elapsed),
       );
       const correction = driftDecision(target, el.currentTime, initial);
-      if (correction.seek !== null) el.currentTime = correction.seek;
+      if (correction.seek !== null && !el.seeking) el.currentTime = correction.seek;
       initial = false;
       el.playbackRate = correction.rate;
       const playing = sync
@@ -64,15 +100,26 @@ export function useVideoSync(src: string | undefined, sync: VideoSync | undefine
       duck(!el.paused && !el.muted);
     };
     el.addEventListener("loadedmetadata", update);
+    el.addEventListener("playing", playing);
+    el.addEventListener("timeupdate", sample);
+    el.addEventListener("waiting", waiting);
+    el.addEventListener("seeking", waiting);
+    el.addEventListener("pause", waiting);
     update();
     const timer = setInterval(update, 200);
     return () => {
       alive = false;
       clearInterval(timer);
       el.removeEventListener("loadedmetadata", update);
+      el.removeEventListener("playing", playing);
+      el.removeEventListener("timeupdate", sample);
+      el.removeEventListener("waiting", waiting);
+      el.removeEventListener("seeking", waiting);
+      el.removeEventListener("pause", waiting);
+      onPlayback?.(null);
       duck(false);
     };
-  }, [src, sync, live, blocked]);
+  }, [src, sync, live, blocked, failed, onPlayback]);
   useEffect(() => {
     const el = video.current;
     if (el) {

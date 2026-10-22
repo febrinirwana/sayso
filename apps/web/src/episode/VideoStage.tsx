@@ -2,7 +2,7 @@ import { Clock3, EyeOff, Lock } from "lucide-react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { VoxelName } from "@/assets/voxels/names";
-import { useVideoSync, type VideoSync } from "@/live/useVideoSync";
+import { type PlaybackObserver, useVideoSync, type VideoSync } from "@/live/useVideoSync";
 import { duck, play } from "@/sound";
 import { Voxel } from "@/ui/Voxel";
 import { ClipTimeline, type SaidMark } from "./ClipTimeline";
@@ -38,6 +38,7 @@ type VideoStageProps = {
   frame?: ReactNode;
   className?: string;
   sync?: VideoSync;
+  onPlayback?: PlaybackObserver;
 };
 
 /**
@@ -59,8 +60,14 @@ export function VideoStage({
   frame,
   className,
   sync,
+  onPlayback,
 }: VideoStageProps) {
-  const { video, muted, blocked, failed, setFailed, unmute } = useVideoSync(src, sync, live);
+  const { video, muted, blocked, failed, setFailed, unmute } = useVideoSync(
+    src,
+    sync,
+    live,
+    onPlayback,
+  );
   // The src whose first frame has decoded. Until then (slow network, a browser without the codec,
   // a missing file) the stage shows its poster stand instead of an empty ink block.
   const [framed, setFramed] = useState<string>();

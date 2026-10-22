@@ -86,15 +86,75 @@ describe("card price", () => {
   });
 });
 
-describe("presentation clock", () => {
-  it("never presents a flag before its delayed spoken timestamp", () => {
-    expect(presentationState("SaidPending", 10_000, 2_000, 13_499)).toBe("open");
-    expect(presentationState("SaidPending", 10_000, 2_000, 13_500)).toBe("said");
-    expect(presentationState("SaidPending", 10_000, 2_000, 20_000)).toBe("said");
+describe("heard-word presentation", () => {
+  const heardAt = 3_120;
+  const clockDue = 14_620;
+
+  it("waits for the heard margin even without playable media", () => {
+    expect(presentationState("SaidPending", 10_000, 2_000, clockDue - 1)).toBe("open");
+    expect(presentationState("SaidPending", 10_000, 2_000, clockDue)).toBe("said");
     expect(presentationState("SaidPending", 10_000, 2_000, null)).toBe("open");
-    expect(presentationState("Void", 10_000, 0, null)).toBe("void");
   });
-  it("schedules exactly at t plus 1500 ms and restores elapsed flags immediately", () => {
+  it("gates a synced or lagging video on the actual playhead", () => {
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, clockDue, { playheadMs: heardAt - 1 }),
+    ).toBe("open");
+    expect(presentationState("SaidPending", 10_000, 2_000, clockDue, { playheadMs: heardAt })).toBe(
+      "said",
+    );
+    expect(presentationState("SaidPending", 10_000, 2_000, clockDue + 500, { playheadMs: 0 })).toBe(
+      "open",
+    );
+  });
+  it("never lets an ahead video beat the delayed studio deadline", () => {
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, clockDue - 1, { playheadMs: heardAt + 500 }),
+    ).toBe("open");
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, clockDue, { playheadMs: heardAt + 500 }),
+    ).toBe("said");
+  });
+  it("falls back for absent, unloaded, failed or autoplay-blocked media", () => {
+    expect(presentationState("SaidPending", 10_000, 2_000, clockDue, { playheadMs: null })).toBe(
+      "said",
+    );
+    expect(presentationState("Open", 10_000, undefined, clockDue + 10_000)).toBe("open");
+  });
+  it("caps buffering holds so cash-out cannot wait forever", () => {
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, clockDue + 1_999, {
+        playheadMs: 0,
+      }),
+    ).toBe("open");
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, clockDue + 2_000, {
+        playheadMs: 0,
+      }),
+    ).toBe("said");
+  });
+  it("does not undo an observed flip when playback or clock moves backwards", () => {
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, null, {
+        playheadMs: 0,
+        alreadySaid: true,
+      }),
+    ).toBe("said");
+  });
+  it("preserves closed flags and final outcomes independently of playback", () => {
+    expect(
+      presentationState("SaidPending", 10_000, 2_000, null, { playheadMs: 0, closed: true }),
+    ).toBe("said");
+    for (const [chain, card] of [
+      ["Yes", "yes"],
+      ["No", "no"],
+      ["Void", "void"],
+    ] as const) {
+      expect(
+        presentationState(chain, 10_000, undefined, null, { playheadMs: 0, alreadySaid: true }),
+      ).toBe(card);
+    }
+  });
+  it("wakes at a supplied deadline and restores elapsed flags immediately", () => {
     vi.useFakeTimers();
     vi.setSystemTime(10_000);
     let flippedAt = 0;
@@ -123,11 +183,18 @@ describe("presentation clock", () => {
 });
 
 describe("video drift", () => {
-  it("seeks only on initialisation and nudges drift beyond 250 ms", () => {
+  it("seeks on initialisation and nudges small drift beyond 250 ms", () => {
     expect(driftDecision(10, 0, true)).toEqual({ seek: 10, rate: 1 });
     expect(driftDecision(10, 9.75, false)).toEqual({ seek: null, rate: 1 });
     expect(driftDecision(10, 9.7, false).rate).toBe(1.05);
     expect(driftDecision(10, 10.3, false).rate).toBe(0.95);
+  });
+  it("seeks in either direction only beyond one second of drift", () => {
+    expect(driftDecision(10, 9, false)).toEqual({ seek: null, rate: 1.05 });
+    expect(driftDecision(10, 11, false)).toEqual({ seek: null, rate: 0.95 });
+    expect(driftDecision(10, 8.999, false)).toEqual({ seek: 10, rate: 1 });
+    expect(driftDecision(10, 11.001, false)).toEqual({ seek: 10, rate: 1 });
+    expect(driftDecision(-1, 2, false)).toEqual({ seek: 0, rate: 1 });
   });
 });
 

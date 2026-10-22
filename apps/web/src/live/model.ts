@@ -6,18 +6,36 @@ import type { WordState } from "@/episode/WordCard";
 import type { BookQuote } from "./readers";
 
 export const PRESENTATION_DELAY_MS = 1_500;
+// VPS studio flag_plan/chunks, 2026-10-22, n=17, later-engine end minus chain offset:
+// min 300, median 560, p90 1,120, max 1,660 ms. Use p90 to finish most words without
+// delaying every flip by the sample's worst case. This is presentation only, not flag timing.
+export const HEARD_MARGIN_MS = 1_120;
+// Two seconds gives resync ten 200 ms ticks, but never indefinitely withholds cash-out.
+export const MAX_PRESENTATION_HOLD_MS = 2_000;
+
+type Presentation = {
+  playheadMs: number | null;
+  closed?: boolean;
+  alreadySaid?: boolean;
+};
 export function presentationState(
   state: ChainState,
   startsAtMs: number,
   offsetMs: number | undefined,
   nowMs: number | null,
+  presentation?: Presentation,
 ): WordState {
   if (state === "Yes") return "yes";
   if (state === "No") return "no";
   if (state === "Void") return "void";
-  return offsetMs !== undefined &&
-    nowMs !== null &&
-    nowMs >= startsAtMs + offsetMs + PRESENTATION_DELAY_MS
+  if (offsetMs === undefined) return "open";
+  if (presentation?.closed || presentation?.alreadySaid) return "said";
+  const heardAtMs = offsetMs + HEARD_MARGIN_MS;
+  const clockDueMs = startsAtMs + heardAtMs + PRESENTATION_DELAY_MS;
+  // An ahead player must meet both deadlines; no media uses only the studio deadline.
+  if (nowMs === null || nowMs < clockDueMs) return "open";
+  const playhead = presentation?.playheadMs;
+  return playhead == null || playhead >= heardAtMs || nowMs >= clockDueMs + MAX_PRESENTATION_HOLD_MS
     ? "said"
     : "open";
 }
@@ -95,8 +113,9 @@ export function scheduleFlip(now: () => number | null, atMs: number, flip: () =>
 }
 
 export function driftDecision(targetSeconds: number, actualSeconds: number, initial: boolean) {
-  if (initial) return { seek: Math.max(0, targetSeconds), rate: 1 };
   const drift = targetSeconds - actualSeconds;
+  // A 1 s error takes 20 s to recover at 1.05x. Seek larger errors instead.
+  if (initial || Math.abs(drift) > 1) return { seek: Math.max(0, targetSeconds), rate: 1 };
   return { seek: null, rate: Math.abs(drift) <= 0.25 ? 1 : drift > 0 ? 1.05 : 0.95 };
 }
 

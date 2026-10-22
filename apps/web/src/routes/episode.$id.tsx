@@ -102,6 +102,7 @@ function EpisodePage({ id }: { id: number }) {
           live={playing}
           ended={ended}
           sync={live.sync}
+          onPlayback={live.onPlayback}
           durationSeconds={durationSeconds}
           betsCloseIn={bets.closesInSeconds}
           secondsLeft={

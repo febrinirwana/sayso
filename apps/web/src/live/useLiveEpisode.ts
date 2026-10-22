@@ -10,7 +10,7 @@ import {
   TICK,
 } from "@sayso/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, type Hash, parseEventLogs } from "viem";
 import { TransactionRevertedError, useAccount } from "@/account";
 import { useBalances, useChainEpisode } from "@/data/chain";
@@ -22,6 +22,7 @@ import {
   allowanceApproval,
   canTrade,
   cardPrice,
+  HEARD_MARGIN_MS,
   liveBuyQuote,
   minOutput,
   PRESENTATION_DELAY_MS,
@@ -51,6 +52,11 @@ export function useLiveEpisode(id: number) {
   const [error, setError] = useState<string>();
   const [streamOffline, setStreamOffline] = useState(false);
   const busy = useRef(false);
+  const playhead = useRef<number | null>(null);
+  const presented = useRef(new Set<bigint>());
+  const onPlayback = useCallback((positionMs: number | null) => {
+    playhead.current = positionMs;
+  }, []);
   const startsAtMs = Number(episode.data?.startsAt ?? 0n) * 1_000;
   const endsAtMs = Number(episode.data?.endsAt ?? 0n) * 1_000;
   const closed = episode.data?.closed ?? false;
@@ -91,8 +97,10 @@ export function useLiveEpisode(id: number) {
       .split(",")
       .filter(Boolean)
       .map((offset) =>
-        scheduleFlip(clock.now, startsAtMs + Number(offset) + PRESENTATION_DELAY_MS, () =>
-          refresh((n) => n + 1),
+        scheduleFlip(
+          clock.now,
+          startsAtMs + Number(offset) + PRESENTATION_DELAY_MS + HEARD_MARGIN_MS,
+          () => refresh((n) => n + 1),
         ),
       );
     const timer = setInterval(() => refresh((n) => n + 1), 200);
@@ -103,14 +111,14 @@ export function useLiveEpisode(id: number) {
   }, [clock.now, startsAtMs, scheduleKey]);
   const now = clock.now();
   const trading = tradingWindow(now, startsAtMs, closed);
-  // A closed episode proves that every flagged offset is already past presentation. No local-clock fiction.
+  // Closed episodes and observed flips cannot be reopened by a stalled/rewound player.
   const cards = words.map((word, i) => {
-    const state = presentationState(
-      word.state,
-      startsAtMs,
-      offsets[i],
-      closed ? endsAtMs + PRESENTATION_DELAY_MS : now,
-    );
+    const state = presentationState(word.state, startsAtMs, offsets[i], now, {
+      playheadMs: playhead.current,
+      closed,
+      alreadySaid: presented.current.has(word.id),
+    });
+    if (state === "said") presented.current.add(word.id);
     const last = trades.data?.filter((t) => t.word_id === String(word.id)).at(-1);
     let lastYes: number | null = null;
     if (last) {
@@ -301,6 +309,7 @@ export function useLiveEpisode(id: number) {
     clock,
     now,
     sync,
+    onPlayback,
     word,
     book,
     holding,
