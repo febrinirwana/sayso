@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { AccountContext } from "@/account/AccountProvider";
+import type { Account } from "@/account/types";
 import { betsView } from "./bets";
 import { Ticket } from "./Ticket";
 
@@ -74,5 +76,86 @@ describe("bets window on the ticket", () => {
     });
     expect(html).toContain("Cash out ·");
     expect(html).not.toContain("Bets locked");
+  });
+});
+
+describe("signing actions while the account is locked", () => {
+  const none = () => {};
+  const account = (status: Account["status"]): Account => ({
+    status,
+    address: "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb",
+    nickname: "Test",
+    signer: null,
+    errorCode: null,
+    unlocking: false,
+    mismatch: null,
+    join: async () => {},
+    signIn: async () => {},
+    unlock: async () => "ready",
+    switchToFound: none,
+    dismissMismatch: none,
+    signOut: none,
+    send: async () => {
+      throw new Error("not used");
+    },
+  });
+  const render = (status: Account["status"], props: Partial<Parameters<typeof Ticket>[0]>) =>
+    renderToStaticMarkup(
+      createElement(
+        AccountContext.Provider,
+        { value: account(status) },
+        createElement(Ticket, { word: "block", state: "open", yesCents: 50, ...props }),
+      ),
+    );
+
+  it("asks for the passkey instead of offering Buy", () => {
+    const html = render("locked", {});
+    expect(html).toContain("Unlock with passkey");
+    expect(html).toContain("Then tap Buy again");
+    expect(html).not.toContain("Buy YES");
+  });
+
+  it("keeps Buy for a ready account", () => {
+    const html = render("ready", {});
+    expect(html).toContain("Buy YES");
+    expect(html).not.toContain("Unlock with passkey");
+  });
+
+  it("asks for the passkey instead of the SAID cash-out", () => {
+    const html = render("locked", {
+      state: "said",
+      yesCents: 98,
+      cashOutBidCents: 98,
+      position: { side: "yes", shares: 2 },
+    });
+    expect(html).toContain("Unlock with passkey");
+    expect(html).not.toContain("Cash out ·");
+  });
+
+  it("shows a single unlock and no sell buttons when holdings could be sold", () => {
+    const html = render("locked", {
+      sellPositions: { yes: 2, no: 0 },
+      onSell: none,
+    });
+    expect(html.match(/Unlock with passkey/g)).toHaveLength(1);
+    expect(html).not.toContain("Cash out 2 YES");
+  });
+
+  it("offers a sell on SAID NO holdings behind one unlock when the body has no action", () => {
+    const html = render("locked", {
+      state: "said",
+      yesCents: 98,
+      cashOutBidCents: null,
+      sellPositions: { yes: 0, no: 3 },
+      onSell: none,
+    });
+    expect(html.match(/Unlock with passkey/g)).toHaveLength(1);
+    expect(html).not.toContain("Cash out 3 NO");
+  });
+
+  it("keeps an in-flight order's status visible", () => {
+    const html = render("locked", { status: "sending" });
+    expect(html).toContain("Sending…");
+    expect(html).not.toContain("Unlock with passkey");
   });
 });

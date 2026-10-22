@@ -8,6 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AddressPair, UnlockPanel, type UnlockPanelProps } from "@/account";
 import { Button } from "@/ui/Button";
 import { CreditFooter, PageHeading, PlayerAvatar, TokenAmount } from "@/ui/PlayerPrimitives";
 import { Voxel } from "@/ui/Voxel";
@@ -24,6 +25,8 @@ export type AccountScreenProps = {
   onCopy(address: string): void;
   onRestoreCheck(): void;
   onSignOut(): void;
+  /** Present while the page is locked: the account is known but the passkey session is not. */
+  lock?: UnlockPanelProps | undefined;
 };
 export function AccountScreen({
   address,
@@ -35,6 +38,7 @@ export function AccountScreen({
   onCopy,
   onRestoreCheck,
   onSignOut,
+  lock,
 }: AccountScreenProps) {
   const nickname = nicknameOf(address);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -62,7 +66,7 @@ export function AccountScreen({
               <h2 className="font-headline text-3xl md:text-4xl">{nickname}</h2>
               <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold">
                 <Fingerprint size={16} aria-hidden />
-                Signed in with a passkey
+                {lock ? "Locked on this device" : "Signed in with a passkey"}
               </p>
             </div>
             <Voxel
@@ -102,6 +106,13 @@ export function AccountScreen({
                 Couldn’t copy. Select the address above to copy it manually.
               </p>
             )}
+            {lock ? (
+              <UnlockPanel
+                {...lock}
+                className="mt-6"
+                hint="Balances and positions are live. Unlock with your passkey to trade or redeem."
+              />
+            ) : null}
             <p className="mt-6 text-sm leading-relaxed text-ink-soft">
               Your nickname is made from your address. It stays yours when you come back. No profile
               to set up.
@@ -167,7 +178,12 @@ export function AccountScreen({
               Clear storage, sign in with the same passkey, get the same address. Your positions
               live on the network, not just on this device.
             </p>
-            {restoreState === "instructions" && (
+            {lock ? (
+              <p className="mt-5 rounded-2xl border border-ink/20 bg-card p-4 text-sm font-semibold">
+                Unlocking with your passkey is the restore check. Use the Unlock button above.
+              </p>
+            ) : null}
+            {!lock && restoreState === "instructions" && (
               <ol className="mt-5 space-y-3 rounded-2xl border border-ink/20 bg-card p-5 text-sm">
                 <li>
                   <strong>1.</strong> Copy your address before you begin.
@@ -183,53 +199,45 @@ export function AccountScreen({
                 </li>
               </ol>
             )}
-            {restoreState === "verified" && (
+            {!lock && restoreState === "verified" && (
               <p className="mt-5 flex items-center gap-2 rounded-2xl border border-ink/20 bg-card p-4 text-sm font-semibold">
                 <Check size={20} className="text-gain" aria-hidden />
                 Same address restored. Still you.
               </p>
             )}
-            {(restoreState === "mismatch" ||
-              restoreState === "error" ||
-              restoreState === "checking") && (
-              <p
-                role="status"
-                className="mt-5 rounded-2xl border border-ink/20 bg-card p-4 text-sm font-semibold"
+            {!lock &&
+              (restoreState === "mismatch" ||
+                restoreState === "error" ||
+                restoreState === "checking") && (
+                <p
+                  role="status"
+                  className="mt-5 rounded-2xl border border-ink/20 bg-card p-4 text-sm font-semibold"
+                >
+                  {restoreState === "checking"
+                    ? "Choose the same passkey to compare your address."
+                    : restoreState === "mismatch"
+                      ? "That passkey belongs to another player. Choose your original passkey."
+                      : "The passkey check could not finish. Try again."}
+                </p>
+              )}
+            {!lock && restoreState === "mismatch" && restoredAddress && (
+              <AddressPair expected={address} found={restoredAddress} />
+            )}
+            {lock ? null : (
+              <Button
+                variant="secondary"
+                className="mt-5"
+                onClick={onRestoreCheck}
+                disabled={restoreState === "checking"}
               >
+                <RotateCcw size={17} aria-hidden />
                 {restoreState === "checking"
-                  ? "Choose the same passkey to compare your address."
-                  : restoreState === "mismatch"
-                    ? "That passkey belongs to another player. Choose your original passkey."
-                    : "The passkey check could not finish. Try again."}
-              </p>
+                  ? "Checking passkey…"
+                  : restoreState === "idle"
+                    ? "Check restore"
+                    : "Check again"}
+              </Button>
             )}
-            {restoreState === "mismatch" && restoredAddress && (
-              <dl className="mt-3 grid grid-cols-2 gap-3 rounded-2xl bg-card p-4 text-sm">
-                <div>
-                  <dt className="text-xs text-ink-soft">Expected</dt>
-                  <dd className="mt-1 font-mono font-semibold">{shortAddress}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-ink-soft">Found</dt>
-                  <dd className="mt-1 font-mono font-semibold">
-                    {restoredAddress.slice(0, 6)}…{restoredAddress.slice(-4)}
-                  </dd>
-                </div>
-              </dl>
-            )}
-            <Button
-              variant="secondary"
-              className="mt-5"
-              onClick={onRestoreCheck}
-              disabled={restoreState === "checking"}
-            >
-              <RotateCcw size={17} aria-hidden />
-              {restoreState === "checking"
-                ? "Checking passkey…"
-                : restoreState === "idle"
-                  ? "Check restore"
-                  : "Check again"}
-            </Button>
             <p className="mt-4 text-xs text-ink-soft">
               This checks your passkey without clearing storage or changing your account.
             </p>

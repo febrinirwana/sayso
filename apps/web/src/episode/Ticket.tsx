@@ -1,6 +1,7 @@
 import { Check, Clock3, LoaderCircle, Lock, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { AccountUnlock, useOptionalAccount } from "@/account";
 import { play } from "@/sound";
 import { TestnetPill } from "@/ui/TestnetPill";
 import type { BetsView } from "./bets";
@@ -99,10 +100,19 @@ export function Ticket({
   onGetStarterKit,
 }: TicketProps) {
   const fx = useEpisodeFx();
+  // A refreshed page knows the player but holds no signing session: every signing action asks
+  // for an explicit passkey unlock first. An order already in flight keeps its button.
+  const needsUnlock =
+    useOptionalAccount()?.status === "locked" && status !== "sending" && status !== "filled";
+  const bidCents = cashOutBidCents === undefined ? SAID_BID_CENTS : cashOutBidCents;
   // An order already in flight keeps its buy form until the receipt lands.
   const locked = bets?.lockedReason !== undefined && status !== "sending" && status !== "filled";
   const mode =
     state === "open" ? (locked ? "locked" : "buy") : state === "said" ? "cashout" : "settled";
+  const bodyAsksUnlock =
+    needsUnlock &&
+    (mode === "buy" ||
+      (mode === "cashout" && bidCents === SAID_BID_CENTS && position?.side === "yes"));
 
   // Fill feedback when the caller's status lands, never on first render.
   const lastStatus = useRef(status);
@@ -177,6 +187,7 @@ export function Ticket({
           quoteFor={quoteFor}
           noCents={noCents}
           disabledReason={disabledReason}
+          needsUnlock={needsUnlock}
           minSharesFor={minSharesFor}
           onGetStarterKit={onGetStarterKit}
         />
@@ -186,8 +197,9 @@ export function Ticket({
           status={status}
           onCashOut={onCashOut}
           dock={dock}
-          bidCents={cashOutBidCents}
+          bidCents={bidCents}
           disabledReason={disabledReason}
+          needsUnlock={needsUnlock}
         />
       ) : mode === "locked" ? (
         <LockedBody reason={bets?.lockedReason} position={position} />
@@ -202,22 +214,28 @@ export function Ticket({
       sellPositions &&
       (sellPositions.yes > 0 || sellPositions.no > 0) &&
       (mode === "buy" || mode === "cashout") ? (
-        <div className="flex gap-2">
-          {(["yes", "no"] as const).map((side) =>
-            sellPositions[side] > 0 && !(mode === "cashout" && side === "yes") ? (
-              <button
-                key={side}
-                type="button"
-                className="sticker pressable rounded-full px-3 py-2 text-[12px] font-bold"
-                disabled={!!disabledReason || status === "sending"}
-                onClick={() => onSell(side)}
-              >
-                Cash out {formatShares(sellPositions[side])} {side.toUpperCase()}
-              </button>
-            ) : null,
-          )}
-          <TestnetPill />
-        </div>
+        needsUnlock ? (
+          bodyAsksUnlock ? null : (
+            <AccountUnlock hint="Unlock with your passkey to cash out. Then tap Cash out again." />
+          )
+        ) : (
+          <div className="flex gap-2">
+            {(["yes", "no"] as const).map((side) =>
+              sellPositions[side] > 0 && !(mode === "cashout" && side === "yes") ? (
+                <button
+                  key={side}
+                  type="button"
+                  className="sticker pressable rounded-full px-3 py-2 text-[12px] font-bold"
+                  disabled={!!disabledReason || status === "sending"}
+                  onClick={() => onSell(side)}
+                >
+                  Cash out {formatShares(sellPositions[side])} {side.toUpperCase()}
+                </button>
+              ) : null,
+            )}
+            <TestnetPill />
+          </div>
+        )
       ) : null}
       {transactionUrl ? (
         <a
@@ -250,6 +268,7 @@ function BuyBody({
   disabledReason,
   minSharesFor,
   onGetStarterKit,
+  needsUnlock,
 }: {
   yesCents: number;
   balanceMicro: bigint | undefined;
@@ -262,6 +281,7 @@ function BuyBody({
   disabledReason: TicketProps["disabledReason"];
   minSharesFor: TicketProps["minSharesFor"];
   onGetStarterKit: TicketProps["onGetStarterKit"];
+  needsUnlock: boolean;
 }) {
   const [side, setSide] = useState<Side>(initialSide);
   const [amountMicro, setAmountMicro] = useState(DEFAULT_AMOUNT);
@@ -339,16 +359,22 @@ function BuyBody({
           <TestnetPill />
         </div>
       </div>
-      <ActionButton
-        status={status}
-        disabled={!quote || !affordable || !!disabledReason}
-        onPress={() => {
-          play("confirm");
-          onConfirm?.({ side, amountMicro });
-        }}
-      >
-        {affordable ? `Buy ${side.toUpperCase()} · ${formatAusd(amountMicro)}` : "Not enough AUSD"}
-      </ActionButton>
+      {needsUnlock ? (
+        <AccountUnlock hint="Unlock with your passkey to buy. Then tap Buy again." />
+      ) : (
+        <ActionButton
+          status={status}
+          disabled={!quote || !affordable || !!disabledReason}
+          onPress={() => {
+            play("confirm");
+            onConfirm?.({ side, amountMicro });
+          }}
+        >
+          {affordable
+            ? `Buy ${side.toUpperCase()} · ${formatAusd(amountMicro)}`
+            : "Not enough AUSD"}
+        </ActionButton>
+      )}
       {broke && onGetStarterKit ? (
         <div className="rounded-2xl border-2 border-ink bg-sun-tint px-3.5 py-2.5">
           <p className="text-[12px] leading-4">
@@ -447,6 +473,7 @@ function CashOutBody({
   dock,
   bidCents = SAID_BID_CENTS,
   disabledReason,
+  needsUnlock,
 }: {
   position: TicketProps["position"];
   status: TicketStatus;
@@ -454,6 +481,7 @@ function CashOutBody({
   dock: boolean;
   bidCents: number | null | undefined;
   disabledReason: string | undefined;
+  needsUnlock: boolean;
 }) {
   // A successful sell consumes both the bid and the player's holding. Receipt feedback belongs
   // to the submitted order, not to the next book/position snapshot (episode 12 live proof).
@@ -511,16 +539,20 @@ function CashOutBody({
         <p className="text-[14px] leading-5 text-ink-soft">
           Or hold: {formatAusd(holdMicro)} when the result is confirmed.
         </p>
-        <ActionButton
-          status={status}
-          disabled={!!disabledReason}
-          onPress={() => {
-            play("confirm");
-            onCashOut?.();
-          }}
-        >
-          Cash out · {formatAusd(valueMicro)}
-        </ActionButton>
+        {needsUnlock ? (
+          <AccountUnlock hint="Unlock with your passkey to cash out. Then tap Cash out again." />
+        ) : (
+          <ActionButton
+            status={status}
+            disabled={!!disabledReason}
+            onPress={() => {
+              play("confirm");
+              onCashOut?.();
+            }}
+          >
+            Cash out · {formatAusd(valueMicro)}
+          </ActionButton>
+        )}
         {dock ? null : disclosure}
       </div>
     </div>

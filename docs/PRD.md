@@ -88,12 +88,13 @@ Phone-first and fully responsive: every screen has a real phone layout (390 to 4
 | S5 | Results | Outcome per word, the transcript chunk that proves it, the CRE transaction, own profit or loss |
 | S6 | Portfolio | Open positions, redeemable amount, "Redeem all" |
 | S7 | Leaderboard | Episode and all-time profit in AUSD, trade count, rank change |
-| S8 | Account | Address, deterministic nickname, balances, restore check (a mismatch shows the expected and found addresses), sign out only after a warning that the same passkey is needed to return, TESTNET |
+| S8 | Account | Address, deterministic nickname, balances, restore check (a mismatch shows the expected and found addresses), sign out only after a warning that the same passkey is needed to return, an Unlock with passkey action while the page is locked, TESTNET |
 
 ## 7. Account and onboarding
 
 - **Mera is the whole account layer.** The passkey PRF output derives the signing key; there is no seed phrase, extension or custody backend.
 - **Stateless test.** Clearing storage or switching devices and signing in with the same passkey restores the same address, positions and nickname. The nickname is derived from the address, so no server profile exists.
+- **Refresh keeps the account.** After sign-in the browser stores only the public address (`localStorage`, versioned); never PRF output, keys, seeds or sessions. A refreshed page opens on the same URL as a locked account: balances, positions, portfolio, leaderboard and results are readable, and every signing action (buy, cash out, redeem) shows an explicit Unlock with passkey button that the player taps; nothing opens a passkey sheet on load and nothing sends after the unlock. A passkey for a different address never switches silently: the page shows the expected and found addresses and a Use this account choice. Sign out clears the stored address.
 - **Starter kit.** Nothing is sent at sign-in. The Arena shows a "Starter kit" card with a Claim button; each claim sends 0.5 MON for gas and 10 AUSD for play, all TESTNET. An address can claim again after its previous claim completes, with no address cap. Each hashed client IP gets at most two claims in a rolling 24 hours; unfinished claims resume without using another slot. The card shows Claim again or when the next claim opens. A player with no AUSD who taps Start or Join is pointed to the card instead, and the ticket links to it when the balance cannot cover a bet.
 - **One-time approval.** AUSD uses its ERC-2612 permit for complete sets; trades go through `SaysoMarkets`, so a player approves it for AUSD once during onboarding and never approves outcome tokens or Kuru books.
 - Mera's PRF is unavailable in some desktop browser profiles; S1 detects this and points to a phone or a supported browser.

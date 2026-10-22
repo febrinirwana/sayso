@@ -1,7 +1,7 @@
 import { PRICE_PRECISION } from "@sayso/core";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { RequireAccount, useAccount } from "@/account";
+import { AccountUnlock, RequireAccount, useAccount } from "@/account";
 import { readBestBidAsk, useBalances, useLatestEpisode } from "@/data/chain";
 import { usePlayerPositions } from "@/data/indexer";
 import { averagePrice, redeemableAmount } from "@/records/adapters";
@@ -115,6 +115,13 @@ function PortfolioPage() {
         />
       ) : (
         <>
+          {account.status === "locked" && redeemable > 0n ? (
+            <AccountUnlock
+              className="mb-5"
+              label="Unlock to redeem"
+              hint="Redeeming signs a transaction. Unlock with your passkey, then tap Redeem again."
+            />
+          ) : null}
           <RedeemReceipts redemption={redemption} />
           <Portfolio
             tab={tab}
@@ -131,7 +138,9 @@ function PortfolioPage() {
                   : "idle"
             }
             onRedeemAll={() => {
-              void redemption.redeem(holdings.data ?? []);
+              // Locked: the tap asks for the passkey; the player taps Redeem again afterwards.
+              if (account.status === "locked") void account.unlock();
+              else void redemption.redeem(holdings.data ?? []);
             }}
             onPlay={() => {
               const id = latest.data?.episode?.id;

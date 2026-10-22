@@ -76,7 +76,7 @@ Bun workspaces: `apps/*`, `packages/*`, `cre/*`, `tools/*`, `indexer`. Envio 3.1
 
 | Component | Owns | Never does |
 |---|---|---|
-| `apps/web` | Vercel Hobby static build at a permanent `<project>.vercel.app` host (`apps/web/vercel.json`) | That host is the passkey relying-party ID and must never change after the first real passkey |
+| `apps/web` | Screens, Mera passkey session (memory only; the public address alone is kept in `localStorage` so a refresh opens locked, then unlocks by a tapped passkey prompt), signing, transaction sequencing by block, SSE subscription | Hold a key outside the Mera session; persist PRF output, keys or sessions; compute settlement |
 | `apps/studio` | Episode schedule, playback clock, flags, house quotes, starter drip, chunk reveal, simulation-mode CRE runs, health | Sign for a player; finalize a word; reveal a chunk before its reveal time (section 6) |
 | `packages/core` | `normalizeToken`, `matchesTarget`, `agreedSpokenTime`, `chunkTranscript`, `leafHash`, `merkleRoot`, `merkleProof`, `nicknameOf`, price/size conversions, gas table, ABIs | Network, clocks, randomness |
 | `contracts` | Collateral, outcome tokens, episode and word state, trade entry points, CRE receiver | Store transcripts; trust the studio for outcomes |

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { useAccount } from "@/account";
+import { AccountUnlock, useAccount } from "@/account";
 import { JoinScreen, type JoinState } from "@/screens/join/JoinScreen";
 
 export const Route = createFileRoute("/join")({
@@ -47,6 +47,17 @@ function Join() {
     <JoinScreen
       state={state}
       currentUrl={window.location.href}
+      returning={
+        account.status === "locked" && account.address && account.nickname
+          ? {
+              nickname: account.nickname,
+              address: account.address,
+              unlock: (
+                <AccountUnlock hint="One tap with your passkey puts you back at your seat." />
+              ),
+            }
+          : undefined
+      }
       onJoin={(passkeyName) => {
         lastAction.current = "join";
         void account.join(passkeyName);

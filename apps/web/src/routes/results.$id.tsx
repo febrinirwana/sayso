@@ -2,7 +2,7 @@ import { explorerTxUrl } from "@sayso/core";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { Hex } from "viem";
-import { RequireAccount, useAccount } from "@/account";
+import { AccountUnlock, RequireAccount, useAccount } from "@/account";
 import { useBalances, useChainEpisode } from "@/data/chain";
 import { useIndexedEpisode, usePlayerPositions } from "@/data/indexer";
 import { profitFromPosition, profitFromTrades, redeemableAmount } from "@/records/adapters";
@@ -106,6 +106,13 @@ function ResultsPage() {
           {accountingUnavailable && (
             <RecordStatus message="Envio trade history is unavailable or still loading. Word outcomes and winning balances come directly from Monad testnet." />
           )}
+          {account.status === "locked" && redeemable > 0n ? (
+            <AccountUnlock
+              className="mb-5"
+              label="Unlock to redeem"
+              hint="Redeeming signs a transaction. Unlock with your passkey, then tap Redeem again."
+            />
+          ) : null}
           <RedeemReceipts redemption={redemption} />
           <Results
             episodeId={id}
@@ -126,12 +133,17 @@ function ResultsPage() {
             celebration={redemption.confirmed}
             onProofOpen={() => setOpened(true)}
             onRedeemWord={(wordId) => {
+              if (account.status === "locked") {
+                void account.unlock();
+                return;
+              }
               void redemption.redeem(
                 (holdings.data ?? []).filter((row) => row.word.id.toString() === wordId),
               );
             }}
             onRedeem={() => {
-              void redemption.redeem(holdings.data ?? []);
+              if (account.status === "locked") void account.unlock();
+              else void redemption.redeem(holdings.data ?? []);
             }}
             onPlayNext={() => {
               void navigate({ to: "/arena" });

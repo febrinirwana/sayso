@@ -1,5 +1,5 @@
 import { ArrowRight, Check, Fingerprint, KeyRound, LoaderCircle, Smartphone } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { defaultPasskeyName, normalizePasskeyName } from "@/account/types";
 import mascot from "@/assets/brand/mascot-640.webp";
 import { Button } from "@/ui/Button";
@@ -15,11 +15,20 @@ export type JoinState =
 export type JoinScreenProps = {
   state: JoinState;
   currentUrl: string;
+  /** A refreshed page that remembers the player: the stored account and its unlock action. */
+  returning?: { nickname: string; address: string; unlock: ReactNode } | undefined;
   onJoin(passkeyName: string): void;
   onSignIn(): void;
   onRetry(passkeyName: string): void;
 };
-export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: JoinScreenProps) {
+export function JoinScreen({
+  state,
+  currentUrl,
+  returning,
+  onJoin,
+  onSignIn,
+  onRetry,
+}: JoinScreenProps) {
   const [defaultName] = useState(defaultPasskeyName);
   const [passkeyName, setPasskeyName] = useState(defaultName);
   const chosenName = () => normalizePasskeyName(passkeyName, defaultName);
@@ -89,6 +98,18 @@ export function JoinScreen({ state, currentUrl, onJoin, onSignIn, onRetry }: Joi
             A passkey uses your fingerprint, face or device PIN to sign you in. No password to
             remember.
           </p>
+          {returning ? (
+            <div className="mt-5 rounded-3xl border-2 border-ink bg-mint-tint p-4 shadow-sticker md:mt-7 md:p-7">
+              <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">
+                Welcome back
+              </p>
+              <h2 className="mt-1 font-headline text-2xl">{returning.nickname}</h2>
+              <p className="mt-1 mb-4 font-mono text-xs text-ink-soft">
+                {returning.address.slice(0, 6)}…{returning.address.slice(-4)}
+              </p>
+              {returning.unlock}
+            </div>
+          ) : null}
           <div
             className="mt-5 rounded-3xl border-2 border-ink bg-card p-4 shadow-sticker md:mt-7 md:p-7"
             aria-live="polite"

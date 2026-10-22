@@ -52,6 +52,22 @@ function AccountPage() {
           );
         }}
         onSignOut={account.signOut}
+        lock={
+          account.status === "locked"
+            ? {
+                unlocking: account.unlocking,
+                errorCode: account.errorCode,
+                mismatch: account.mismatch,
+                onUnlock: () => {
+                  void account.unlock().then((result) => {
+                    if (result === "ready") setRestoreState("verified");
+                  });
+                },
+                onSwitch: account.switchToFound,
+                onKeep: account.dismissMismatch,
+              }
+            : undefined
+        }
       />
     </AppShell>
   );
