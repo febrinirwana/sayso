@@ -286,7 +286,7 @@ All public on Monad testnet (chain `10143`). Explorer: [testnet.monadvision.com]
 
 1. **Use a phone.** Android Chrome or iOS Safari, on [playsayso.vercel.app](https://playsayso.vercel.app). Desktop browsers whose passkeys live in a local profile often lack the PRF extension Mera needs; the app says so instead of failing. Optional: tap **Install app** on the landing page.
 2. **Play → Join with passkey.** Give the passkey a name you will recognise, then confirm with your fingerprint, face or PIN.
-3. **Arena → Claim starter kit.** You get 10 test AUSD and 0.5 test MON, once per account.
+3. **Arena → Claim starter kit.** Each claim gives 10 AUSD and 0.5 MON, all TESTNET. Claim again after completion, up to two claims per network in a rolling 24 hours.
 4. **Start an episode** (or join the one already running). Pick YES or NO on any of the six words during the 60 s pre-roll; bets lock 20 s before kickoff.
 5. **Watch the board.** Spoken words flip SAID. Cash out at 98¢ or hold.
 6. **Results.** Chainlink CRE settles every word within seconds of the clip ending. Tap **Redeem AUSD** for winners, then check Portfolio and the Leaderboard.
@@ -298,7 +298,7 @@ All public on Monad testnet (chain `10143`). Explorer: [testnet.monadvision.com]
 |---|---|
 | One episode runs at a time for everyone | If an episode is already running, join it instead of starting one |
 | One "Start an episode" per network (IP) per hour | Each episode costs about 1.6 testnet MON in gas; this keeps the house solvent through judging |
-| One starter kit per account, and one new account per network per hour | Protects the test-token faucet. On shared Wi-Fi with another judge, use mobile data |
+| Two starter kit claims per network (IP) in a rolling 24 hours, with no account cap | Protects the TESTNET token faucet. The card shows when another claim opens; unfinished claims resume without another slot |
 | Six rights-cleared clips rotate, least recently played first | After a clip is played its outcomes are public onchain, so a returning judge gets a different clip |
 
 The studio, indexer and web app stay up through the whole judging period. If something looks stuck, the studio health endpoint is public: [`/v1/health`](https://sayso-studio.43-129-38-115.nip.io/v1/health).

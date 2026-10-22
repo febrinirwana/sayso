@@ -153,13 +153,14 @@ CREATE TABLE house_orders (
 );
 
 CREATE TABLE drips (
-  address  TEXT PRIMARY KEY,
+  id       INTEGER PRIMARY KEY,
+  address  TEXT NOT NULL,
   mon_wei  TEXT NOT NULL,
   ausd     TEXT NOT NULL,
   tx_mon   TEXT, tx_ausd TEXT,
   ip_hash  TEXT NOT NULL,
   at       INTEGER NOT NULL,
-  status   TEXT NOT NULL DEFAULT 'completed', -- legacy awards remain ineligible
+  status   TEXT NOT NULL DEFAULT 'completed', -- legacy awards stay completed
   raw_mon  TEXT, raw_ausd TEXT,               -- signed bytes; never public
   status_mon TEXT NOT NULL DEFAULT 'confirmed',
   status_ausd TEXT NOT NULL DEFAULT 'confirmed',
@@ -197,7 +198,7 @@ Clip manifests and transcripts are studio data, not tracked files: a public word
 
 BOT substeps in `actions.payload_json` carry the exact command, signed hash/raw bytes, receipt block and confirmation status. `house_orders` is reconstructed from actual original/replacement Kuru events and live storage, never treated as chain authority.
 
-Drip admission uses lowercase addresses with case-insensitive legacy lookup, a deployment-stable private HMAC salt over canonical direct-peer IPs, and an atomic SQLite reservation. Both transfer legs must confirm before `completed`; partial awards resume only the missing leg. Public responses omit signed bytes and IP hashes. Legacy rows and their transaction evidence are preserved unchanged.
+Drip admission uses lowercase addresses with case-insensitive legacy lookup, a deployment-stable private HMAC salt over canonical direct-peer IPs, and an atomic SQLite reservation. Each claim has its own integer ID; addresses can claim again after completion. Indexes cover `(lower(address),id)` and `(ip_hash,at)`. At most `DRIP_MAX_PER_IP_DAY` claims (default 2) per IP fit in the rolling 86,400,000 ms window, excluding the exact lower boundary. Pending claims retain their original quota slot on retry. Both transfer legs must confirm before `completed`; partial awards resume only the missing leg with the persisted signed bytes. Public responses omit signed bytes and IP hashes and expose caller quota (`limit`, `remaining`, `nextClaimAtMs`, null when available). Startup transactionally replaces the old address primary key while preserving every row, timestamp and transaction leg; legacy rows still count toward quota.
 
 CRE trigger identity is `(trigger_tx, trigger_log_index)`; the durable cursor advances only after every discovered trigger is enqueued. Statuses: `pending`, `running`, `observing` (DON), `ambiguous`, `success`, `reconciled`, `superseded`, `no-report`, `failed`. Only corroborated onchain receiver/forwarder receipts populate `report_tx`; attempted simulation reports must match the recorded REPORTER nonce. `no-report` proves no submission was entered, not successful settlement. CLI write ambiguity gates REPORTER until receipt reconciliation; neither a timeout nor a void authorizes replacement signing.
 

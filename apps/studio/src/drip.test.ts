@@ -1,8 +1,9 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { type Address, type Hex, parseEther, parseTransaction, toHex } from "viem";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp } from "./app.ts";
 import { parseConfig } from "./config.ts";
+import { openDatabase } from "./db.ts";
 import {
   type DripChain,
   type DripLeg,
@@ -53,7 +54,8 @@ class Ledger implements DripChain {
   async broadcast(tx: DripPrepared) {
     const existing = this.receipts.get(tx.hash);
     if (existing) return existing;
-    const t = this.transactions.get(tx.hash)!;
+    const t = this.transactions.get(tx.hash);
+    if (!t) throw new Error("Transaction was not prepared");
     // Signed bytes must already be durable, not merely returned by prepare.
     const persisted = db
       .query<{ tx_mon: string; tx_ausd: string }, []>("SELECT tx_mon,tx_ausd FROM drips")
@@ -87,12 +89,7 @@ class Ledger implements DripChain {
   }
 }
 beforeEach(() => {
-  db = new Database(":memory:");
-  db.exec(`CREATE TABLE drips (address TEXT PRIMARY KEY,mon_wei TEXT NOT NULL,ausd TEXT NOT NULL,
-    tx_mon TEXT,tx_ausd TEXT,ip_hash TEXT NOT NULL,at INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'completed', raw_mon TEXT,raw_ausd TEXT,
-    status_mon TEXT NOT NULL DEFAULT 'confirmed',status_ausd TEXT NOT NULL DEFAULT 'confirmed',
-    block_mon INTEGER,block_ausd INTEGER);`);
+  db = openDatabase(":memory:");
   now = 100000;
   chain = new Ledger();
   service = new DripService({
@@ -104,19 +101,18 @@ beforeEach(() => {
 });
 afterEach(() => db.close());
 
-it("awards once across case variants and service restart, exposing no private journal", async () => {
-  const result = await service.claim(a, "192.0.2.1");
-  expect(result.status).toBe("completed");
-  expect(chain.balances.get(a)).toEqual({ mon: 500_000_000_000_000_000n, ausd: 10_000_000n });
+it("allows repeated completed claims across case variants and restart without exposing the journal", async () => {
+  await service.claim(a, "192.0.2.1");
   service = new DripService({
     db,
     chain,
     ipSalt: "a stable deployment salt of at least 32 characters",
     now: () => now,
   });
-  await expect(service.claim(`0x${a.slice(2).toUpperCase()}`, "192.0.2.2")).rejects.toMatchObject({
-    httpStatus: 409,
-  });
+  const result = await service.claim(`0x${a.slice(2).toUpperCase()}`, "192.0.2.1");
+  expect(result.status).toBe("completed");
+  expect(chain.balances.get(a)).toEqual({ mon: 1_000_000_000_000_000_000n, ausd: 20_000_000n });
+  expect(db.query("SELECT * FROM drips").all()).toHaveLength(2);
   expect(JSON.stringify(service.status(a))).not.toMatch(/raw|ip_hash|192\.0\.2/);
 });
 it("preserves verified client identity for streamed grants and their IP rate limit", async () => {
@@ -134,7 +130,8 @@ it("preserves verified client identity for streamed grants and their IP rate lim
   });
   for (const [address, expected] of [
     [a, 201],
-    [b, 429],
+    [b, 201],
+    [a, 429],
   ] as const) {
     const bytes = new TextEncoder().encode(JSON.stringify({ address }));
     const request = new Request("http://localhost/v1/drips", {
@@ -149,47 +146,71 @@ it("preserves verified client identity for streamed grants and their IP rate lim
       }),
     });
     identities.set(request, "192.0.2.1");
-    expect((await app.fetch(request)).status).toBe(expected);
+    const response = await app.fetch(request);
+    expect(response.status).toBe(expected);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      quota: {
+        limit: 2,
+        remaining: address === a && expected === 201 ? 1 : 0,
+        nextClaimAtMs: address === a && expected === 201 ? null : 86_500_000,
+      },
+    });
+    if (expected === 429) expect(body).toMatchObject({ nextClaimAtMs: 86_500_000 });
   }
   expect(chain.balances.get(a)).toEqual({ mon: 500_000_000_000_000_000n, ausd: 10_000_000n });
-  expect(chain.balances.get(b)).toBeUndefined();
+  expect(chain.balances.get(b)?.ausd).toBe(10_000_000n);
+  const statusRequest = new Request(`http://localhost/v1/drips/${a}`);
+  identities.set(statusRequest, "192.0.2.2");
+  const statusResponse = await app.fetch(statusRequest);
+  expect(await statusResponse.json()).toMatchObject({
+    address: a,
+    status: "completed",
+    quota: { limit: 2, remaining: 2, nextClaimAtMs: null },
+  });
+  const unclaimedRequest = new Request(
+    "http://localhost/v1/drips/0x2222222222222222222222222222222222222222",
+  );
+  identities.set(unclaimedRequest, "192.0.2.1");
+  const unclaimedResponse = await app.fetch(unclaimedRequest);
+  expect(unclaimedResponse.status).toBe(200);
+  expect(await unclaimedResponse.json()).toEqual({
+    status: "unclaimed",
+    network: "TESTNET",
+    quota: { limit: 2, remaining: 0, nextClaimAtMs: 86_500_000 },
+  });
 });
-it("reserves one new address per IP hour, including concurrent claim attempts", async () => {
+it("admits two claims per IP day and frees quota exactly at the oldest boundary", async () => {
+  await service.claim(a, "192.0.2.1");
+  now += 1000;
+  await service.claim(b, "192.0.2.1");
+  chain.mon += parseEther("2");
+  chain.ausd += 20_000_000n;
+  await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({
+    code: "rate_limited",
+    httpStatus: 429,
+    nextClaimAtMs: 86_500_000,
+  });
+  now = 86_499_999;
+  await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({ httpStatus: 429 });
+  now++;
+  await service.claim(a, "192.0.2.1");
+  expect(chain.balances.get(a)?.ausd).toBe(20_000_000n);
+  expect(service.quota("192.0.2.1")).toEqual({
+    limit: 2,
+    remaining: 0,
+    nextClaimAtMs: 86_501_000,
+  });
+});
+it("serializes concurrent completed claims and counts each claim", async () => {
   const results = await Promise.allSettled([
+    service.claim(a, "192.0.2.1"),
     service.claim(a, "192.0.2.1"),
     service.claim(b, "192.0.2.1"),
   ]);
-  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-  expect(
-    (results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason.httpStatus,
-  ).toBe(429);
-  expect(chain.balances.get(b)).toBeUndefined();
-  now += 3_600_000;
-  await service.claim(b, "192.0.2.1");
-  expect(chain.balances.get(b)?.ausd).toBe(10_000_000n);
-});
-it("a configured rehearsal allowance admits that many new addresses per IP hour, then rate-limits", async () => {
-  service = new DripService({
-    db,
-    chain,
-    ipSalt: "a stable deployment salt of at least 32 characters",
-    maxPerIpHour: 2,
-    now: () => now,
-  });
-  const c = "0x2222222222222222222222222222222222222222";
-  await service.claim(a, "192.0.2.1");
-  await service.claim(b, "192.0.2.1");
-  chain.mon += parseEther("1"); // fund a third grant so only the IP allowance can refuse it
-  chain.ausd += 10_000_000n;
-  await expect(service.claim(c, "192.0.2.1")).rejects.toMatchObject({ httpStatus: 429 });
-  expect(chain.balances.get(c)).toBeUndefined();
-});
-it("concurrent case variants cannot double either leg", async () => {
-  await Promise.allSettled([
-    service.claim(a, "192.0.2.1"),
-    service.claim(`0x${a.slice(2).toUpperCase()}`, "192.0.2.2"),
-  ]);
-  expect(chain.balances.get(a)).toEqual({ mon: 500_000_000_000_000_000n, ausd: 10_000_000n });
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+  expect((results[2] as PromiseRejectedResult).reason.httpStatus).toBe(429);
+  expect(chain.balances.get(a)?.ausd).toBe(20_000_000n);
 });
 it.each(["mon", "ausd"] as const)(
   "refuses low %s before either transfer and leaves the IP eligible",
@@ -211,7 +232,8 @@ it.each(["mon", "ausd"] as const)(
 it("restarts an ambiguous AUSD send using the same bytes without doubling MON", async () => {
   chain.fail = "ausd";
   await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({ code: "pending" });
-  const before = service.status(a)!;
+  const before = service.status(a);
+  if (!before) throw new Error("Missing pending claim");
   expect(before.mon.status).toBe("confirmed");
   expect(before.ausd.status).toBe("signed");
   service = new DripService({
@@ -223,13 +245,58 @@ it("restarts an ambiguous AUSD send using the same bytes without doubling MON", 
   const after = await service.claim(a, "192.0.2.9");
   expect(after.ausd.hash).toBe(before.ausd.hash);
   expect(chain.balances.get(a)).toEqual({ mon: 500_000_000_000_000_000n, ausd: 10_000_000n });
+  expect(db.query("SELECT * FROM drips").all()).toHaveLength(1);
+  expect(service.quota("192.0.2.1").remaining).toBe(1);
+  expect(service.quota("192.0.2.9").remaining).toBe(2);
+  expect(chain.transactions.size).toBe(2);
+});
+it("resumes an unfinished second claim even when the original IP has no quota left", async () => {
+  await service.claim(a, "192.0.2.1");
+  chain.fail = "ausd";
+  await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({ code: "pending" });
+  const before = service.status(a);
+  expect(before?.ausd.status).toBe("signed");
+  expect(service.quota("192.0.2.1").remaining).toBe(0);
+  const result = await service.claim(a, "192.0.2.1");
+  expect(result.ausd.hash).toBe(before?.ausd.hash);
+  expect(chain.transactions.size).toBe(4);
+  expect(chain.balances.get(a)?.ausd).toBe(20_000_000n);
+  expect(db.query("SELECT * FROM drips").all()).toHaveLength(2);
+});
+it("returns pending legs and caller quota when a POST cannot confirm a signed transfer", async () => {
+  chain.fail = "ausd";
+  const app = createApp({
+    db,
+    drip: service,
+    now: () => now,
+    ip: () => "192.0.2.1",
+    chain: {
+      async snapshot() {
+        return { headNumber: "1", headTimestampMs: now, balances: [] };
+      },
+    },
+  });
+  const response = await app.request("/v1/drips", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address: a }),
+  });
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({
+    error: "pending",
+    status: "pending",
+    mon: { status: "confirmed" },
+    ausd: { status: "signed" },
+    quota: { limit: 2, remaining: 1, nextClaimAtMs: null },
+  });
 });
 it("reconciles a mined ambiguous send before low-balance refusal", async () => {
   chain.fail = "ausd";
   await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({ code: "pending" });
   const row = db
     .query<{ tx_ausd: Hex; raw_ausd: Hex }, []>("SELECT tx_ausd,raw_ausd FROM drips")
-    .get()!;
+    .get();
+  if (!row) throw new Error("Missing signed claim");
   await chain.broadcast({ hash: row.tx_ausd, raw: row.raw_ausd });
   chain.mon = 0n;
   chain.ausd = 0n;
@@ -241,7 +308,8 @@ it("confirmed revert is retryable, not an award, and retries only that leg", asy
     code: "reverted",
     httpStatus: 503,
   });
-  const before = service.status(a)!;
+  const before = service.status(a);
+  if (!before) throw new Error("Missing reverted claim");
   expect(before.status).toBe("pending");
   expect(before.ausd.status).toBe("reverted");
   const after = await service.claim(a, "192.0.2.1");
@@ -261,9 +329,11 @@ it("accepts the exact combined maximum-fee budget boundary", async () => {
   chain.mon = 500_000_000_000_000_000n + 93000n * chain.fees;
   expect((await service.claim(a, "192.0.2.1")).status).toBe("completed");
 });
-it("canonical IP spellings cannot evade the new-address limit", async () => {
+it("canonical IP spellings cannot evade the daily limit", async () => {
   await service.claim(a, "::ffff:192.0.2.1");
-  await expect(service.claim(b, "192.0.2.1")).rejects.toMatchObject({ code: "rate_limited" });
+  await service.claim(b, "192.0.2.1");
+  chain.ausd += 10_000_000n;
+  await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({ code: "rate_limited" });
 });
 it("an unresolved sender nonce gates other addresses until recovery", async () => {
   chain.fail = "mon";
@@ -294,7 +364,7 @@ it("separate service instances select one signed candidate and both require mine
   expect(chain.balances.get(a)).toEqual({ mon: 500_000_000_000_000_000n, ausd: 10_000_000n });
 });
 
-it("legacy mixed-case awards remain immutable and block every normalized variant", async () => {
+it("preserves legacy mixed-case awards while allowing another claim", async () => {
   const legacy = `0x${a.slice(2).toUpperCase()}`;
   db.query("INSERT INTO drips(address,mon_wei,ausd,ip_hash,at) VALUES(?,?,?,?,?)").run(
     legacy,
@@ -303,12 +373,9 @@ it("legacy mixed-case awards remain immutable and block every normalized variant
     "legacy-hash",
     0,
   );
-  await expect(service.claim(a, "192.0.2.1")).rejects.toMatchObject({ code: "already_awarded" });
-  expect(service.status(a)?.status).toBe("completed");
-  expect(db.query<{ address: string }, []>("SELECT address FROM drips").get()?.address).toBe(
-    legacy,
-  );
-  expect(chain.balances.get(a)).toBeUndefined();
+  await service.claim(a, "192.0.2.1");
+  expect(db.query("SELECT * FROM drips").all()).toHaveLength(2);
+  expect(chain.balances.get(a)?.ausd).toBe(10_000_000n);
 });
 
 it("rechecks budget after winning the sender reservation before any transfer", async () => {

@@ -36,7 +36,7 @@ try {
             db,
             chain: createDripChain(config),
             ipSalt: salt,
-            maxPerIpHour: config.dripMaxPerIpHour,
+            maxPerIpDay: config.dripMaxPerIpDay,
           })
         : undefined;
     const reporter = config.keyAddresses.find(({ role }) => role === "reporter");

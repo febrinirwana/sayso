@@ -126,6 +126,8 @@ sudoedit /etc/sayso/studio.env
 
 First install only: useradd/ln must fail rather than overwrite an existing deployment; use the upgrade/rollback steps below for subsequent releases. Owner securely enters distinct funded role keys, stable salt (>=32 chars), CRE auth as needed, cast-code-verified receiver/start block, reveal URL and the exact WEB_ORIGIN into the editor, never CLI args/chat. Do not copy a local studio.env or wallets env. Check `CHAIN_ID=10143`. Stop ALL local studio/OPERATOR/BOT/DRIP/REPORTER processes before transferring state or starting the VPS writer; one active studio only.
 
+Starter kits send 0.5 MON + 10 AUSD TESTNET per claim. Set `DRIP_MAX_PER_IP_DAY` to a positive integer (default 2 per canonical client IP in a rolling 24 hours). The retired hourly setting is ignored even if it remains in the live environment; remove it when editing configuration. Addresses may claim repeatedly after completion; retries of unfinished claims reuse signed bytes and quota. On startup the address-keyed drip table migrates transactionally to integer claim IDs, preserving old timestamps, IP hashes and pending legs. Keep the stable salt and stopped consistent SQLite snapshot. Smoke GET `/v1/drips/:address` for latest status and caller `quota`; a third claim in the window returns 429 with `nextClaimAtMs`.
+
 ### 4. Transfer private state and publish ONLY verified media
 
 Owner selects a stopped consistent STUDIO_DATA_DIR snapshot; exclude env files and resolver login/cache. In a local WSL shell (not a logged transcript):

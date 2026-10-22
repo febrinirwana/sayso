@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS house_orders (
   PRIMARY KEY (market, order_id)
 );
 CREATE TABLE IF NOT EXISTS drips (
-  address  TEXT PRIMARY KEY,
+  id       INTEGER PRIMARY KEY,
+  address  TEXT NOT NULL,
   mon_wei  TEXT NOT NULL,
   ausd     TEXT NOT NULL,
   tx_mon   TEXT, tx_ausd TEXT,
@@ -148,6 +149,20 @@ export function openDatabase(path: string): Database {
           if (!columns.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
         }
       }
+      const dripColumns = db.query<{ name: string }, []>("PRAGMA table_info(drips)").all();
+      if (!dripColumns.some((column) => column.name === "id")) {
+        db.exec("ALTER TABLE drips RENAME TO drips_previous");
+        db.exec(schema);
+        for (const [name, type] of Object.entries(additions.drips))
+          db.exec(`ALTER TABLE drips ADD COLUMN ${name} ${type}`);
+        const columns = dripColumns.map(({ name }) => name).join(",");
+        db.exec(
+          `INSERT INTO drips (${columns}) SELECT ${columns} FROM drips_previous ORDER BY rowid`,
+        );
+        db.exec("DROP TABLE drips_previous");
+      }
+      db.exec("CREATE INDEX IF NOT EXISTS drips_address ON drips(lower(address),id)");
+      db.exec("CREATE INDEX IF NOT EXISTS drips_ip_at ON drips(ip_hash,at)");
       db.exec(
         "CREATE UNIQUE INDEX IF NOT EXISTS cre_trigger_log ON cre_runs(trigger_tx,trigger_log_index)",
       );

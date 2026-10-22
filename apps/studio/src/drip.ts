@@ -36,6 +36,11 @@ export interface DripChain {
   receipt(hash: Hex): Promise<DripReceipt | null>;
   broadcast(transaction: DripPrepared): Promise<DripReceipt>;
 }
+export interface DripQuota {
+  limit: number;
+  remaining: number;
+  nextClaimAtMs: number | null;
+}
 export interface DripStatus {
   address: Address;
   network: "TESTNET";
@@ -49,8 +54,8 @@ export interface DripDependencies {
   db: Database;
   chain: DripChain;
   ipSalt: string;
-  /** New addresses one client IP may receive per rolling hour; production keeps 1. */
-  maxPerIpHour?: number;
+  /** Claims one canonical client IP may receive per rolling 24 hours. */
+  maxPerIpDay?: number;
   now?: () => number;
 }
 export class DripError extends Error {
@@ -58,19 +63,20 @@ export class DripError extends Error {
     readonly code:
       | "invalid_address"
       | "invalid_ip"
-      | "already_awarded"
       | "rate_limited"
       | "low_balance"
       | "unavailable"
       | "pending"
       | "reverted",
     readonly httpStatus: 400 | 409 | 429 | 503,
+    readonly nextClaimAtMs: number | null = null,
   ) {
     super(code);
     this.name = "DripError";
   }
 }
 interface DripRow {
+  id: number;
   address: Address;
   mon_wei: string;
   ausd: string;
@@ -91,7 +97,7 @@ function recipient(input: string): Address {
     input.toLowerCase() === zeroAddress
   )
     throw new DripError("invalid_address", 400);
-  // A lowercase primary key is invariant across checksummed/all-uppercase clients.
+  // Normalize recipients while retaining case-insensitive lookup for legacy rows.
   return getAddress(input.toLowerCase()).toLowerCase() as Address;
 }
 export class DripService {
@@ -115,6 +121,32 @@ export class DripService {
       ausd: { status: row.status_ausd, hash: row.tx_ausd, block: row.block_ausd },
     };
   }
+  quota(ip: string): DripQuota {
+    return this.#quota(this.#ipHash(ip), (this.#deps.now ?? Date.now)());
+  }
+  #quota(ipHash: string, at: number): DripQuota {
+    const limit = this.#deps.maxPerIpDay ?? 2;
+    const rows = this.#deps.db
+      .query<{ at: number }, [string, number]>(
+        "SELECT at FROM drips WHERE ip_hash=? AND at>? ORDER BY at",
+      )
+      .all(ipHash, at - 86_400_000);
+    const reopeningClaim = rows[rows.length - limit];
+    return {
+      limit,
+      remaining: Math.max(0, limit - rows.length),
+      nextClaimAtMs: reopeningClaim ? reopeningClaim.at + 86_400_000 : null,
+    };
+  }
+  #ipHash(ip: string): string {
+    if (typeof ip !== "string") throw new DripError("invalid_ip", 400);
+    const directIp =
+      ip.toLowerCase().startsWith("::ffff:") && isIP(ip.slice(7)) === 4 ? ip.slice(7) : ip;
+    const family = isIP(directIp);
+    if (!family) throw new DripError("invalid_ip", 400);
+    const canonicalIp = family === 6 ? new URL(`http://[${directIp}]/`).hostname : directIp;
+    return createHmac("sha256", this.#deps.ipSalt).update(canonicalIp).digest("hex");
+  }
   async stop(): Promise<void> {
     this.#stopped = true;
     await this.#tail;
@@ -122,14 +154,7 @@ export class DripService {
   async claim(input: string, ip: string): Promise<DripStatus> {
     if (this.#stopped) throw new DripError("unavailable", 503);
     const address = recipient(input);
-    if (typeof ip !== "string") throw new DripError("invalid_ip", 400);
-    // IPv4-mapped peers share their IPv4 bucket; canonicalize equivalent IPv6 spellings.
-    const directIp =
-      ip.toLowerCase().startsWith("::ffff:") && isIP(ip.slice(7)) === 4 ? ip.slice(7) : ip;
-    const family = isIP(directIp);
-    if (!family) throw new DripError("invalid_ip", 400);
-    const canonicalIp = family === 6 ? new URL(`http://[${directIp}]/`).hostname : directIp;
-    const ipHash = createHmac("sha256", this.#deps.ipSalt).update(canonicalIp).digest("hex");
+    const ipHash = this.#ipHash(ip);
     const previous = this.#tail;
     const gate = Promise.withResolvers<void>();
     this.#tail = gate.promise;
@@ -138,10 +163,10 @@ export class DripService {
       return await this.#claim(address, ipHash);
     } catch (error) {
       // Nothing signed yet: release the reservation so a transient failure cannot hold the
-      // sender gate and IP hour for every player. Signed legs stay for same-bytes recovery.
+      // sender gate and IP quota for every player. Signed legs stay for same-bytes recovery.
       this.#deps.db
         .query(
-          "DELETE FROM drips WHERE address=? AND tx_mon IS NULL AND tx_ausd IS NULL AND status='pending'",
+          "DELETE FROM drips WHERE lower(address)=? AND tx_mon IS NULL AND tx_ausd IS NULL AND status='pending'",
         )
         .run(address);
       if (error instanceof DripError) throw error;
@@ -154,69 +179,63 @@ export class DripService {
   #row(address: Address): DripRow | null {
     return this.#deps.db
       .query<DripRow, [string]>(
-        "SELECT * FROM drips WHERE lower(address)=? ORDER BY status='completed' DESC LIMIT 1",
+        "SELECT * FROM drips WHERE lower(address)=? ORDER BY status='pending' DESC,id DESC LIMIT 1",
       )
       .get(address.toLowerCase());
   }
-  #requiredRow(address: Address): DripRow {
-    const row = this.#row(address);
+  #requiredRow(id: number): DripRow {
+    const row = this.#deps.db.query<DripRow, [number]>("SELECT * FROM drips WHERE id=?").get(id);
     if (!row) throw new DripError("unavailable", 503);
     return row;
   }
   #reserve(address: Address, ipHash: string, at: number) {
     const db = this.#deps.db;
-    db.transaction(() => {
-      const current = this.#row(address);
-      if (current?.status === "completed") throw new DripError("already_awarded", 409);
-      if (current) return;
-      const recent = db
-        .query<{ n: number }, [string, number]>(
-          "SELECT count(*) AS n FROM drips WHERE ip_hash=? AND at>?",
-        )
-        .get(ipHash, at - 3_600_000);
-      if ((recent?.n ?? 0) >= (this.#deps.maxPerIpHour ?? 1))
-        throw new DripError("rate_limited", 429);
-      // An unresolved signed nonce must block every other recipient, even across restart.
-      if (db.query("SELECT address FROM drips WHERE status<>'completed' LIMIT 1").get())
-        throw new DripError("pending", 503);
-      db.query(`INSERT INTO drips(address,mon_wei,ausd,ip_hash,at,status,status_mon,status_ausd)
+    return db
+      .transaction(() => {
+        const current = this.#row(address);
+        if (current?.status === "pending") return current.id;
+        const quota = this.#quota(ipHash, at);
+        if (!quota.remaining) throw new DripError("rate_limited", 429, quota.nextClaimAtMs);
+        // An unresolved signed nonce must block every other recipient, even across restart.
+        if (db.query("SELECT address FROM drips WHERE status<>'completed' LIMIT 1").get())
+          throw new DripError("pending", 503);
+        db.query(`INSERT INTO drips(address,mon_wei,ausd,ip_hash,at,status,status_mon,status_ausd)
         VALUES(?,?,?,?,?,'pending','pending','pending')`).run(
-        address,
-        DRIP_MON_WEI.toString(),
-        DRIP_AUSD.toString(),
-        ipHash,
-        at,
-      );
-    }).immediate();
+          address,
+          DRIP_MON_WEI.toString(),
+          DRIP_AUSD.toString(),
+          ipHash,
+          at,
+        );
+        const reserved = this.#row(address);
+        if (!reserved) throw new DripError("unavailable", 503);
+        return reserved.id;
+      })
+      .immediate();
   }
-  #record(address: Address, leg: DripLeg, receipt: DripReceipt) {
+  #record(id: number, leg: DripLeg, receipt: DripReceipt) {
     if (!Number.isSafeInteger(receipt.block) || receipt.block < 0)
       throw new DripError("unavailable", 503);
     this.#deps.db
-      .query(`UPDATE drips SET status_${leg}=?,block_${leg}=? WHERE address=? AND tx_${leg}=?`)
-      .run(
-        receipt.success ? "confirmed" : "reverted",
-        receipt.block,
-        this.#row(address)?.address ?? address,
-        receipt.hash,
-      );
+      .query(`UPDATE drips SET status_${leg}=?,block_${leg}=? WHERE id=? AND tx_${leg}=?`)
+      .run(receipt.success ? "confirmed" : "reverted", receipt.block, id, receipt.hash);
   }
   async #claim(address: Address, ipHash: string): Promise<DripStatus> {
     const { db, chain } = this.#deps;
     let row = this.#row(address);
-    if (row?.status === "completed") throw new DripError("already_awarded", 409);
+    if (row?.status === "completed") row = null;
     // Reconcile before budgeting: a broadcast may have mined while the RPC was unreachable.
     if (row)
       for (const leg of ["mon", "ausd"] as const) {
         const hash = row[`tx_${leg}`];
         if (hash && row[`status_${leg}`] === "signed") {
           const receipt = await chain.receipt(hash);
-          if (receipt) this.#record(address, leg, receipt);
+          if (receipt) this.#record(row.id, leg, receipt);
         }
       }
-    row = this.#row(address);
+    if (row) row = this.#requiredRow(row.id);
     if (row?.status_mon === "confirmed" && row.status_ausd === "confirmed") {
-      db.query("UPDATE drips SET status='completed' WHERE address=?").run(row.address);
+      db.query("UPDATE drips SET status='completed' WHERE id=?").run(row.id);
       const status = this.status(address);
       if (!status) throw new DripError("unavailable", 503);
       return status;
@@ -228,10 +247,10 @@ export class DripService {
           raw = row[`raw_${leg}`];
         if (hash && raw && row[`status_${leg}`] === "signed") signed[leg] = { hash, raw };
       }
+    const id = row?.id ?? this.#reserve(address, ipHash, (this.#deps.now ?? Date.now)());
     let budget = await chain.inspect(address, signed);
     this.#budget(row, budget);
-    if (!row) this.#reserve(address, ipHash, (this.#deps.now ?? Date.now)());
-    row = this.#requiredRow(address);
+    row = this.#requiredRow(id);
     if (!row.tx_mon && !row.tx_ausd) {
       // Another recipient may have completed between the first balance read and
       // winning the durable sender gate. Re-budget before signing either leg.
@@ -239,7 +258,7 @@ export class DripService {
       this.#budget(row, budget);
     }
     for (const leg of ["mon", "ausd"] as const) {
-      row = this.#requiredRow(address);
+      row = this.#requiredRow(id);
       if (row[`status_${leg}`] === "confirmed") continue;
       if (leg === "ausd") {
         budget = await chain.inspect(address, signed);
@@ -258,14 +277,14 @@ export class DripService {
         // Only the winning candidate is ever broadcast. A concurrent process may sign, but
         // cannot replace an unknown transaction with a new fee/nonce/hash.
         db.query(`UPDATE drips SET tx_${leg}=?,raw_${leg}=?,status_${leg}='signed',block_${leg}=NULL
-          WHERE address=? AND status_${leg}=? AND tx_${leg} IS ?`).run(
+          WHERE id=? AND status_${leg}=? AND tx_${leg} IS ?`).run(
           prepared.hash,
           prepared.raw,
-          row.address,
+          id,
           row[`status_${leg}`],
           hash,
         );
-        row = this.#requiredRow(address);
+        row = this.#requiredRow(id);
         if (row[`status_${leg}`] === "confirmed") continue;
         hash = row[`tx_${leg}`];
         raw = row[`raw_${leg}`];
@@ -278,13 +297,13 @@ export class DripService {
         throw new DripError("pending", 503);
       }
       if (receipt.hash !== hash) throw new DripError("pending", 503);
-      this.#record(address, leg, receipt);
+      this.#record(id, leg, receipt);
       if (!receipt.success) throw new DripError("reverted", 503);
     }
-    row = this.#requiredRow(address);
+    row = this.#requiredRow(id);
     if (row.status_mon !== "confirmed" || row.status_ausd !== "confirmed")
       throw new DripError("pending", 503);
-    db.query("UPDATE drips SET status='completed' WHERE address=?").run(row.address);
+    db.query("UPDATE drips SET status='completed' WHERE id=?").run(id);
     const status = this.status(address);
     if (!status) throw new DripError("unavailable", 503);
     return status;

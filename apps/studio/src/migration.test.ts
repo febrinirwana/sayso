@@ -75,3 +75,39 @@ it("keeps legacy drip awards completed and preserves a pending signed leg across
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it("migrates the live address-keyed journal without losing quota or signed recovery bytes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sayso-live-drips-"));
+  const path = join(directory, "studio.sqlite");
+  const old = openDatabase(path);
+  old.exec(`DROP TABLE drips;
+    CREATE TABLE drips(address TEXT PRIMARY KEY,mon_wei TEXT NOT NULL,ausd TEXT NOT NULL,
+      tx_mon TEXT,tx_ausd TEXT,ip_hash TEXT NOT NULL,at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'completed',raw_mon TEXT,raw_ausd TEXT,
+      status_mon TEXT NOT NULL DEFAULT 'confirmed',status_ausd TEXT NOT NULL DEFAULT 'confirmed',
+      block_mon INTEGER,block_ausd INTEGER);
+    INSERT INTO drips VALUES ('first','500','10','m1','a1','shared-ip',123,'completed',
+      'raw-m1','raw-a1','confirmed','confirmed',11,12);
+    INSERT INTO drips VALUES ('second','500','10','m2','a2','shared-ip',456,'pending',
+      'raw-m2','raw-a2','confirmed','signed',13,NULL);`);
+  const before = old.query("SELECT * FROM drips ORDER BY at").all();
+  old.close();
+  for (let reopen = 0; reopen < 2; reopen++) {
+    const db = openDatabase(path);
+    try {
+      const rows = db.query<Record<string, unknown>, []>("SELECT * FROM drips ORDER BY at").all();
+      expect(rows.map(({ id, ...row }) => row)).toEqual(before);
+      expect(rows.map((row) => row.id)).toEqual([1, 2]);
+      expect(
+        db.query("SELECT count(*) AS n FROM drips WHERE ip_hash='shared-ip' AND at>0").get(),
+      ).toEqual({ n: 2 });
+      db.query(
+        "INSERT INTO drips(address,mon_wei,ausd,ip_hash,at) VALUES('first','500','10','other',789)",
+      ).run();
+      db.query("DELETE FROM drips WHERE at=789").run();
+    } finally {
+      db.close();
+    }
+  }
+  await rm(directory, { recursive: true, force: true });
+});

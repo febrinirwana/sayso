@@ -84,10 +84,24 @@ export function createApp({
       )
         return context.json({ error: "invalid_address", network: "TESTNET" }, 400);
       try {
-        return context.json(await drip.claim(body.address, context.get("clientIp")), 201);
+        const status = await drip.claim(body.address, context.get("clientIp"));
+        return context.json({ ...status, quota: drip.quota(context.get("clientIp")) }, 201);
       } catch (error) {
         return context.json(
-          { error: error instanceof DripError ? error.code : "unavailable", network: "TESTNET" },
+          {
+            error: error instanceof DripError ? error.code : "unavailable",
+            network: "TESTNET",
+            ...(error instanceof DripError &&
+            ["pending", "reverted", "low_balance", "rate_limited"].includes(error.code)
+              ? {
+                  ...(drip.status(body.address) ?? { status: "unclaimed" }),
+                  quota: drip.quota(context.get("clientIp")),
+                }
+              : {}),
+            ...(error instanceof DripError && error.code === "rate_limited"
+              ? { nextClaimAtMs: error.nextClaimAtMs, quota: drip.quota(context.get("clientIp")) }
+              : {}),
+          },
           error instanceof DripError ? error.httpStatus : 503,
         );
       }
@@ -97,7 +111,10 @@ export function createApp({
     if (!drip) return context.json({ error: "unavailable", network: "TESTNET" }, 503);
     try {
       const status = drip.status(context.req.param("address"));
-      return status ? context.json(status) : context.body(null, 404);
+      const quota = drip.quota(ip?.(context.req.raw) ?? "unknown");
+      return context.json(
+        status ? { ...status, quota } : { status: "unclaimed", network: "TESTNET", quota },
+      );
     } catch (error) {
       return context.json(
         { error: error instanceof DripError ? error.code : "unavailable", network: "TESTNET" },

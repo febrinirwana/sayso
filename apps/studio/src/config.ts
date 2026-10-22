@@ -45,7 +45,7 @@ const envSchema = z.object({
   DRIP_PK: optionalValue(key),
   REPORTER_PK: optionalValue(key),
   DRIP_IP_SALT: optionalValue(z.string().min(32)),
-  DRIP_MAX_PER_IP_HOUR: z.coerce.number().int().min(1).default(1),
+  DRIP_MAX_PER_IP_DAY: z.coerce.number().int().min(1).default(2),
   STUDIO_REVEAL_URL: optionalValue(z.url()),
   SAYSO_START_BLOCK: optionalValue(z.string().regex(/^(0|[1-9]\d*)$/)),
   CRE_MODE: z.enum(["simulation", "don"]).default("simulation"),
@@ -70,7 +70,7 @@ export class StudioConfig {
   readonly creResolverDir: string | undefined;
   readonly creCliPath: string;
   readonly creResolverWasm: string | undefined;
-  readonly dripMaxPerIpHour: number;
+  readonly dripMaxPerIpDay: number;
   readonly rpcReadsPerSecond: number | undefined;
   #dripSalt: string | undefined;
   readonly keyAddresses: { role: KeyRole; address: Address }[];
@@ -91,7 +91,7 @@ export class StudioConfig {
     this.creResolverDir = env.CRE_RESOLVER_DIR as string | undefined;
     this.creCliPath = env.CRE_CLI_PATH;
     this.creResolverWasm = env.CRE_RESOLVER_WASM as string | undefined;
-    this.dripMaxPerIpHour = env.DRIP_MAX_PER_IP_HOUR;
+    this.dripMaxPerIpDay = env.DRIP_MAX_PER_IP_DAY;
     this.rpcReadsPerSecond = env.RPC_READS_PER_SECOND as number | undefined;
     this.#dripSalt = env.DRIP_IP_SALT as string | undefined;
     this.keyAddresses = [];
