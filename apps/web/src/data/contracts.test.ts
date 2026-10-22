@@ -97,13 +97,31 @@ describe("public studio event boundary", () => {
   });
 });
 describe("studio HTTP admission", () => {
-  it.each([
-    [404, "unclaimed"],
-    [409, "already-claimed"],
-    [429, "rate-limited"],
-    [503, "unavailable"],
-  ])("maps drip HTTP %s to %s", (status, expected) => {
-    expect(mapDripResponse(Number(status), null)).toEqual({ status: expected });
+  it("maps an unclaimed kit and caller quota, and preserves the retry time on 429", () => {
+    const quota = { limit: 2, remaining: 0, nextClaimAtMs: 86_500_000 };
+    expect(mapDripResponse(200, { status: "unclaimed", network: "TESTNET", quota })).toEqual({
+      status: "unclaimed",
+      quota,
+    });
+    expect(
+      mapDripResponse(429, {
+        error: "rate_limited",
+        network: "TESTNET",
+        quota,
+        nextClaimAtMs: 86_500_000,
+      }),
+    ).toEqual({
+      status: "rate-limited",
+      quota,
+    });
+    expect(() =>
+      mapDripResponse(200, {
+        status: "unclaimed",
+        network: "TESTNET",
+        quota: { ...quota, remaining: 3 },
+      }),
+    ).toThrow();
+    expect(mapDripResponse(503, null)).toEqual({ status: "unavailable" });
   });
   it("distinguishes partial pending claims and validates testnet completion", () => {
     const drip = {
@@ -114,10 +132,17 @@ describe("studio HTTP admission", () => {
       status: "pending",
       mon: { status: "confirmed", hash: null, block: 1 },
       ausd: { status: "signed", hash: null, block: null },
+      quota: { limit: 2, remaining: 1, nextClaimAtMs: null },
     };
     expect(mapDripResponse(201, drip)).toMatchObject({
       status: "pending",
       drip: { amounts: drip.amounts },
+      quota: drip.quota,
+    });
+    expect(mapDripResponse(503, { ...drip, error: "pending" })).toMatchObject({
+      status: "pending",
+      drip: { mon: drip.mon, ausd: drip.ausd },
+      quota: drip.quota,
     });
     expect(
       mapDripResponse(200, {

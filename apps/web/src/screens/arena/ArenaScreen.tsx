@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import type { DripLeg, DripQuota } from "@/data/studio";
 import { Button } from "@/ui/Button";
 import { CreditFooter, PageHeading, TokenAmount } from "@/ui/PlayerPrimitives";
 import { Voxel } from "@/ui/Voxel";
@@ -27,15 +28,26 @@ export type ArenaEpisode =
   | { status: "queued"; episodeId: number }
   | { status: "scheduled" | "live"; schedule: ArenaSchedule; title: string };
 export type StarterBalance =
-  | { status: "checking" | "claiming" | "already-claimed" | "unclaimed" }
+  | { status: "checking" | "unclaimed"; quota?: DripQuota }
+  | { status: "claiming"; legs?: { mon: DripLeg; ausd: DripLeg } }
   | { status: "unavailable"; message: string }
-  | { status: "received"; amounts: { monWei: string; ausd: string } };
+  | { status: "rate-limited"; quota: DripQuota }
+  | { status: "received"; amounts: { monWei: string; ausd: string }; quota: DripQuota };
 export type RecentArenaEpisode = {
   episodeId: number;
   title: string;
   saidWords: readonly string[];
   settledAt: number;
 };
+
+/** "45 min" under an hour, otherwise "5 h 12 min"; never below one minute. */
+export function formatClaimWait(ms: number): string {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
 export type ArenaScreenProps = {
   nickname: string;
   episode: ArenaEpisode;
@@ -50,7 +62,7 @@ export type ArenaScreenProps = {
   statusMessage?: string;
   recentMessage?: string;
   onClaimStarter?(): void;
-  /** Zero AUSD and an unclaimed kit: Start and Join point to the starter card instead. */
+  /** Zero AUSD: Start and Join point to the starter card instead. */
   needsKit?: boolean;
 };
 export function ArenaScreen({
@@ -108,6 +120,11 @@ export function ArenaScreen({
   const scheduled = episode.status === "scheduled" || episode.status === "live";
   const live = episode.status === "live";
   const pending = episode.status === "starting" || episode.status === "queued";
+  const quota = "quota" in starter ? starter.quota : undefined;
+  const canClaim =
+    !quota ||
+    quota.remaining > 0 ||
+    (quota.nextClaimAtMs !== null && nowMs !== null && nowMs >= quota.nextClaimAtMs);
   const seconds =
     scheduled && nowMs !== null
       ? Math.max(
@@ -276,24 +293,20 @@ export function ArenaScreen({
                 ? "A little fuel for your first round."
                 : starter.status === "received"
                   ? "You’re ready to play."
-                  : starter.status === "already-claimed"
-                    ? "Starter kit claimed."
-                    : starter.status === "checking"
-                      ? "Checking your starter kit."
-                      : "Your starter kit is waiting."}
+                  : starter.status === "checking"
+                    ? "Checking your starter kit."
+                    : "Your starter kit is waiting."}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-soft">
               {starter.status === "claiming"
                 ? "Both test-token transfers need to arrive before your kit is ready."
                 : starter.status === "received"
                   ? "MON keeps your moves running. AUSD is for your predictions. All test tokens, no real money."
-                  : starter.status === "already-claimed"
-                    ? "Your one-time test tokens are already in your account. Make them count."
-                    : starter.status === "unavailable"
-                      ? starter.message
-                      : starter.status === "checking"
-                        ? "We’re asking the studio whether your one-time kit has arrived."
-                        : "Test MON for gas and test AUSD to play, once per account. No real money."}
+                  : starter.status === "unavailable"
+                    ? starter.message
+                    : starter.status === "checking"
+                      ? "Checking your latest test-token transfers."
+                      : "0.5 MON for gas and 10 AUSD to play, all TESTNET. Two claims per network every 24 hours."}
             </p>
           </div>
           {starter.status === "received" ? (
@@ -307,26 +320,43 @@ export function ArenaScreen({
                 <TokenAmount amount={BigInt(starter.amounts.ausd)} symbol="AUSD" />
               </p>
             </div>
-          ) : starter.status === "unavailable" || starter.status === "unclaimed" ? (
-            <Button className="mt-5" onClick={onClaimStarter} disabled={!onClaimStarter}>
-              {starter.status === "unavailable"
-                ? "Check again · TESTNET"
-                : "Claim starter kit · TESTNET"}
-            </Button>
-          ) : (
-            <p className="mt-5 flex items-center gap-2 text-xs font-semibold">
-              {starter.status === "already-claimed" ? (
-                <Check size={17} aria-hidden />
-              ) : (
+          ) : starter.status === "checking" || starter.status === "claiming" ? (
+            <div className="mt-5 space-y-2 text-xs font-semibold">
+              <p className="flex items-center gap-2">
                 <LoaderCircle size={17} className="motion-safe:animate-spin" aria-hidden />
-              )}
-              {starter.status === "already-claimed"
-                ? "Already claimed · TESTNET"
-                : starter.status === "checking"
-                  ? "Checking · TESTNET"
-                  : "Claiming starter balance · TESTNET"}
-            </p>
-          )}
+                {starter.status === "checking" ? "Checking · TESTNET" : "Confirming kit · TESTNET"}
+              </p>
+              {starter.status === "claiming" &&
+                starter.legs &&
+                (["mon", "ausd"] as const).map((leg) => (
+                  <p key={leg}>
+                    {leg.toUpperCase()} · {starter.legs?.[leg].status} · TESTNET
+                  </p>
+                ))}
+            </div>
+          ) : null}
+          {starter.status === "unavailable" ? (
+            <Button className="mt-5" onClick={onClaimStarter} disabled={!onClaimStarter}>
+              Check again · TESTNET
+            </Button>
+          ) : starter.status === "received" ||
+            starter.status === "unclaimed" ||
+            starter.status === "rate-limited" ? (
+            canClaim ? (
+              <Button className="mt-5" onClick={onClaimStarter} disabled={!onClaimStarter}>
+                {starter.status === "received"
+                  ? "Claim again · TESTNET"
+                  : "Claim starter kit · TESTNET"}
+              </Button>
+            ) : (
+              <p className="mt-5 text-sm font-semibold">
+                {quota?.nextClaimAtMs != null && nowMs !== null
+                  ? `Next claim in ${formatClaimWait(quota.nextClaimAtMs - nowMs)}`
+                  : "Next claim opens soon"}{" "}
+                · TESTNET
+              </p>
+            )
+          ) : null}
         </motion.aside>
       </div>
       {firstTime && (

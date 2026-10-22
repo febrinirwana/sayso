@@ -170,6 +170,7 @@ export type DripLeg = {
   hash: Hash | null;
   block: number | null;
 };
+export type DripQuota = { limit: number; remaining: number; nextClaimAtMs: number | null };
 export type DripStatus = {
   address: Address;
   network: "TESTNET";
@@ -180,8 +181,9 @@ export type DripStatus = {
   ausd: DripLeg;
 };
 export type DripResult =
-  | { status: "pending" | "completed"; drip: DripStatus }
-  | { status: "unclaimed" | "already-claimed" | "rate-limited" | "invalid-address" }
+  | { status: "pending" | "completed"; drip: DripStatus; quota: DripQuota }
+  | { status: "unclaimed" | "rate-limited"; quota: DripQuota }
+  | { status: "invalid-address" }
   | { status: "unavailable"; reason?: string };
 function dripLeg(value: unknown): DripLeg {
   const row = object(value);
@@ -196,18 +198,44 @@ function dripLeg(value: unknown): DripLeg {
     block: row.block === null ? null : integer(row.block),
   };
 }
+function dripQuota(value: unknown): DripQuota {
+  const row = object(value);
+  const limit = integer(row.limit),
+    remaining = integer(row.remaining);
+  const nextClaimAtMs = row.nextClaimAtMs === null ? null : integer(row.nextClaimAtMs);
+  if (limit < 1 || remaining > limit || (remaining === 0) !== (nextClaimAtMs !== null))
+    throw new StudioError("invalid-response");
+  return { limit, remaining, nextClaimAtMs };
+}
 export function mapDripResponse(status: number, body: unknown): DripResult {
-  if (status === 404) return { status: "unclaimed" };
-  if (status === 409) return { status: "already-claimed" };
-  if (status === 429) return { status: "rate-limited" };
+  if (status === 429) {
+    const row = object(body);
+    const quota = dripQuota(row.quota);
+    if (
+      row.network !== "TESTNET" ||
+      row.nextClaimAtMs !== quota.nextClaimAtMs ||
+      quota.remaining !== 0
+    )
+      throw new StudioError("invalid-response");
+    return { status: "rate-limited", quota };
+  }
   if (status === 400) return { status: "invalid-address" };
-  if (status === 503)
+  const pendingResponse =
+    status === 503 &&
+    body !== null &&
+    typeof body === "object" &&
+    "status" in body &&
+    body.status === "pending";
+  if (status === 503 && !pendingResponse)
     return body && typeof body === "object" && "error" in body && typeof body.error === "string"
       ? { status: "unavailable", reason: body.error }
       : { status: "unavailable" };
-  if (status !== 200 && status !== 201) throw new StudioError("http", status);
-  const row = object(body),
-    amounts = object(row.amounts);
+  if (status !== 200 && status !== 201 && !pendingResponse) throw new StudioError("http", status);
+  const row = object(body);
+  if (row.network !== "TESTNET") throw new StudioError("invalid-response");
+  const quota = dripQuota(row.quota);
+  if (row.status === "unclaimed") return { status: "unclaimed", quota };
+  const amounts = object(row.amounts);
   if (
     row.network !== "TESTNET" ||
     row.chainId !== 10143 ||
@@ -233,7 +261,7 @@ export function mapDripResponse(status: number, body: unknown): DripResult {
     mon,
     ausd,
   };
-  return { status: drip.status, drip };
+  return { status: drip.status, drip, quota };
 }
 export async function getDripStatus(address: Address) {
   const response = await studioFetch(`/v1/drips/${address}`);

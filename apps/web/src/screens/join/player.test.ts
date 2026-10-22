@@ -76,7 +76,7 @@ describe("player-visible screen states", () => {
   it("lets a lone player start an episode and prevents double starting", () => {
     const common = {
       nickname: "Sunny Duck",
-      starter: { status: "already-claimed" as const },
+      starter: { status: "unclaimed" as const },
       recentEpisodes: [],
       firstTime: true,
       onStart: noop,
@@ -91,6 +91,49 @@ describe("player-visible screen states", () => {
     expect(idle).toContain("Start an episode");
     expect(busy).toContain("disabled");
     expect(busy).toContain("Setting the stage");
+  });
+  it("offers another kit after completion and waits for the caller quota to reopen", () => {
+    const props = {
+      nickname: "Sunny Duck",
+      episode: { status: "idle" as const },
+      recentEpisodes: [],
+      firstTime: false,
+      onStart: noop,
+      onJoin: noop,
+      onResults: noop,
+      onClaimStarter: noop,
+      nowMs: 1000,
+    };
+    const received = {
+      status: "received" as const,
+      amounts: { monWei: "500000000000000000", ausd: "10000000" },
+      quota: { limit: 2, remaining: 1, nextClaimAtMs: null },
+    };
+    const available = renderToStaticMarkup(h(ArenaScreen, { ...props, starter: received }));
+    expect(available).toContain("Claim again");
+    expect(available).toContain("TESTNET");
+    const waiting = renderToStaticMarkup(
+      h(ArenaScreen, {
+        ...props,
+        starter: {
+          ...received,
+          quota: { limit: 2, remaining: 0, nextClaimAtMs: 2000 },
+        },
+      }),
+    );
+    expect(waiting).not.toContain("Claim again");
+    expect(waiting).toContain("Next claim");
+    const reopened = renderToStaticMarkup(
+      h(ArenaScreen, {
+        ...props,
+        nowMs: 2000,
+        starter: {
+          ...received,
+          quota: { limit: 2, remaining: 0, nextClaimAtMs: 2000 },
+        },
+      }),
+    );
+    expect(reopened).toContain("Claim again");
   });
   it("shows an exact large AUSD balance and active nav", () => {
     const router = createRouter({ routeTree: createRootRoute(), history: createMemoryHistory() });

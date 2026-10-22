@@ -105,7 +105,7 @@ function PlayerSpecimen() {
           nickname={PLAYER_NICKNAME}
           nowMs={SPECIMEN_NOW}
           episode={ARENA_STATES[selected] ?? { status: "idle" }}
-          starter={STARTER_STATES[selected] ?? { status: "already-claimed" }}
+          starter={STARTER_STATES[selected] ?? { status: "unclaimed" }}
           recentEpisodes={selected === "arena-empty" ? [] : RECENT_EPISODES}
           firstTime={selected !== "arena-claimed"}
           onStart={start}

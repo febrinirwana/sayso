@@ -62,7 +62,7 @@ export type TicketProps = {
    */
   bets?: BetsView | undefined;
   minSharesFor?: (side: Side, amountMicro: bigint) => bigint | null;
-  /** When the balance is below the smallest preset, shows a path to the one-time starter kit. */
+  /** When the balance is below the smallest preset, shows a path to the starter kit. */
   onGetStarterKit?: () => void;
 };
 
@@ -352,7 +352,7 @@ function BuyBody({
       {broke && onGetStarterKit ? (
         <div className="rounded-2xl border-2 border-ink bg-sun-tint px-3.5 py-2.5">
           <p className="text-[12px] leading-4">
-            Out of test AUSD? Your one-time starter kit lives in the Arena.
+            Out of test AUSD? Your starter kit lives in the Arena.
           </p>
           <button
             type="button"

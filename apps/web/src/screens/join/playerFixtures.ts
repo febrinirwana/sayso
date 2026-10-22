@@ -80,8 +80,13 @@ export const STARTER_STATES: Record<string, StarterBalance> = {
   "arena-received": {
     status: "received",
     amounts: { monWei: "500000000000000000", ausd: "10000000" },
+    quota: { limit: 2, remaining: 1, nextClaimAtMs: null },
   },
-  "arena-claimed": { status: "already-claimed" },
+  "arena-claimed": {
+    status: "received",
+    amounts: { monWei: "500000000000000000", ausd: "10000000" },
+    quota: { limit: 2, remaining: 0, nextClaimAtMs: SPECIMEN_NOW + 5 * 3_600_000 + 12 * 60_000 },
+  },
 };
 export const PLAYER_SPECIMENS = [
   ["join-idle", "Join · ready"],

@@ -64,10 +64,11 @@ function Arena() {
     enabled: !!account.address,
     retry: false,
     refetchInterval: (query) =>
-      query.state.data?.status === "pending" &&
-      (pendingStartedAt === null || Date.now() - pendingStartedAt < 60_000)
-        ? 5_000
-        : false,
+      query.state.data?.status === "pending"
+        ? pendingStartedAt === null || Date.now() - pendingStartedAt < 60_000
+          ? 5_000
+          : false
+        : 15_000,
   });
   useEffect(() => {
     setPendingStartedAt((startedAt) =>
@@ -146,19 +147,18 @@ function Arena() {
             message:
               "Your starter kit is still confirming. We’ve paused automatic checks; check again for the transfer status.",
           }
-        : { status: "claiming" };
+        : { status: "claiming", legs: { mon: result.drip.mon, ausd: result.drip.ausd } };
   } else if (result?.status === "completed")
-    starter = { status: "received", amounts: result.drip.amounts };
-  else if (result?.status === "already-claimed") starter = { status: "already-claimed" };
+    starter = { status: "received", amounts: result.drip.amounts, quota: result.quota };
+  else if (result?.status === "rate-limited")
+    starter = { status: "rate-limited", quota: result.quota };
   else if (claim.isError || drip.isError || (result && result.status !== "unclaimed"))
     starter = {
       status: "unavailable",
       message:
-        result?.status === "rate-limited"
-          ? "The starter kit is rate-limited. Try again later; no tokens have been promised."
-          : "The studio is unavailable. Your starter kit has not been confirmed. Check again when it reconnects.",
+        "The studio is unavailable. Your starter kit has not been confirmed. Check again when it reconnects.",
     };
-  else if (result?.status === "unclaimed") starter = { status: "unclaimed" };
+  else if (result?.status === "unclaimed") starter = { status: "unclaimed", quota: result.quota };
   const offline = health.isError || clock.isError;
   const messages: string[] = [];
   if (offline)
@@ -199,7 +199,7 @@ function Arena() {
         recentEpisodes={recentEpisodes}
         nowMs={nowMs}
         firstTime={result?.status === "unclaimed" || claim.isPending}
-        needsKit={balances.data?.ausd === 0n && starter.status === "unclaimed"}
+        needsKit={balances.data?.ausd === 0n}
         startDisabled={
           offline ||
           health.data?.chain === null ||
@@ -228,7 +228,16 @@ function Arena() {
           void drip.refetch().then(({ data }) => {
             // A pending claim re-posts too: the studio reconciles and rebroadcasts the same
             // signed bytes, so a stalled transfer resumes instead of waiting forever.
-            if (account.address && (data?.status === "unclaimed" || data?.status === "pending"))
+            if (
+              account.address &&
+              data &&
+              (data.status === "pending" ||
+                ((data.status === "unclaimed" ||
+                  data.status === "completed" ||
+                  data.status === "rate-limited") &&
+                  (data.quota.remaining > 0 ||
+                    (data.quota.nextClaimAtMs !== null && Date.now() >= data.quota.nextClaimAtMs))))
+            )
               claim.mutate(account.address);
           });
         }}
