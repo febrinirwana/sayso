@@ -20,19 +20,27 @@ import type { TicketStatus } from "@/episode/Ticket";
 import { publicClient } from "@/lib/chain";
 import {
   allowanceApproval,
+  buyPermission,
   canTrade,
   cardPrice,
   HEARD_MARGIN_MS,
   liveBuyQuote,
+  MAX_PICKED_WORDS,
   minOutput,
   PRESENTATION_DELAY_MS,
+  pickedWords,
   presentationState,
+  recordSessionBuy,
+  type SessionBuys,
   scheduleFlip,
+  sessionBuyKey,
   tradeTransition,
   tradingWindow,
   wordAction,
 } from "./model";
 import { useEpisodeBooks, useEpisodeTrades, useTokenPositions } from "./readers";
+
+const NO_BUYS: ReadonlySet<string> = new Set();
 
 export function useLiveEpisode(id: number) {
   const account = useAccount();
@@ -52,6 +60,22 @@ export function useLiveEpisode(id: number) {
   const [error, setError] = useState<string>();
   const [streamOffline, setStreamOffline] = useState(false);
   const busy = useRef(false);
+  // Session fills belong to one account on one episode and survive switching away and back.
+  const sessionKey = sessionBuyKey(account.address, id);
+  const [session, setSession] = useState<SessionBuys>(new Map());
+  const sessionBuys = session.get(sessionKey) ?? NO_BUYS;
+  const picked = pickedWords({
+    episodeWordIds: words.map((w) => w.id),
+    holdings: positions.data ?? [],
+    trades: trades.data ?? [],
+    address: account.address,
+    sessionBuys,
+  });
+  // Sells never free a slot, so a count read without the indexer's history could read low and let
+  // a fourth word through. New buys fail closed until both reads have answered.
+  const picksReady = positions.data !== undefined && trades.data !== undefined;
+  const picksNow = useRef({ picked, ready: picksReady });
+  picksNow.current = { picked, ready: picksReady };
   const playhead = useRef<number | null>(null);
   const presented = useRef(new Set<bigint>());
   const onPlayback = useCallback((positionMs: number | null) => {
@@ -184,6 +208,17 @@ export function useLiveEpisode(id: number) {
         : episode.isError || positions.isError || balances.isError
           ? "Chain data is unavailable. Trading is paused."
           : undefined;
+  // Only buys are blocked at the pick limit; cash-out, sell and redeem stay open.
+  const buyBlockedReason =
+    !word || !ticketCard || disabledReason
+      ? undefined
+      : buyPermission(wordAction(ticketCard.state, trading), picked, word.id) === "limit"
+        ? `You've picked ${MAX_PICKED_WORDS} words this round.`
+        : canTrade(wordAction(ticketCard.state, trading), "buy") && !picksReady
+          ? trades.isError
+            ? "Your pick history is unavailable. Buying is paused."
+            : "Checking your picks."
+          : undefined;
   const sync = useMemo(
     () => ({ now: clock.now, startsAtMs, endsAtMs }),
     [clock.now, startsAtMs, endsAtMs],
@@ -191,6 +226,7 @@ export function useLiveEpisode(id: number) {
   const execute = async (side: Side, amount: bigint, sell: boolean) => {
     if (busy.current || !word || !ticketCard || !account.address || disabledReason) return;
     if (!canTrade(wordAction(ticketCard.state, trading), sell ? "sell" : "buy")) return;
+    if (!sell && buyBlockedReason) return;
     busy.current = true;
     setStatus((s) => tradeTransition(s, "sending"));
     setError(undefined);
@@ -262,6 +298,12 @@ export function useLiveEpisode(id: number) {
         });
       const table = gasLimit(kind);
       const live = gasWithMargin(estimate);
+      // Last look before the trade is sent: another tab, the indexer or a slow estimate may have
+      // changed the picks. Sells and cash-outs skip it.
+      if (!sell && !picksNow.current.ready)
+        throw new Error("Your pick history is unavailable. Nothing was sent.");
+      if (!sell && buyPermission("trade", picksNow.current.picked, word.id) === "limit")
+        throw new Error(`You've picked ${MAX_PICKED_WORDS} words this round. Nothing was sent.`);
       const txHash = await account.send({
         to: addresses.saysoMarkets,
         data,
@@ -284,6 +326,7 @@ export function useLiveEpisode(id: number) {
         )
       )
         throw new Error("The IOC order did not fill.");
+      if (!sell) setSession((previous) => recordSessionBuy(previous, sessionKey, word.id));
       setStatus((s) => tradeTransition(s, "filled"));
       // Refresh in the background: awaiting every read model here kept `busy` set, which swallowed
       // the player's Close and left this ticket over the board.
@@ -317,6 +360,9 @@ export function useLiveEpisode(id: number) {
     status,
     error,
     disabledReason,
+    buyBlockedReason,
+    pickedCount: picked.size,
+    picksReady,
     streamOffline,
     transactionUrl: hash ? explorerTxUrl(hash) : undefined,
     closeTicket: () => {

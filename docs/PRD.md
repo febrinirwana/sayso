@@ -57,6 +57,7 @@ flowchart LR
 
 Rules:
 - Six words per episode. Curators pick a mix of spoken words and decoys; the ratio is never shown per episode.
+- A player may open positions on at most 3 of the 6 words per episode. All six stay on the board for details, price and SAID state. A word counts as picked after the first successful YES or NO buy on it; selling or cashing out does not free the slot, and failed or unfilled buys do not count. More buys on a picked word stay open while bets are open, and cash-out, sell and redeem are never limited. The web app enforces this from chain holdings and indexed buys (no contract change), shows "n/3 words picked" while bets are open, and disables Buy with a short reason on the other words at the limit.
 - Every episode commits two transcript Merkle roots before the first trade (section 7 of ARCHITECTURE). The words that will be said are fixed and provable before anyone trades.
 - A judge can start an on-demand episode from the lobby when none is running. A scheduled episode also starts every hour so the leaderboard stays alive. The judging deployment runs on-demand episodes only to fit the testnet MON budget ([BLOCKERS B15](BLOCKERS.md)).
 - Opening prices are 0.50 for every word. The house never quotes from transcript knowledge: it pulls every word's quotes before playback, spoken words and decoys alike, on the same uninformed schedule. Only the 0.98 cash-out bid at a SAID flag is informed.
@@ -84,7 +85,7 @@ Phone-first and fully responsive: every screen has a real phone layout (390 to 4
 | S1 | Join | "Join with passkey" and "I already have one"; one sentence on what a passkey is; an optional passkey name (prefilled `SAYSO · <date time>`) so the player can pick the right passkey later; TESTNET label |
 | S2 | Arena | Running or next episode with countdown, "Start an episode" when idle, last results, starter balance status |
 | S3 | Episode | Video (16:9) above a 2×3 word board; each card shows word, price, state (open / SAID / YES / NO), own position |
-| S4 | Ticket | Bottom sheet: YES/NO, amount, cost, payout if right, one confirm; cash-out button on SAID words |
+| S4 | Ticket | Bottom sheet: YES/NO, amount, cost, payout if right, one confirm; cash-out button on SAID words; Buy is disabled with a reason on an unpicked word once 3 words are picked |
 | S5 | Results | Outcome per word, the transcript chunk that proves it, the CRE transaction, own profit or loss |
 | S6 | Portfolio | Open positions, redeemable amount, "Redeem all" |
 | S7 | Leaderboard | Episode and all-time profit in AUSD, trade count, rank change |

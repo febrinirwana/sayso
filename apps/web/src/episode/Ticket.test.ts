@@ -79,6 +79,44 @@ describe("bets window on the ticket", () => {
   });
 });
 
+describe("three-word pick limit on the ticket", () => {
+  const render = (props: Partial<Parameters<typeof Ticket>[0]>) =>
+    renderToStaticMarkup(
+      createElement(Ticket, {
+        word: "block",
+        state: "open",
+        yesCents: 50,
+        bets: betsView({ status: "open", closesInMs: 30_000 }, false),
+        ...props,
+      }),
+    );
+  const buyButton = (html: string) =>
+    html.match(/<button[^>]*>(?:(?!<\/button>).)*Buy YES[^<]*/s)?.[0] ?? "";
+
+  it("disables Buy with the reason for an unpicked word at the limit", () => {
+    const html = render({ buyBlockedReason: "You've picked 3 words this round." });
+    expect(html).toContain("You&#x27;ve picked 3 words this round.");
+    expect(buyButton(html)).toContain('disabled=""');
+  });
+
+  it("still buys a picked word", () => {
+    const html = render({});
+    expect(html).not.toContain("words this round");
+    expect(buyButton(html)).toContain("Buy YES");
+    expect(buyButton(html)).not.toContain('disabled=""');
+  });
+
+  it("keeps cash-out open on a word at the limit", () => {
+    const html = render({
+      buyBlockedReason: "You've picked 3 words this round.",
+      sellPositions: { yes: 2, no: 0 },
+      onSell: () => {},
+    });
+    expect(html).toContain("Cash out 2 YES");
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Cash out/);
+  });
+});
+
 describe("signing actions while the account is locked", () => {
   const none = () => {};
   const account = (status: Account["status"]): Account => ({

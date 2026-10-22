@@ -2,13 +2,18 @@ import { TRADING_CLOSE_LEAD_MS } from "@sayso/core";
 import { describe, expect, it, vi } from "vitest";
 import {
   allowanceApproval,
+  buyPermission,
   canTrade,
   cardPrice,
   driftDecision,
   liveBuyQuote,
   minOutput,
+  pickedWords,
   presentationState,
+  recordSessionBuy,
+  type SessionBuys,
   scheduleFlip,
+  sessionBuyKey,
   tradeTransition,
   tradingWindow,
   wordAction,
@@ -59,6 +64,98 @@ describe("bets window", () => {
       expect(wordAction(state, open)).toBe("settled");
     }
     expect(canTrade("settled", "sell")).toBe(false);
+  });
+});
+
+describe("pick limit", () => {
+  const ME = "0xAbC0000000000000000000000000000000000001";
+  const OTHER = "0x0000000000000000000000000000000000000002";
+  const episodeWordIds = [1n, 2n, 3n, 4n, 5n, 6n];
+  const picks = (over: Partial<Parameters<typeof pickedWords>[0]> = {}) =>
+    pickedWords({
+      episodeWordIds,
+      holdings: [],
+      trades: [],
+      address: ME,
+      sessionBuys: new Set(),
+      ...over,
+    });
+  const trade = (
+    word_id: string,
+    side: number,
+    player_id = ME.toLowerCase(),
+    tokenAmount = "1000000",
+  ) => ({ word_id, player_id, side, tokenAmount });
+
+  it("counts chain holdings on either side", () => {
+    const holdings = [
+      { wordId: 1n, yes: 5n, no: 0n },
+      { wordId: 2n, yes: 0n, no: 5n },
+      { wordId: 3n, yes: 0n, no: 0n },
+    ];
+    expect([...picks({ holdings })].sort()).toEqual(["1", "2"]);
+  });
+  it("counts indexed buys of YES and NO, case-insensitively on the address", () => {
+    const trades = [trade("1", 0), trade("2", 2, ME.toUpperCase().replace("0X", "0x"))];
+    expect([...picks({ trades })].sort()).toEqual(["1", "2"]);
+  });
+  it("never frees a slot when the player sells out or cashes out", () => {
+    const trades = [trade("1", 0), trade("1", 1), trade("2", 2), trade("2", 3)];
+    expect([...picks({ trades })].sort()).toEqual(["1", "2"]);
+  });
+  it("ignores zero-fill buys, which the contract emits for no-op calls", () => {
+    const zero = ["1", "2", "3"].map((word) => trade(word, 0, ME.toLowerCase(), "0"));
+    expect(picks({ trades: [...zero, trade("4", 2, ME.toLowerCase(), "0")] }).size).toBe(0);
+    expect([...picks({ trades: [...zero, trade("4", 2)] })]).toEqual(["4"]);
+  });
+  it("keeps each account's session fills across A to B to A switches", () => {
+    const keyA = sessionBuyKey(ME, 7);
+    const keyB = sessionBuyKey(OTHER, 7);
+    let session: SessionBuys = new Map();
+    for (const word of [1n, 2n, 3n]) session = recordSessionBuy(session, keyA, word);
+    session = recordSessionBuy(session, keyB, 4n);
+    const forA = (s: SessionBuys) => picks({ sessionBuys: s.get(keyA) ?? new Set() });
+    const forB = (s: SessionBuys) =>
+      picks({ address: OTHER, sessionBuys: s.get(keyB) ?? new Set() });
+    expect([...forB(session)]).toEqual(["4"]);
+    expect(forA(session).size).toBe(3);
+    expect(buyPermission("trade", forA(session), 5n)).toBe("limit");
+    expect(sessionBuyKey(ME.toUpperCase().replace("0X", "0x"), 7)).toBe(keyA);
+    expect(sessionBuyKey(ME, 8)).not.toBe(keyA);
+  });
+  it("does not count a sell alone, nor other players' buys", () => {
+    const trades = [trade("1", 1), trade("2", 3), trade("3", 0, OTHER), trade("4", 2, OTHER)];
+    expect(picks({ trades }).size).toBe(0);
+  });
+  it("counts a buy filled this session before the indexer has it, without double counting", () => {
+    const holdings = [{ wordId: 1n, yes: 1n, no: 0n }];
+    const result = picks({ holdings, trades: [trade("1", 0)], sessionBuys: new Set(["1", "5"]) });
+    expect([...result].sort()).toEqual(["1", "5"]);
+  });
+  it("reads no trades for an unknown address, and ignores words outside this episode", () => {
+    const result = picks({
+      address: null,
+      trades: [trade("1", 0)],
+      sessionBuys: new Set(["99"]),
+    });
+    expect(result.size).toBe(0);
+    expect(picks({ trades: [trade("99", 0)] }).size).toBe(0);
+  });
+
+  it("opens a new word below the limit and at two picks", () => {
+    expect(buyPermission("trade", new Set(), 1n)).toBe("allowed");
+    expect(buyPermission("trade", new Set(["1", "2"]), 3n)).toBe("allowed");
+  });
+  it("refuses a fourth word but keeps buying a picked one", () => {
+    const three = new Set(["1", "2", "3"]);
+    expect(buyPermission("trade", three, 4n)).toBe("limit");
+    expect(buyPermission("trade", three, 3n)).toBe("allowed");
+    expect(buyPermission("trade", three, "2")).toBe("allowed");
+  });
+  it("stays locked once the window closes, picked or not", () => {
+    expect(buyPermission("locked", new Set(["1"]), 1n)).toBe("locked");
+    expect(buyPermission("locked", new Set(), 2n)).toBe("locked");
+    expect(buyPermission("cashout", new Set(), 2n)).toBe("locked");
   });
 });
 

@@ -52,6 +52,11 @@ export type TicketProps = {
   quoteFor?: (side: Side, amountMicro: bigint) => BuyQuote | null;
   noCents?: number;
   disabledReason?: string | undefined;
+  /**
+   * Why this word takes no new bet although bets are open (the player's pick limit). Disables Buy
+   * and shows the reason; cash-out and sell stay available.
+   */
+  buyBlockedReason?: string | undefined;
   cashOutBidCents?: number | null | undefined;
   onSell?: (side: Side) => void;
   sellPositions?: { yes: number; no: number };
@@ -90,6 +95,7 @@ export function Ticket({
   quoteFor,
   noCents,
   disabledReason,
+  buyBlockedReason,
   cashOutBidCents,
   onSell,
   sellPositions,
@@ -109,9 +115,13 @@ export function Ticket({
   const locked = bets?.lockedReason !== undefined && status !== "sending" && status !== "filled";
   const mode =
     state === "open" ? (locked ? "locked" : "buy") : state === "said" ? "cashout" : "settled";
+  const buyBlocked =
+    buyBlockedReason !== undefined && status !== "sending" && status !== "filled"
+      ? buyBlockedReason
+      : undefined;
   const bodyAsksUnlock =
     needsUnlock &&
-    (mode === "buy" ||
+    ((mode === "buy" && !buyBlocked) ||
       (mode === "cashout" && bidCents === SAID_BID_CENTS && position?.side === "yes"));
 
   // Fill feedback when the caller's status lands, never on first render.
@@ -187,6 +197,7 @@ export function Ticket({
           quoteFor={quoteFor}
           noCents={noCents}
           disabledReason={disabledReason}
+          buyBlockedReason={buyBlocked}
           needsUnlock={needsUnlock}
           minSharesFor={minSharesFor}
           onGetStarterKit={onGetStarterKit}
@@ -266,6 +277,7 @@ function BuyBody({
   quoteFor,
   noCents,
   disabledReason,
+  buyBlockedReason,
   minSharesFor,
   onGetStarterKit,
   needsUnlock,
@@ -279,6 +291,7 @@ function BuyBody({
   quoteFor: TicketProps["quoteFor"];
   noCents: TicketProps["noCents"];
   disabledReason: TicketProps["disabledReason"];
+  buyBlockedReason: TicketProps["buyBlockedReason"];
   minSharesFor: TicketProps["minSharesFor"];
   onGetStarterKit: TicketProps["onGetStarterKit"];
   needsUnlock: boolean;
@@ -359,7 +372,16 @@ function BuyBody({
           <TestnetPill />
         </div>
       </div>
-      {needsUnlock ? (
+      {buyBlockedReason ? (
+        <>
+          <ActionButton status="idle" disabled onPress={() => {}}>
+            {`Buy ${side.toUpperCase()} · ${formatAusd(amountMicro)}`}
+          </ActionButton>
+          <p role="status" className="text-[12px] font-semibold leading-4">
+            {buyBlockedReason}
+          </p>
+        </>
+      ) : needsUnlock ? (
         <AccountUnlock hint="Unlock with your passkey to buy. Then tap Buy again." />
       ) : (
         <ActionButton

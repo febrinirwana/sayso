@@ -22,3 +22,22 @@ export function BetsChip({ view, className }: { view: BetsView; className?: stri
     </p>
   );
 }
+
+/** "2/3 words picked": same outlined label as the bets chip, sun once the limit is reached. */
+export function PicksChip({
+  label,
+  full,
+  className,
+}: {
+  label: string;
+  full: boolean;
+  className?: string;
+}) {
+  return (
+    <p
+      className={`tabular inline-flex h-7 min-w-0 items-center rounded-full border-2 border-ink px-2.5 text-[11px] font-extrabold uppercase leading-none tracking-[0.1em] text-ink transition-colors duration-180 ease-out lg:h-8 lg:text-[12px] ${full ? "bg-sun" : "bg-card"} ${className ?? ""}`}
+    >
+      <span className="truncate">{label}</span>
+    </p>
+  );
+}

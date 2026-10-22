@@ -2,8 +2,8 @@ import { centsToKuru, quoteProceeds } from "@sayso/core";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { RequireAccount, useAccount } from "@/account";
 import { mediaUrl } from "@/data/studio";
-import { BetsChip } from "@/episode/BetsChip";
-import { betsView } from "@/episode/bets";
+import { BetsChip, PicksChip } from "@/episode/BetsChip";
+import { betsView, picksLabel } from "@/episode/bets";
 import { EpisodeHeader } from "@/episode/EpisodeHeader";
 import { EpisodeLayout } from "@/episode/EpisodeLayout";
 import { type Holding, PositionStrip } from "@/episode/PositionStrip";
@@ -11,7 +11,7 @@ import { sharesFromMicro } from "@/episode/quote";
 import { Ticket } from "@/episode/Ticket";
 import { VideoStage } from "@/episode/VideoStage";
 import { WordBoard } from "@/episode/WordBoard";
-import { liveBuyQuote, PRESENTATION_DELAY_MS } from "@/live/model";
+import { liveBuyQuote, MAX_PICKED_WORDS, PRESENTATION_DELAY_MS } from "@/live/model";
 import { remainingCost } from "@/live/positions";
 import { useLiveEpisode } from "@/live/useLiveEpisode";
 
@@ -87,6 +87,7 @@ function EpisodePage({ id }: { id: number }) {
   }
   const selectedCard = live.cards[live.index];
   const bets = betsView(live.trading, ended);
+  const picks = picksLabel(bets, live.pickedCount, live.picksReady);
   return (
     <EpisodeLayout
       header={
@@ -140,7 +141,20 @@ function EpisodePage({ id }: { id: number }) {
           ) : null}
         </VideoStage>
       }
-      board={<WordBoard words={live.cards} variant="episode" caption={<BetsChip view={bets} />} />}
+      board={
+        <WordBoard
+          words={live.cards}
+          variant="episode"
+          caption={
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <BetsChip view={bets} />
+              {picks ? (
+                <PicksChip label={picks} full={live.pickedCount >= MAX_PICKED_WORDS} />
+              ) : null}
+            </div>
+          }
+        />
+      }
       position={
         <PositionStrip
           holdings={holdings}
@@ -180,6 +194,7 @@ function EpisodePage({ id }: { id: number }) {
             }}
             bets={bets}
             disabledReason={live.disabledReason}
+            buyBlockedReason={live.buyBlockedReason}
             cashOutBidCents={live.book?.bid ?? null}
             transactionUrl={live.transactionUrl}
             errorMessage={live.error}

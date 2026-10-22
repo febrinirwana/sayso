@@ -127,6 +127,8 @@ All player trades go through `SaysoMarkets`, so one AUSD approval (or ERC-2612 p
 
 New positions open only in pre-roll; web buying closes at `tradingClosesAtMs(startsAt)` (`startsAt − 20 s`), approximately 40 s into the 60 s pre-roll. The clip remains hidden until playback. During playback, only a SAID word's YES cash-out at 0.98 is offered; other trade paths below describe the underlying contract, not permission to open playback positions.
 
+The 3-of-6 pick limit is web-only (the contract does not enforce it, so anyone calling `SaysoMarkets` directly is not bound). The web derives picked words from outcome-token balances, indexed `Traded` buys (side 0 or 2) by the player's address and buys confirmed in the page session, so a sell does not free a slot and a refresh keeps the count. It gates only new-word buys, checked at the start of a send and again right before the trade transaction.
+
 - **Buy YES:** pull AUSD, `placeAndExecuteMarketBuy` on the word's book (IOC), send YES to the player.
 - **Sell YES / cash out:** pull YES (the contract is the token's trusted spender), `placeAndExecuteMarketSell`, send AUSD.
 - **Buy NO:** mint `n` sets against pooled collateral, sell all `n` YES (a partial fill reverts), send `n` NO, then pull only `n − proceeds` AUSD from the player.

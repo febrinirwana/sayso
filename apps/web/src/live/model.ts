@@ -92,6 +92,69 @@ export function canTrade(action: WordAction, order: "buy" | "sell"): boolean {
   return action === "trade" || (action === "cashout" && order === "sell");
 }
 
+/** Owner rule, enforced in the UI only: a player opens positions on at most this many words. */
+export const MAX_PICKED_WORDS = 3;
+
+type PickHolding = { wordId: bigint; yes: bigint; no: bigint };
+type PickTrade = { word_id: string; player_id: string; side: number; tokenAmount: string };
+
+/**
+ * The episode words this player has picked: chain holdings on either side, indexed buys by this
+ * address that actually filled (side 0 is buy YES, 2 is buy NO; the contract also emits zero-fill
+ * `Traded` events for no-op buys, which do not count), and buys confirmed in this page session
+ * while the indexer lags. A sell or cash-out never frees a slot, and other players' trades never
+ * count.
+ */
+export function pickedWords(input: {
+  episodeWordIds: readonly bigint[];
+  holdings: readonly PickHolding[];
+  trades: readonly PickTrade[];
+  address: string | null | undefined;
+  sessionBuys: ReadonlySet<string>;
+}): Set<string> {
+  const inEpisode = new Set(input.episodeWordIds.map(String));
+  const picked = new Set<string>();
+  for (const holding of input.holdings)
+    if (holding.yes > 0n || holding.no > 0n) picked.add(String(holding.wordId));
+  const me = input.address?.toLowerCase();
+  if (me)
+    for (const trade of input.trades)
+      if (
+        (trade.side === 0 || trade.side === 2) &&
+        trade.player_id.toLowerCase() === me &&
+        BigInt(trade.tokenAmount) > 0n
+      )
+        picked.add(trade.word_id);
+  for (const wordId of input.sessionBuys) picked.add(wordId);
+  for (const wordId of picked) if (!inEpisode.has(wordId)) picked.delete(wordId);
+  return picked;
+}
+
+/** Session fills are kept per account and episode, so switching accounts back and forth keeps them. */
+export type SessionBuys = ReadonlyMap<string, ReadonlySet<string>>;
+
+export function sessionBuyKey(address: string | null | undefined, episodeId: number): string {
+  return `${address?.toLowerCase()}:${episodeId}`;
+}
+
+export function recordSessionBuy(previous: SessionBuys, key: string, wordId: bigint): SessionBuys {
+  const next = new Map(previous);
+  next.set(key, new Set(previous.get(key)).add(String(wordId)));
+  return next;
+}
+
+export type BuyPermission = "allowed" | "locked" | "limit";
+
+/** A buy needs an open window, then either an already picked word or a free pick slot. */
+export function buyPermission(
+  action: WordAction,
+  picked: ReadonlySet<string>,
+  wordId: bigint | string,
+): BuyPermission {
+  if (!canTrade(action, "buy")) return "locked";
+  return picked.has(String(wordId)) || picked.size < MAX_PICKED_WORDS ? "allowed" : "limit";
+}
+
 /** Re-check studio time when the timer wakes, including background-tab delays and offset changes. */
 export function scheduleFlip(now: () => number | null, atMs: number, flip: () => void): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
