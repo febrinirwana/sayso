@@ -90,6 +90,7 @@ try {
             log: (entry) => console.log(JSON.stringify({ event: "flag_latency", ...entry })),
             seed: maker,
             hourly: config.hourlyEpisodes,
+            requestIntervalMs: config.episodeRequestIntervalMs,
             onReceipt: cre.onReceipt,
             onBackgroundError: operatorFailure,
           })

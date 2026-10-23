@@ -62,6 +62,13 @@ it("defaults to two claims per IP day, ignores the retired hourly setting, and v
   for (const value of ["0", "-1", "1.5", "abc"])
     expect(() => parseConfig({ ...base, DRIP_MAX_PER_IP_DAY: value })).toThrow();
 });
+it("defaults the per-IP episode request interval to one hour and validates it", () => {
+  expect(parseConfig(base).episodeRequestIntervalMs).toBe(3_600_000);
+  expect(
+    parseConfig({ ...base, EPISODE_REQUEST_INTERVAL_MS: "1800000" }).episodeRequestIntervalMs,
+  ).toBe(1_800_000);
+  expect(() => parseConfig({ ...base, EPISODE_REQUEST_INTERVAL_MS: "-1" })).toThrow();
+});
 
 it("refuses two role writers sharing a sender nonce stream", () => {
   const key = `0x${"12".repeat(32)}`;

@@ -297,7 +297,7 @@ All public on Monad testnet (chain `10143`). Explorer: [testnet.monadvision.com]
 | Limit | Why |
 |---|---|
 | One episode runs at a time for everyone | If an episode is already running, join it instead of starting one |
-| One "Start an episode" per network (IP) per hour | Each episode costs about 1.6 testnet MON in gas; this keeps the house solvent through judging |
+| One "Start an episode" per network (IP) every 30 minutes on the live studio (`EPISODE_REQUEST_INTERVAL_MS`; the code default is one hour) | Each episode costs about 1.6 testnet MON in gas; this keeps the house solvent through judging |
 | Two starter kit claims per network (IP) in a rolling 24 hours, with no account cap | Protects the TESTNET token faucet. The card shows when another claim opens; unfinished claims resume without another slot |
 | Six rights-cleared clips rotate, least recently played first | After a clip is played its outcomes are public onchain, so a returning judge gets a different clip |
 

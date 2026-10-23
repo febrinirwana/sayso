@@ -116,6 +116,8 @@ export type RunnerDeps = {
   }): void;
   seed?: SeedHook;
   hourly?: boolean;
+  /** Minimum time between on-demand requests from one client IP; default one hour. */
+  requestIntervalMs?: number;
   onReceipt?(action: { episodeId: number; kind: ActionKind; receipt: Receipt }): Promise<void>;
   onBackgroundError?(source: "maker" | "receipt", error: unknown): void;
 };
@@ -230,7 +232,7 @@ export class EpisodeRunner {
         ipHash &&
         db
           .query("SELECT id FROM episode_requests WHERE ip_hash = ? AND requested_ms > ? LIMIT 1")
-          .get(ipHash, now() - 3_600_000)
+          .get(ipHash, now() - (this.deps.requestIntervalMs ?? 3_600_000))
       )
         throw new EpisodeError(429);
       const clip = db

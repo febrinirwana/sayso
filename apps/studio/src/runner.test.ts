@@ -476,6 +476,23 @@ it("rate limits the same IP hash after settlement and persists cooldown across r
   runner = new EpisodeRunner({ db, now: () => now, chain, seed, log: () => {} });
   await expect(runner.request("on_demand", "judge")).rejects.toMatchObject({ status: 429 });
 });
+it("admits the same IP again exactly when a configured request interval ends", async () => {
+  runner = new EpisodeRunner({
+    db,
+    now: () => now,
+    chain,
+    seed,
+    requestIntervalMs: 1_800_000,
+    log: () => {},
+  });
+  const start = now;
+  await runner.request("on_demand", "judge");
+  chain.settled = true;
+  now = start + 1_799_999;
+  await expect(runner.request("on_demand", "judge")).rejects.toMatchObject({ status: 429 });
+  now = start + 1_800_000;
+  await expect(runner.request("on_demand", "judge")).resolves.toBeTypeOf("number");
+});
 it("recovers a mined creation receipt when interrupted before inserting the episode", async () => {
   await runner.request("on_demand", "judge");
   db.query("DELETE FROM actions").run();
